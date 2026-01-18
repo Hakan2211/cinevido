@@ -517,7 +517,9 @@ function VideosPage() {
               <p className="mt-4 text-muted-foreground">No images yet</p>
               <Button
                 className="mt-4"
-                onClick={() => navigate({ to: '/images' })}
+                onClick={() =>
+                  navigate({ to: '/images', search: { mode: 'generate' } })
+                }
               >
                 <Plus className="mr-2 h-4 w-4" />
                 Create Image First

@@ -19,6 +19,9 @@ export {
   VIDEO_MODELS,
   LLM_MODELS,
   AUDIO_MODELS,
+  EDIT_MODELS,
+  UPSCALE_MODELS,
+  VARIATION_MODELS,
   // Types
   type ModelConfig,
   type JobType,
@@ -38,6 +41,9 @@ export {
   getDefaultVideoModel,
   getDefaultLlmModel,
   getDefaultAudioModel,
+  getDefaultEditModel,
+  getDefaultUpscaleModel,
+  getDefaultVariationModel,
   createEmptyManifest,
 } from './types'
 
@@ -73,6 +79,27 @@ export {
   type FalVideoResult,
   type GenerationJob as FalGenerationJob,
 } from './fal.service'
+
+// =============================================================================
+// Image Edit Service (Inpaint, Outpaint, Upscale, Variations)
+// =============================================================================
+
+export {
+  inpaintImage,
+  outpaintImage,
+  upscaleImage,
+  createVariation,
+  getEditJobStatus,
+  getEditModels,
+  getUpscaleModels,
+  getVariationModels,
+  type InpaintInput,
+  type OutpaintInput,
+  type UpscaleInput,
+  type VariationInput,
+  type EditJob,
+  type FalEditResult,
+} from './edit.service'
 
 // =============================================================================
 // TTS (Text-to-Speech) Service via Fal.ai ElevenLabs

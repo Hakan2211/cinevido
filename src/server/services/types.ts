@@ -47,6 +47,67 @@ export const IMAGE_MODELS: Array<ModelConfig> = [
   },
 ]
 
+// Image editing models (inpainting, outpainting)
+export const EDIT_MODELS: Array<ModelConfig> = [
+  {
+    id: 'fal-ai/flux-pro/v1/fill',
+    name: 'Flux Pro Fill',
+    provider: 'fal',
+    credits: 6,
+    description: 'Best quality inpainting and outpainting',
+  },
+  {
+    id: 'fal-ai/flux/dev/image-to-image',
+    name: 'Flux Dev Edit',
+    provider: 'fal',
+    credits: 3,
+    description: 'Good balance for image editing',
+  },
+  {
+    id: 'fal-ai/nano-banana-pro/edit',
+    name: 'Nano Banana Edit',
+    provider: 'fal',
+    credits: 4,
+    description: 'Multi-purpose AI editing (Google)',
+  },
+]
+
+// Upscaling models
+export const UPSCALE_MODELS: Array<ModelConfig> = [
+  {
+    id: 'fal-ai/creative-upscaler',
+    name: 'Creative Upscaler',
+    provider: 'fal',
+    credits: 4,
+    description: 'AI-enhanced upscaling with added detail',
+  },
+  {
+    id: 'fal-ai/clarity-upscaler',
+    name: 'Clarity Upscaler',
+    provider: 'fal',
+    credits: 3,
+    description: 'Clean upscaling, preserves original details',
+  },
+]
+
+// Variation models (create variations from reference image)
+export const VARIATION_MODELS: Array<ModelConfig> = [
+  {
+    id: 'fal-ai/flux-pro/v1.1/redux',
+    name: 'Flux Pro Redux',
+    provider: 'fal',
+    credits: 5,
+    description: 'Create variations from reference image',
+  },
+  {
+    id: 'fal-ai/flux/dev/redux',
+    name: 'Flux Dev Redux',
+    provider: 'fal',
+    credits: 3,
+    description: 'Faster variations, good quality',
+  },
+]
+
 export const VIDEO_MODELS: Array<ModelConfig> = [
   {
     id: 'fal-ai/kling-video/v1.5/pro/image-to-video',
@@ -144,7 +205,14 @@ export const LLM_MODELS: Array<ModelConfig> = [
 // Generation Job Types
 // =============================================================================
 
-export type JobType = 'image' | 'video' | 'audio' | 'render'
+export type JobType =
+  | 'image'
+  | 'video'
+  | 'audio'
+  | 'render'
+  | 'edit'
+  | 'upscale'
+  | 'variation'
 export type JobStatus = 'pending' | 'processing' | 'completed' | 'failed'
 
 export interface GenerationJobInput {
@@ -218,7 +286,7 @@ export interface AudioClip {
 export interface ComponentOverlay {
   id: string
   component: 'KaraokeText' | 'BigTitle' | 'ImageOverlay' | 'LowerThird'
-   
+
   props: Record<string, any>
   startFrame: number
   durationFrames: number
@@ -269,6 +337,18 @@ export function getDefaultLlmModel(): ModelConfig {
 
 export function getDefaultAudioModel(): ModelConfig {
   return AUDIO_MODELS[0]
+}
+
+export function getDefaultEditModel(): ModelConfig {
+  return EDIT_MODELS[0]
+}
+
+export function getDefaultUpscaleModel(): ModelConfig {
+  return UPSCALE_MODELS[0]
+}
+
+export function getDefaultVariationModel(): ModelConfig {
+  return VARIATION_MODELS[0]
 }
 
 export function createEmptyManifest(): ProjectManifest {
