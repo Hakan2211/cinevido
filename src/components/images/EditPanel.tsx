@@ -7,6 +7,7 @@
  * - Generate button
  */
 
+import { Loader2, Wand2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import {
@@ -16,7 +17,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Loader2, Wand2 } from 'lucide-react'
 import { EDIT_MODELS } from '@/server/services/types'
 import { cn } from '@/lib/utils'
 

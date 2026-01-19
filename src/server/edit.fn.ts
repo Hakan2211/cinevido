@@ -13,14 +13,14 @@ import { z } from 'zod'
 import { prisma } from '../db'
 import { authMiddleware } from './middleware'
 import {
-  inpaintImage,
-  outpaintImage,
-  upscaleImage,
   createVariation,
   getEditJobStatus,
   getEditModels,
   getUpscaleModels,
   getVariationModels,
+  inpaintImage,
+  outpaintImage,
+  upscaleImage,
 } from './services/edit.service'
 import {
   EDIT_MODELS,
@@ -97,13 +97,14 @@ export const inpaintImageFn = createServerFn({ method: 'POST' })
       throw new Error(`Unknown edit model: ${modelId}`)
     }
 
-    // Check user credits
+    // Check user credits (admins have unlimited)
+    const isAdmin = context.user.role === 'admin'
     const user = await prisma.user.findUnique({
       where: { id: context.user.id },
       select: { credits: true },
     })
 
-    if (!user || user.credits < modelConfig.credits) {
+    if (!isAdmin && (!user || user.credits < modelConfig.credits)) {
       throw new Error(
         `Insufficient credits. Required: ${modelConfig.credits}, Available: ${user?.credits || 0}`,
       )
@@ -138,11 +139,13 @@ export const inpaintImageFn = createServerFn({ method: 'POST' })
       },
     })
 
-    // Deduct credits
-    await prisma.user.update({
-      where: { id: context.user.id },
-      data: { credits: { decrement: modelConfig.credits } },
-    })
+    // Deduct credits (skip for admins)
+    if (!isAdmin) {
+      await prisma.user.update({
+        where: { id: context.user.id },
+        data: { credits: { decrement: modelConfig.credits } },
+      })
+    }
 
     return {
       jobId: dbJob.id,
@@ -172,13 +175,14 @@ export const outpaintImageFn = createServerFn({ method: 'POST' })
       throw new Error(`Unknown edit model: ${modelId}`)
     }
 
-    // Check user credits
+    // Check user credits (admins have unlimited)
+    const isAdmin = context.user.role === 'admin'
     const user = await prisma.user.findUnique({
       where: { id: context.user.id },
       select: { credits: true },
     })
 
-    if (!user || user.credits < modelConfig.credits) {
+    if (!isAdmin && (!user || user.credits < modelConfig.credits)) {
       throw new Error(
         `Insufficient credits. Required: ${modelConfig.credits}, Available: ${user?.credits || 0}`,
       )
@@ -219,11 +223,13 @@ export const outpaintImageFn = createServerFn({ method: 'POST' })
       },
     })
 
-    // Deduct credits
-    await prisma.user.update({
-      where: { id: context.user.id },
-      data: { credits: { decrement: modelConfig.credits } },
-    })
+    // Deduct credits (skip for admins)
+    if (!isAdmin) {
+      await prisma.user.update({
+        where: { id: context.user.id },
+        data: { credits: { decrement: modelConfig.credits } },
+      })
+    }
 
     return {
       jobId: dbJob.id,
@@ -253,13 +259,14 @@ export const upscaleImageFn = createServerFn({ method: 'POST' })
       throw new Error(`Unknown upscale model: ${modelId}`)
     }
 
-    // Check user credits
+    // Check user credits (admins have unlimited)
+    const isAdmin = context.user.role === 'admin'
     const user = await prisma.user.findUnique({
       where: { id: context.user.id },
       select: { credits: true },
     })
 
-    if (!user || user.credits < modelConfig.credits) {
+    if (!isAdmin && (!user || user.credits < modelConfig.credits)) {
       throw new Error(
         `Insufficient credits. Required: ${modelConfig.credits}, Available: ${user?.credits || 0}`,
       )
@@ -296,11 +303,13 @@ export const upscaleImageFn = createServerFn({ method: 'POST' })
       },
     })
 
-    // Deduct credits
-    await prisma.user.update({
-      where: { id: context.user.id },
-      data: { credits: { decrement: modelConfig.credits } },
-    })
+    // Deduct credits (skip for admins)
+    if (!isAdmin) {
+      await prisma.user.update({
+        where: { id: context.user.id },
+        data: { credits: { decrement: modelConfig.credits } },
+      })
+    }
 
     return {
       jobId: dbJob.id,
@@ -330,13 +339,14 @@ export const createVariationFn = createServerFn({ method: 'POST' })
       throw new Error(`Unknown variation model: ${modelId}`)
     }
 
-    // Check user credits
+    // Check user credits (admins have unlimited)
+    const isAdmin = context.user.role === 'admin'
     const user = await prisma.user.findUnique({
       where: { id: context.user.id },
       select: { credits: true },
     })
 
-    if (!user || user.credits < modelConfig.credits) {
+    if (!isAdmin && (!user || user.credits < modelConfig.credits)) {
       throw new Error(
         `Insufficient credits. Required: ${modelConfig.credits}, Available: ${user?.credits || 0}`,
       )
@@ -371,11 +381,13 @@ export const createVariationFn = createServerFn({ method: 'POST' })
       },
     })
 
-    // Deduct credits
-    await prisma.user.update({
-      where: { id: context.user.id },
-      data: { credits: { decrement: modelConfig.credits } },
-    })
+    // Deduct credits (skip for admins)
+    if (!isAdmin) {
+      await prisma.user.update({
+        where: { id: context.user.id },
+        data: { credits: { decrement: modelConfig.credits } },
+      })
+    }
 
     return {
       jobId: dbJob.id,
@@ -430,7 +442,7 @@ export const getEditJobStatusFn = createServerFn({ method: 'GET' })
 
     // Update job status in database
     if (falStatus.status === 'completed' && falStatus.result) {
-      const result = falStatus.result as FalEditResult
+      const result = falStatus.result
       // Handle both 'images' array and single 'image' response formats
       const falTempUrl = result.images?.[0]?.url || result.image?.url
       const imageWidth = result.images?.[0]?.width || result.image?.width

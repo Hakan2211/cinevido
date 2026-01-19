@@ -63,13 +63,14 @@ export const generateVideoFn = createServerFn({ method: 'POST' })
       throw new Error(`Unknown model: ${modelId}`)
     }
 
-    // Check user credits
+    // Check user credits (admins have unlimited)
+    const isAdmin = context.user.role === 'admin'
     const user = await prisma.user.findUnique({
       where: { id: context.user.id },
       select: { credits: true },
     })
 
-    if (!user || user.credits < modelConfig.credits) {
+    if (!isAdmin && (!user || user.credits < modelConfig.credits)) {
       throw new Error(
         `Insufficient credits. Required: ${modelConfig.credits}, Available: ${user?.credits || 0}`,
       )
@@ -83,7 +84,7 @@ export const generateVideoFn = createServerFn({ method: 'POST' })
       duration: data.duration || 5,
     })
 
-    // Create job record in database
+    // Create job record in database with Fal.ai URLs for status polling
     const dbJob = await prisma.generationJob.create({
       data: {
         userId: context.user.id,
@@ -99,15 +100,21 @@ export const generateVideoFn = createServerFn({ method: 'POST' })
           sourceImageId: data.sourceImageId,
         }),
         externalId: job.requestId,
+        // Store Fal.ai URLs for reliable status polling
+        statusUrl: job.statusUrl,
+        responseUrl: job.responseUrl,
+        cancelUrl: job.cancelUrl,
         creditsUsed: modelConfig.credits,
       },
     })
 
-    // Deduct credits
-    await prisma.user.update({
-      where: { id: context.user.id },
-      data: { credits: { decrement: modelConfig.credits } },
-    })
+    // Deduct credits (skip for admins)
+    if (!isAdmin) {
+      await prisma.user.update({
+        where: { id: context.user.id },
+        data: { credits: { decrement: modelConfig.credits } },
+      })
+    }
 
     return {
       jobId: dbJob.id,
@@ -148,12 +155,12 @@ export const getVideoJobStatusFn = createServerFn({ method: 'GET' })
       }
     }
 
-    // Poll Fal.ai for status
-    if (!job.externalId) {
-      throw new Error('Job has no external ID')
+    // Poll Fal.ai for status using stored URLs
+    if (!job.statusUrl || !job.responseUrl) {
+      throw new Error('Job is missing Fal.ai URLs for status polling')
     }
 
-    const falStatus = await getJobStatus(job.externalId, job.model)
+    const falStatus = await getJobStatus(job.statusUrl, job.responseUrl)
 
     // Update job status in database
     if (falStatus.status === 'completed' && falStatus.result) {

@@ -220,6 +220,12 @@ model GenerationJob {
   // External provider job ID (for polling status)
   externalId String?
 
+  // Fal.ai Queue URLs (returned when job is submitted)
+  // Using these directly instead of constructing them ensures compatibility with all models
+  statusUrl   String? // URL to poll for job status
+  responseUrl String? // URL to fetch result when completed
+  cancelUrl   String? // URL to cancel the job
+
   // Progress percentage (0-100)
   progress Int @default(0)
 

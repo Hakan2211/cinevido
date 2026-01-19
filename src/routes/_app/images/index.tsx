@@ -9,20 +9,34 @@
  */
 
 import { createFileRoute, useNavigate, useSearch } from '@tanstack/react-router'
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
+  Check,
+  Copy,
+  Download,
+  Image as ImageIcon,
+  Loader2,
+  Paintbrush,
+  Play,
+  Sparkles,
+  Trash2,
+  Wand2,
+} from 'lucide-react'
+import type {ImageMode} from '@/components/images';
+import type {GptImageQuality, RecraftStyle} from '@/server/services/types';
+import {
+  deleteImageFn,
   generateImageFn,
   getImageJobStatusFn,
   getImageModelsFn,
   listUserImagesFn,
-  deleteImageFn,
 } from '@/server/image.fn'
 import {
-  inpaintImageFn,
-  upscaleImageFn,
   createVariationFn,
   getEditJobStatusFn,
+  inpaintImageFn,
+  upscaleImageFn,
 } from '@/server/edit.fn'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -48,31 +62,19 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import {
-  Sparkles,
-  Loader2,
-  Image as ImageIcon,
-  Download,
-  Copy,
-  Trash2,
-  Play,
-  Check,
-  Wand2,
-  Paintbrush,
-} from 'lucide-react'
-import {
-  ModeToggle,
-  ImageCanvas,
   BrushToolbar,
   EditPanel,
+  ImageCanvas,
+  
+  ModeToggle,
   UpscalePanel,
-  VariationsPanel,
-  type ImageMode,
+  VariationsPanel
 } from '@/components/images'
 import {
   GPT_IMAGE_QUALITY_TIERS,
-  RECRAFT_STYLES,
-  type GptImageQuality,
-  type RecraftStyle,
+  
+  RECRAFT_STYLES
+  
 } from '@/server/services/types'
 
 export const Route = createFileRoute('/_app/images/')({
@@ -712,7 +714,7 @@ function ImagesPage() {
 // =============================================================================
 
 interface GenerateGalleryProps {
-  images: GeneratedImage[]
+  images: Array<GeneratedImage>
   isLoading: boolean
   isGenerating: boolean
   jobStatus: { status?: string; progress?: number } | undefined

@@ -9,7 +9,7 @@
  * - Export mask as data URL
  */
 
-import { useRef, useEffect, useState, useCallback } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { cn } from '@/lib/utils'
 
 interface ImageCanvasProps {

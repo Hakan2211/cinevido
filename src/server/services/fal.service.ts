@@ -40,7 +40,9 @@ export interface VideoGenerationInput {
 export interface FalQueueResponse {
   request_id: string
   status: 'IN_QUEUE' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED'
-  response_url?: string
+  response_url: string
+  status_url: string
+  cancel_url: string
 }
 
 export interface FalStatusResponse {
@@ -50,14 +52,24 @@ export interface FalStatusResponse {
 }
 
 export interface FalImageResult {
-  images: Array<{
+  // Most models return an array of images
+  images?: Array<{
     url: string
     width: number
     height: number
     content_type: string
   }>
-  seed: number
-  prompt: string
+  // Some models (e.g., Bria) return a single image object
+  image?: {
+    url: string
+    width: number
+    height: number
+    content_type: string
+    file_name?: string
+    file_size?: number
+  }
+  seed?: number
+  prompt?: string
 }
 
 export interface FalVideoResult {
@@ -74,6 +86,10 @@ export interface GenerationJob {
   status: 'pending' | 'processing' | 'completed' | 'failed'
   model: string
   provider: 'fal'
+  // Fal.ai Queue URLs - use these directly for status polling instead of constructing URLs
+  statusUrl: string
+  responseUrl: string
+  cancelUrl: string
 }
 
 // =============================================================================
@@ -135,13 +151,20 @@ export async function generateImage(
   }
 
   const data: FalQueueResponse = await response.json()
-  console.log('[FAL] Submit success, request_id:', data.request_id)
+  console.log('[FAL] Submit success:', {
+    request_id: data.request_id,
+    status_url: data.status_url,
+    response_url: data.response_url,
+  })
 
   return {
     requestId: data.request_id,
     status: 'pending',
     model: modelId,
     provider: 'fal',
+    statusUrl: data.status_url,
+    responseUrl: data.response_url,
+    cancelUrl: data.cancel_url,
   }
 }
 
@@ -183,32 +206,47 @@ export async function generateVideo(
   }
 
   const data: FalQueueResponse = await response.json()
+  console.log('[FAL] Video submit success:', {
+    request_id: data.request_id,
+    status_url: data.status_url,
+    response_url: data.response_url,
+  })
 
   return {
     requestId: data.request_id,
     status: 'pending',
     model: modelId,
     provider: 'fal',
+    statusUrl: data.status_url,
+    responseUrl: data.response_url,
+    cancelUrl: data.cancel_url,
   }
 }
 
 /**
- * Check the status of a generation job
+ * Check the status of a generation job using the URLs provided by Fal.ai
+ * This is the robust approach that works for all models regardless of their URL structure
+ *
+ * @param statusUrl - The status URL returned by Fal.ai when the job was submitted
+ * @param responseUrl - The response URL returned by Fal.ai when the job was submitted
  */
 export async function getJobStatus(
-  requestId: string,
-  modelId: string,
+  statusUrl: string,
+  responseUrl: string,
 ): Promise<{
   status: 'pending' | 'processing' | 'completed' | 'failed'
   progress?: number
   result?: FalImageResult | FalVideoResult
   error?: string
 }> {
-  console.log('[FAL] getJobStatus called:', { requestId, modelId })
+  console.log('[FAL] getJobStatus called:', { statusUrl, responseUrl })
 
   if (MOCK_FAL) {
     console.log('[FAL] Using MOCK mode for status')
-    return mockGetStatus(requestId, modelId)
+    // Extract mock request ID from URL for mock mode
+    const mockRequestId =
+      statusUrl.split('/requests/')[1]?.split('/')[0] || 'mock'
+    return mockGetStatus(mockRequestId)
   }
 
   const apiKey = process.env.FAL_KEY
@@ -217,8 +255,7 @@ export async function getJobStatus(
     throw new Error('FAL_KEY not configured')
   }
 
-  // Check status
-  const statusUrl = `${FAL_API_URL}/${modelId}/requests/${requestId}/status`
+  // Use the status URL directly as provided by Fal.ai
   console.log('[FAL] Fetching status from:', statusUrl)
 
   const statusResponse = await fetch(statusUrl, {
@@ -236,7 +273,19 @@ export async function getJobStatus(
       statusResponse.status,
       errorText,
     )
-    throw new Error(`Failed to get status: ${statusResponse.status}`)
+
+    // 404 might mean the request expired or was never created
+    if (statusResponse.status === 404) {
+      console.error('[FAL] 404 Error - request not found, may have expired')
+      return {
+        status: 'failed' as const,
+        error: 'Request not found or expired',
+      }
+    }
+
+    throw new Error(
+      `Failed to get status: ${statusResponse.status} - ${errorText}`,
+    )
   }
 
   const statusData: FalStatusResponse = await statusResponse.json()
@@ -256,12 +305,11 @@ export async function getJobStatus(
   const status = statusMap[statusData.status] || 'pending'
   console.log('[FAL] Mapped status:', statusData.status, '->', status)
 
-  // If completed, fetch the result
+  // If completed, fetch the result using the response URL provided by Fal.ai
   if (status === 'completed') {
-    const resultUrl = `${FAL_API_URL}/${modelId}/requests/${requestId}`
-    console.log('[FAL] Job completed! Fetching result from:', resultUrl)
+    console.log('[FAL] Job completed! Fetching result from:', responseUrl)
 
-    const resultResponse = await fetch(resultUrl, {
+    const resultResponse = await fetch(responseUrl, {
       headers: {
         Authorization: `Key ${apiKey}`,
       },
@@ -289,12 +337,11 @@ export async function getJobStatus(
 }
 
 /**
- * Cancel a pending job
+ * Cancel a pending job using the cancel URL provided by Fal.ai
+ *
+ * @param cancelUrl - The cancel URL returned by Fal.ai when the job was submitted
  */
-export async function cancelJob(
-  requestId: string,
-  modelId: string,
-): Promise<boolean> {
+export async function cancelJob(cancelUrl: string): Promise<boolean> {
   if (MOCK_FAL) {
     return true
   }
@@ -304,16 +351,16 @@ export async function cancelJob(
     throw new Error('FAL_KEY not configured')
   }
 
-  const response = await fetch(
-    `${FAL_API_URL}/${modelId}/requests/${requestId}/cancel`,
-    {
-      method: 'PUT',
-      headers: {
-        Authorization: `Key ${apiKey}`,
-      },
-    },
-  )
+  console.log('[FAL] Cancelling job at:', cancelUrl)
 
+  const response = await fetch(cancelUrl, {
+    method: 'PUT',
+    headers: {
+      Authorization: `Key ${apiKey}`,
+    },
+  })
+
+  console.log('[FAL] Cancel response:', response.status)
   return response.ok
 }
 
@@ -484,18 +531,21 @@ function mockGenerateJob(modelId: string): GenerationJob {
 
   mockJobs.set(requestId, { startTime: Date.now(), type })
 
+  // Generate mock URLs that match the real Fal.ai format
+  const mockBaseUrl = `https://queue.fal.run/${modelId}/requests/${requestId}`
+
   return {
     requestId,
     status: 'pending',
     model: modelId,
     provider: 'fal',
+    statusUrl: `${mockBaseUrl}/status`,
+    responseUrl: mockBaseUrl,
+    cancelUrl: `${mockBaseUrl}/cancel`,
   }
 }
 
-function mockGetStatus(
-  requestId: string,
-  _modelId: string,
-): {
+function mockGetStatus(requestId: string): {
   status: 'pending' | 'processing' | 'completed' | 'failed'
   progress?: number
   result?: FalImageResult | FalVideoResult

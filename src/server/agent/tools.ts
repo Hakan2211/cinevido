@@ -169,7 +169,7 @@ function schemaToParameters(
   schema: z.ZodObject<z.ZodRawShape>,
 ): ToolDefinition['function']['parameters'] {
   // Cast to any to work with both Zod v3 and v4
-   
+
   const jsonSchema = zodToJsonSchema(schema as any, { target: 'openApi3' })
 
   // Extract just what we need for OpenRouter

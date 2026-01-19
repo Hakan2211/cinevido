@@ -58,9 +58,9 @@ interface ChatPanelProps {
 
 export function ChatPanel({
   projectId,
-   
+
   manifest: _manifest,
-   
+
   onManifestChange: _onManifestChange,
   collapsed,
   onToggleCollapse,
@@ -77,9 +77,9 @@ export function ChatPanel({
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [streamingContent, setStreamingContent] = useState('')
-  const [currentToolCalls, setCurrentToolCalls] = useState<Array<ToolCallDisplay>>(
-    [],
-  )
+  const [currentToolCalls, setCurrentToolCalls] = useState<
+    Array<ToolCallDisplay>
+  >([])
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
 

@@ -8,6 +8,7 @@
  * - Generate button
  */
 
+import { Copy, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Slider } from '@/components/ui/slider'
@@ -18,7 +19,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Loader2, Copy } from 'lucide-react'
 import { VARIATION_MODELS } from '@/server/services/types'
 import { cn } from '@/lib/utils'
 

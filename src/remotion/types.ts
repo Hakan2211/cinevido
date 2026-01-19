@@ -48,7 +48,7 @@ export interface AudioClipProps {
 export interface ComponentOverlayProps {
   id: string
   component: ComponentType
-   
+
   props: Record<string, any>
   startFrame: number
   durationFrames: number

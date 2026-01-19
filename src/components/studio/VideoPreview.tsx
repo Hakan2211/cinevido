@@ -9,7 +9,7 @@ import { Player } from '@remotion/player'
 import { Maximize, Pause, Play, SkipBack, SkipForward } from 'lucide-react'
 import { VideoComposition } from '../../remotion/Composition'
 import { Button } from '../ui/button'
-import type { PlayerRef } from '@remotion/player';
+import type { PlayerRef } from '@remotion/player'
 import type { ProjectManifest } from '../../remotion/types'
 
 interface VideoPreviewProps {

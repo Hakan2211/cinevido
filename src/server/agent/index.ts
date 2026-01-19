@@ -6,17 +6,12 @@
  */
 
 import { prisma } from '../../db'
-import {
-  
-  
-  chatCompletion,
-  chatCompletionStream
-} from '../services'
+import { chatCompletion, chatCompletionStream } from '../services'
 import { AGENT_TOOLS } from './tools'
 import { getSystemPrompt } from './system-prompt'
-import {   executeTool } from './executor'
-import type {ChatMessage, ToolCall} from '../services';
-import type {ToolContext, ToolResult} from './executor';
+import { executeTool } from './executor'
+import type { ChatMessage, ToolCall } from '../services'
+import type { ToolContext, ToolResult } from './executor'
 
 // =============================================================================
 // Types

@@ -6,25 +6,21 @@
  */
 
 import { prisma } from '../../db'
-import {
-  
-  
-  
-  
-  generateImage,
-  generateSpeech,
-  generateVideo
+import { generateImage, generateSpeech, generateVideo } from '../services'
+import { TOOL_NAMES } from './tools'
+import type {
+  AudioClip,
+  ComponentOverlay,
+  ProjectManifest,
+  VideoClip,
 } from '../services'
-import {
-  
-  
-  
-  
-  TOOL_NAMES
-  
+import type {
+  GenerateImageArgs,
+  GenerateVideoArgs,
+  GenerateVoiceoverArgs,
+  ListAssetsArgs,
+  UpdateTimelineArgs,
 } from './tools'
-import type {AudioClip, ComponentOverlay, ProjectManifest, VideoClip} from '../services';
-import type {GenerateImageArgs, GenerateVideoArgs, GenerateVoiceoverArgs, ListAssetsArgs, UpdateTimelineArgs} from './tools';
 
 // Voice name mappings (Fal.ai uses voice names directly)
 const VOICE_NAMES = {
@@ -136,14 +132,15 @@ export async function executeGenerateImage(
       return { success: false, error: 'Project not found' }
     }
 
-    // Check user credits
+    // Check user credits (admins have unlimited)
     const user = await prisma.user.findUnique({
       where: { id: context.userId },
-      select: { credits: true, preferredImageModel: true },
+      select: { credits: true, preferredImageModel: true, role: true },
     })
 
+    const isAdmin = user?.role === 'admin'
     const creditsRequired = 5 // Default for Flux Pro
-    if (!user || user.credits < creditsRequired) {
+    if (!isAdmin && (!user || user.credits < creditsRequired)) {
       return {
         success: false,
         error: `Insufficient credits. Need ${creditsRequired}, have ${user?.credits || 0}`,
@@ -200,11 +197,13 @@ export async function executeGenerateImage(
       data: { externalId: falJob.requestId, status: 'processing' },
     })
 
-    // Deduct credits
-    await prisma.user.update({
-      where: { id: context.userId },
-      data: { credits: { decrement: creditsRequired } },
-    })
+    // Deduct credits (skip for admins)
+    if (!isAdmin) {
+      await prisma.user.update({
+        where: { id: context.userId },
+        data: { credits: { decrement: creditsRequired } },
+      })
+    }
 
     return {
       success: true,
@@ -250,14 +249,15 @@ export async function executeGenerateVideo(
       return { success: false, error: 'Asset is not an image' }
     }
 
-    // Check user credits
+    // Check user credits (admins have unlimited)
     const user = await prisma.user.findUnique({
       where: { id: context.userId },
-      select: { credits: true, preferredVideoModel: true },
+      select: { credits: true, preferredVideoModel: true, role: true },
     })
 
+    const isAdmin = user?.role === 'admin'
     const creditsRequired = 20 // Default for Kling Pro
-    if (!user || user.credits < creditsRequired) {
+    if (!isAdmin && (!user || user.credits < creditsRequired)) {
       return {
         success: false,
         error: `Insufficient credits. Need ${creditsRequired}, have ${user?.credits || 0}`,
@@ -300,11 +300,13 @@ export async function executeGenerateVideo(
       data: { externalId: falJob.requestId, status: 'processing' },
     })
 
-    // Deduct credits
-    await prisma.user.update({
-      where: { id: context.userId },
-      data: { credits: { decrement: creditsRequired } },
-    })
+    // Deduct credits (skip for admins)
+    if (!isAdmin) {
+      await prisma.user.update({
+        where: { id: context.userId },
+        data: { credits: { decrement: creditsRequired } },
+      })
+    }
 
     return {
       success: true,
@@ -334,14 +336,15 @@ export async function executeGenerateVoiceover(
   context: ToolContext,
 ): Promise<ToolResult> {
   try {
-    // Check user credits
+    // Check user credits (admins have unlimited)
     const user = await prisma.user.findUnique({
       where: { id: context.userId },
-      select: { credits: true, preferredVoiceId: true },
+      select: { credits: true, preferredVoiceId: true, role: true },
     })
 
+    const isAdmin = user?.role === 'admin'
     const creditsRequired = 3
-    if (!user || user.credits < creditsRequired) {
+    if (!isAdmin && (!user || user.credits < creditsRequired)) {
       return {
         success: false,
         error: `Insufficient credits. Need ${creditsRequired}, have ${user?.credits || 0}`,
@@ -417,11 +420,13 @@ export async function executeGenerateVoiceover(
       },
     })
 
-    // Deduct credits
-    await prisma.user.update({
-      where: { id: context.userId },
-      data: { credits: { decrement: creditsRequired } },
-    })
+    // Deduct credits (skip for admins)
+    if (!isAdmin) {
+      await prisma.user.update({
+        where: { id: context.userId },
+        data: { credits: { decrement: creditsRequired } },
+      })
+    }
 
     return {
       success: true,

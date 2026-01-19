@@ -7,10 +7,10 @@
  * - Clear mask button
  */
 
+import { Eraser, Paintbrush, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Slider } from '@/components/ui/slider'
 import { cn } from '@/lib/utils'
-import { Paintbrush, Eraser, Trash2 } from 'lucide-react'
 
 interface BrushToolbarProps {
   brushSize: number

@@ -101,9 +101,15 @@ export async function uploadFromUrl(
     size: buffer.byteLength,
   })
 
-  // Generate filename if not provided
+  // Generate filename if not provided, or append extension if missing
   const extension = getExtensionFromContentType(contentType)
-  const filename = options.filename || `${generateId()}.${extension}`
+  let filename = options.filename || `${generateId()}.${extension}`
+
+  // If filename was provided but has no extension, append the detected one
+  if (options.filename && !options.filename.includes('.')) {
+    filename = `${options.filename}.${extension}`
+  }
+
   const folder = options.folder || 'uploads'
   const storagePath = `${folder}/${filename}`
 
@@ -261,6 +267,7 @@ function getExtensionFromContentType(contentType: string): string {
     'image/jpeg': 'jpg',
     'image/webp': 'webp',
     'image/gif': 'gif',
+    'image/svg+xml': 'svg',
     'video/mp4': 'mp4',
     'video/webm': 'webm',
     'audio/mpeg': 'mp3',

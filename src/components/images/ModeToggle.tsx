@@ -8,8 +8,8 @@
  * - variations: Create variations of an image
  */
 
+import { ArrowUpCircle, Copy, Paintbrush, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { Sparkles, Paintbrush, ArrowUpCircle, Copy } from 'lucide-react'
 
 export type ImageMode = 'generate' | 'edit' | 'upscale' | 'variations'
 

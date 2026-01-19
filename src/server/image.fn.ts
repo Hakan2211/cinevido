@@ -16,8 +16,8 @@ import {
 } from './services/fal.service'
 import { uploadFromUrl } from './services/bunny.service'
 import {
-  IMAGE_MODELS,
   GPT_IMAGE_QUALITY_TIERS,
+  IMAGE_MODELS,
   getModelById,
 } from './services/types'
 import type { FalImageResult } from './services/fal.service'
@@ -96,7 +96,8 @@ export const generateImageFn = createServerFn({ method: 'POST' })
       creditsToCharge = creditsToCharge * 2
     }
 
-    // Check user credits
+    // Check user credits (admins have unlimited)
+    const isAdmin = context.user.role === 'admin'
     const user = await prisma.user.findUnique({
       where: { id: context.user.id },
       select: { credits: true },
@@ -107,9 +108,11 @@ export const generateImageFn = createServerFn({ method: 'POST' })
       user?.credits,
       'Required:',
       creditsToCharge,
+      'isAdmin:',
+      isAdmin,
     )
 
-    if (!user || user.credits < creditsToCharge) {
+    if (!isAdmin && (!user || user.credits < creditsToCharge)) {
       console.error('[IMAGE] Insufficient credits')
       throw new Error(
         `Insufficient credits. Required: ${creditsToCharge}, Available: ${user?.credits || 0}`,
@@ -129,7 +132,7 @@ export const generateImageFn = createServerFn({ method: 'POST' })
     })
     console.log('[IMAGE] FAL job created:', job)
 
-    // Create job record in database
+    // Create job record in database with Fal.ai URLs for status polling
     const dbJob = await prisma.generationJob.create({
       data: {
         userId: context.user.id,
@@ -147,16 +150,25 @@ export const generateImageFn = createServerFn({ method: 'POST' })
           style: data.style,
         }),
         externalId: job.requestId,
+        // Store Fal.ai URLs for reliable status polling
+        statusUrl: job.statusUrl,
+        responseUrl: job.responseUrl,
+        cancelUrl: job.cancelUrl,
         creditsUsed: creditsToCharge,
       },
     })
-    console.log('[IMAGE] DB job created:', dbJob.id)
-
-    // Deduct credits
-    await prisma.user.update({
-      where: { id: context.user.id },
-      data: { credits: { decrement: creditsToCharge } },
+    console.log('[IMAGE] DB job created:', dbJob.id, {
+      statusUrl: job.statusUrl,
+      responseUrl: job.responseUrl,
     })
+
+    // Deduct credits (skip for admins)
+    if (!isAdmin) {
+      await prisma.user.update({
+        where: { id: context.user.id },
+        data: { credits: { decrement: creditsToCharge } },
+      })
+    }
 
     console.log('[IMAGE] generateImageFn complete, returning jobId:', dbJob.id)
     return {
@@ -191,6 +203,8 @@ export const getImageJobStatusFn = createServerFn({ method: 'GET' })
       status: job.status,
       externalId: job.externalId,
       model: job.model,
+      statusUrl: job.statusUrl,
+      responseUrl: job.responseUrl,
     })
 
     if (job.userId !== context.user.id) {
@@ -213,14 +227,14 @@ export const getImageJobStatusFn = createServerFn({ method: 'GET' })
       }
     }
 
-    // Poll Fal.ai for status
-    if (!job.externalId) {
-      console.error('[IMAGE] Job has no external ID!')
-      throw new Error('Job has no external ID')
+    // Poll Fal.ai for status using the stored URLs
+    if (!job.statusUrl || !job.responseUrl) {
+      console.error('[IMAGE] Job has no status/response URLs!')
+      throw new Error('Job is missing Fal.ai URLs for status polling')
     }
 
-    console.log('[IMAGE] Polling FAL for status...')
-    const falStatus = await getJobStatus(job.externalId, job.model)
+    console.log('[IMAGE] Polling FAL for status using stored URLs...')
+    const falStatus = await getJobStatus(job.statusUrl, job.responseUrl)
     console.log('[IMAGE] FAL status response:', {
       status: falStatus.status,
       hasResult: !!falStatus.result,
@@ -231,15 +245,21 @@ export const getImageJobStatusFn = createServerFn({ method: 'GET' })
     if (falStatus.status === 'completed' && falStatus.result) {
       console.log('[IMAGE] FAL job completed! Processing result...')
       const result = falStatus.result as FalImageResult
+
+      // Handle both response formats:
+      // - Most models: { images: [{ url, width, height }] }
+      // - Some models (Bria): { image: { url, width, height } }
+      const imageData = result.images?.[0] || result.image
+      const falTempUrl = imageData?.url
+
       console.log('[IMAGE] Result structure:', {
         hasImages: !!result.images,
+        hasImage: !!result.image,
         imagesLength: result.images?.length,
-        firstImageUrl: result.images?.[0]?.url?.slice(0, 50) + '...',
+        extractedUrl: falTempUrl?.slice(0, 50) + '...',
       })
 
-      const falTempUrl = result.images?.[0]?.url
-
-      if (falTempUrl) {
+      if (falTempUrl && imageData) {
         console.log(
           '[IMAGE] Extracted FAL temp URL:',
           falTempUrl.slice(0, 80) + '...',
@@ -247,14 +267,15 @@ export const getImageJobStatusFn = createServerFn({ method: 'GET' })
 
         // Upload the generated image from FAL's temporary URL to Bunny CDN
         // This ensures the image is permanently stored and accessible
-        const filename = `generated-${Date.now()}.png`
+        // Don't hardcode extension - let Bunny detect from content-type (handles SVG, PNG, etc.)
+        const filename = `generated-${Date.now()}`
         let permanentUrl = falTempUrl
 
         console.log('[IMAGE] Uploading to Bunny CDN...')
         try {
           const uploadResult = await uploadFromUrl(falTempUrl, {
             folder: `images/${context.user.id}`,
-            filename,
+            filename, // Extension will be auto-detected from content-type
           })
           permanentUrl = uploadResult.url
           console.log('[IMAGE] Bunny upload success:', permanentUrl)
@@ -278,8 +299,8 @@ export const getImageJobStatusFn = createServerFn({ method: 'GET' })
             provider: 'fal',
             model: job.model,
             metadata: JSON.stringify({
-              width: result.images[0].width,
-              height: result.images[0].height,
+              width: imageData.width,
+              height: imageData.height,
               seed: result.seed,
             }),
           },
@@ -295,8 +316,8 @@ export const getImageJobStatusFn = createServerFn({ method: 'GET' })
             output: JSON.stringify({
               url: permanentUrl,
               assetId: asset.id,
-              width: result.images[0].width,
-              height: result.images[0].height,
+              width: imageData.width,
+              height: imageData.height,
             }),
           },
         })
@@ -309,8 +330,8 @@ export const getImageJobStatusFn = createServerFn({ method: 'GET' })
           output: {
             url: permanentUrl,
             assetId: asset.id,
-            width: result.images[0].width,
-            height: result.images[0].height,
+            width: imageData.width,
+            height: imageData.height,
           },
         }
       } else {

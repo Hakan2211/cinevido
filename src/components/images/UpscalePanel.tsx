@@ -8,6 +8,7 @@
  * - Upscale button
  */
 
+import { ArrowUpCircle, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Slider } from '@/components/ui/slider'
 import {
@@ -17,7 +18,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Loader2, ArrowUpCircle } from 'lucide-react'
 import { UPSCALE_MODELS } from '@/server/services/types'
 import { cn } from '@/lib/utils'
 

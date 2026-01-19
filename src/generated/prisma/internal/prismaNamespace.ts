@@ -1233,6 +1233,9 @@ export const GenerationJobScalarFieldEnum = {
   error: 'error',
   creditsUsed: 'creditsUsed',
   externalId: 'externalId',
+  statusUrl: 'statusUrl',
+  responseUrl: 'responseUrl',
+  cancelUrl: 'cancelUrl',
   progress: 'progress',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'

@@ -5,7 +5,9 @@ import {
   redirect,
   useNavigate,
 } from '@tanstack/react-router'
+import { useQuery } from '@tanstack/react-query'
 import { getSessionFn } from '../server/auth.fn'
+import { getUserCreditsFn } from '../server/generation.fn'
 import { signOut, useSession } from '../lib/auth-client'
 import { Button } from '../components/ui/button'
 
@@ -40,12 +42,20 @@ function AppLayout() {
   const navigate = useNavigate()
   const { data: session } = useSession()
 
+  // Fetch user credits
+  const { data: creditsData } = useQuery({
+    queryKey: ['user-credits'],
+    queryFn: () => getUserCreditsFn(),
+    refetchInterval: 30000, // Refresh every 30 seconds
+  })
+
   // User from session takes precedence, fallback to route context
   const sessionUser = session?.user as AppUser | undefined
   const user = sessionUser ?? routeContext.user
   const userName = user.name || 'User'
   const userEmail = user.email
   const userRole = user.role
+  const isAdmin = userRole === 'admin'
 
   const handleSignOut = async () => {
     await signOut()
@@ -101,6 +111,30 @@ function AppLayout() {
               </NavLink>
             )}
           </nav>
+
+          {/* Credits Display */}
+          <div className="border-t p-4">
+            <div className="flex items-center justify-between rounded-lg bg-muted/50 px-3 py-2">
+              <span className="text-sm text-muted-foreground">Credits</span>
+              {isAdmin ? (
+                <span className="text-sm font-medium text-green-600">
+                  Unlimited
+                </span>
+              ) : (
+                <span
+                  className={`text-sm font-medium ${
+                    (creditsData?.credits ?? 0) < 10
+                      ? 'text-red-500'
+                      : (creditsData?.credits ?? 0) < 25
+                        ? 'text-yellow-500'
+                        : 'text-foreground'
+                  }`}
+                >
+                  {creditsData?.credits ?? '...'}
+                </span>
+              )}
+            </div>
+          </div>
 
           {/* User Section */}
           <div className="border-t p-4">

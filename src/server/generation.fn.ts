@@ -74,13 +74,14 @@ export const createImageJobFn = createServerFn({ method: 'POST' })
     const model = getModelById(modelId, IMAGE_MODELS)
     const creditsRequired = model?.credits || 5
 
-    // Check user credits
+    // Check user credits (admins have unlimited)
+    const isAdmin = context.user.role === 'admin'
     const user = await prisma.user.findUnique({
       where: { id: context.user.id },
       select: { credits: true },
     })
 
-    if (!user || user.credits < creditsRequired) {
+    if (!isAdmin && (!user || user.credits < creditsRequired)) {
       throw new Error(
         `Insufficient credits. Required: ${creditsRequired}, Available: ${user?.credits || 0}`,
       )
@@ -122,11 +123,13 @@ export const createImageJobFn = createServerFn({ method: 'POST' })
         },
       })
 
-      // Deduct credits
-      await prisma.user.update({
-        where: { id: context.user.id },
-        data: { credits: { decrement: creditsRequired } },
-      })
+      // Deduct credits (skip for admins)
+      if (!isAdmin) {
+        await prisma.user.update({
+          where: { id: context.user.id },
+          data: { credits: { decrement: creditsRequired } },
+        })
+      }
 
       return { jobId: job.id, status: 'processing' }
     } catch (error) {
@@ -157,13 +160,14 @@ export const createVideoJobFn = createServerFn({ method: 'POST' })
     const model = getModelById(modelId, VIDEO_MODELS)
     const creditsRequired = model?.credits || 20
 
-    // Check user credits
+    // Check user credits (admins have unlimited)
+    const isAdmin = context.user.role === 'admin'
     const user = await prisma.user.findUnique({
       where: { id: context.user.id },
       select: { credits: true },
     })
 
-    if (!user || user.credits < creditsRequired) {
+    if (!isAdmin && (!user || user.credits < creditsRequired)) {
       throw new Error(
         `Insufficient credits. Required: ${creditsRequired}, Available: ${user?.credits || 0}`,
       )
@@ -205,11 +209,13 @@ export const createVideoJobFn = createServerFn({ method: 'POST' })
         },
       })
 
-      // Deduct credits
-      await prisma.user.update({
-        where: { id: context.user.id },
-        data: { credits: { decrement: creditsRequired } },
-      })
+      // Deduct credits (skip for admins)
+      if (!isAdmin) {
+        await prisma.user.update({
+          where: { id: context.user.id },
+          data: { credits: { decrement: creditsRequired } },
+        })
+      }
 
       return { jobId: job.id, status: 'processing' }
     } catch (error) {
@@ -240,13 +246,14 @@ export const createAudioJobFn = createServerFn({ method: 'POST' })
     const model = getModelById(modelId, AUDIO_MODELS)
     const creditsRequired = model?.credits || 3
 
-    // Check user credits
+    // Check user credits (admins have unlimited)
+    const isAdmin = context.user.role === 'admin'
     const user = await prisma.user.findUnique({
       where: { id: context.user.id },
       select: { credits: true },
     })
 
-    if (!user || user.credits < creditsRequired) {
+    if (!isAdmin && (!user || user.credits < creditsRequired)) {
       throw new Error(
         `Insufficient credits. Required: ${creditsRequired}, Available: ${user?.credits || 0}`,
       )
@@ -313,11 +320,13 @@ export const createAudioJobFn = createServerFn({ method: 'POST' })
         },
       })
 
-      // Deduct credits
-      await prisma.user.update({
-        where: { id: context.user.id },
-        data: { credits: { decrement: creditsRequired } },
-      })
+      // Deduct credits (skip for admins)
+      if (!isAdmin) {
+        await prisma.user.update({
+          where: { id: context.user.id },
+          data: { credits: { decrement: creditsRequired } },
+        })
+      }
 
       return {
         jobId: job.id,
