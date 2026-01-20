@@ -81,20 +81,18 @@ export {
 } from './fal.service'
 
 // =============================================================================
-// Image Edit Service (Inpaint, Outpaint, Upscale, Variations)
+// Image Edit Service (Edit, Upscale, Variations)
 // =============================================================================
 
 export {
-  inpaintImage,
-  outpaintImage,
+  editImage,
   upscaleImage,
   createVariation,
   getEditJobStatus,
   getEditModels,
   getUpscaleModels,
   getVariationModels,
-  type InpaintInput,
-  type OutpaintInput,
+  type EditInput,
   type UpscaleInput,
   type VariationInput,
   type EditJob,

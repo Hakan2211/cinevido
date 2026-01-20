@@ -324,7 +324,36 @@ export async function getJobStatus(
         resultResponse.status,
         errorText,
       )
-      throw new Error(`Failed to get result: ${resultResponse.status}`)
+
+      // Try to parse error for user-friendly message
+      try {
+        const errorData = JSON.parse(errorText)
+        const detail = errorData.detail?.[0]
+        if (detail?.type === 'content_policy_violation') {
+          return {
+            status: 'failed' as const,
+            error:
+              'Content policy violation: Your prompt was flagged by the content checker. Please modify your prompt and try again.',
+          }
+        }
+        if (detail?.type === 'downstream_service_error') {
+          return {
+            status: 'failed' as const,
+            error:
+              'The AI service encountered an error. Please try again later.',
+          }
+        }
+        // Handle other error types
+        return {
+          status: 'failed' as const,
+          error: detail?.msg || `Request failed: ${resultResponse.status}`,
+        }
+      } catch {
+        return {
+          status: 'failed' as const,
+          error: `Failed to get result: ${resultResponse.status}`,
+        }
+      }
     }
 
     const result = await resultResponse.json()
@@ -402,7 +431,7 @@ function buildImagePayload(input: ImageGenerationInput, modelId: string) {
   if (modelId === 'fal-ai/gpt-image-1.5') {
     payload.quality = input.quality || 'medium'
     payload.size = `${width}x${height}`
-    if (input.numImages) payload.n = input.numImages
+    if (input.numImages) payload.num_images = input.numImages
   }
   // === Recraft V3 - has style parameter and preset sizes ===
   else if (modelId.includes('recraft')) {
@@ -427,6 +456,7 @@ function buildImagePayload(input: ImageGenerationInput, modelId: string) {
       '768x1024': '3:4',
     }
     payload.aspect_ratio = aspectMap[`${width}x${height}`] || '1:1'
+    if (input.numImages) payload.num_images = input.numImages
   }
   // === ImagineArt - uses aspect_ratio string ===
   else if (modelId.includes('imagineart')) {
@@ -459,10 +489,10 @@ function buildImagePayload(input: ImageGenerationInput, modelId: string) {
       payload.negative_prompt = input.negativePrompt
     }
   }
-  // === Wan - uses image_size object ===
+  // === Wan - uses image_size object and max_images ===
   else if (modelId.includes('wan')) {
     payload.image_size = { width, height }
-    if (input.numImages) payload.num_images = input.numImages
+    if (input.numImages) payload.max_images = input.numImages
   }
   // === Flux 2 models - use image_size object ===
   else if (modelId.includes('flux-2')) {

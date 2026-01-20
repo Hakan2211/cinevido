@@ -2,10 +2,8 @@
  * Image Edit Server Functions
  *
  * Server functions for AI image editing operations:
- * - Inpainting (edit masked regions)
- * - Outpainting (expand image beyond borders)
+ * - Prompt-based editing (describe what to change - no masks!)
  * - Upscaling (enhance resolution with AI)
- * - Variations (create variations from reference)
  */
 
 import { createServerFn } from '@tanstack/react-start'
@@ -13,66 +11,55 @@ import { z } from 'zod'
 import { prisma } from '../db'
 import { authMiddleware } from './middleware'
 import {
-  createVariation,
+  editImage,
   getEditJobStatus,
   getEditModels,
   getUpscaleModels,
-  getVariationModels,
-  inpaintImage,
-  outpaintImage,
   upscaleImage,
 } from './services/edit.service'
 import {
-  EDIT_MODELS,
   UPSCALE_MODELS,
-  VARIATION_MODELS,
+  getEditModelById,
   getModelById,
 } from './services/types'
 import { uploadFromUrl } from './services/bunny.service'
-import type { FalEditResult } from './services/edit.service'
 
 // =============================================================================
 // Schemas
 // =============================================================================
 
-const inpaintSchema = z.object({
-  imageUrl: z.string().url(),
-  maskUrl: z.string().url(), // Base64 data URL or hosted URL
+// Schema for prompt-based image editing (no mask required!)
+const editSchema = z.object({
+  imageUrls: z.array(z.string().url()).min(1).max(14), // Array of image URLs
   prompt: z.string().min(1).max(2000),
   model: z.string().optional(),
-  sourceAssetId: z.string().optional(), // Original image asset ID for linking
-  projectId: z.string().optional(),
-})
-
-const outpaintSchema = z.object({
-  imageUrl: z.string().url(),
-  prompt: z.string().min(1).max(2000),
-  model: z.string().optional(),
-  top: z.number().min(0).max(1024).optional(),
-  bottom: z.number().min(0).max(1024).optional(),
-  left: z.number().min(0).max(1024).optional(),
-  right: z.number().min(0).max(1024).optional(),
-  sourceAssetId: z.string().optional(),
+  sourceAssetIds: z.array(z.string()).optional(), // Original image asset IDs for linking
   projectId: z.string().optional(),
 })
 
 const upscaleSchema = z.object({
   imageUrl: z.string().url(),
   model: z.string().optional(),
-  scale: z.number().min(2).max(4).optional(),
+  scale: z.number().min(1).max(10).optional(), // SeedVR supports up to 10x
+  sourceAssetId: z.string().optional(),
+  projectId: z.string().optional(),
+  outputFormat: z.enum(['png', 'jpg', 'jpeg', 'webp']).optional(),
+
+  // Legacy fields (for old models compatibility)
   creativity: z.number().min(0).max(1).optional(),
   prompt: z.string().max(500).optional(),
-  sourceAssetId: z.string().optional(),
-  projectId: z.string().optional(),
-})
 
-const variationSchema = z.object({
-  imageUrl: z.string().url(),
-  prompt: z.string().max(2000).optional(),
-  model: z.string().optional(),
-  strength: z.number().min(0).max(1).optional(), // How different from original
-  sourceAssetId: z.string().optional(),
-  projectId: z.string().optional(),
+  // SeedVR specific options
+  upscaleMode: z.enum(['factor', 'target']).optional(),
+  targetResolution: z.enum(['720p', '1080p', '1440p', '2160p']).optional(),
+  noiseScale: z.number().min(0).max(1).optional(),
+
+  // Topaz specific options
+  topazModel: z.string().optional(),
+  subjectDetection: z.enum(['All', 'Foreground', 'Background']).optional(),
+  faceEnhancement: z.boolean().optional(),
+  faceEnhancementStrength: z.number().min(0).max(1).optional(),
+  faceEnhancementCreativity: z.number().min(0).max(1).optional(),
 })
 
 const jobIdSchema = z.object({
@@ -80,21 +67,37 @@ const jobIdSchema = z.object({
 })
 
 // =============================================================================
-// Inpainting
+// Prompt-Based Image Editing
 // =============================================================================
 
 /**
- * Start an inpainting job - edit masked regions of an image
+ * Start an edit job - transform image(s) using natural language prompts
+ * No masks required! Just describe what to change.
  */
-export const inpaintImageFn = createServerFn({ method: 'POST' })
+export const editImageFn = createServerFn({ method: 'POST' })
   .middleware([authMiddleware])
-  .inputValidator(inpaintSchema)
+  .inputValidator(editSchema)
   .handler(async ({ data, context }) => {
-    const modelId = data.model || 'fal-ai/flux-pro/v1/fill'
-    const modelConfig = getModelById(modelId, EDIT_MODELS)
+    console.log('[EDIT_FN] editImageFn called:', {
+      userId: context.user.id,
+      model: data.model,
+      imageCount: data.imageUrls.length,
+      promptPreview: data.prompt.slice(0, 50) + '...',
+    })
+
+    const modelId = data.model || 'fal-ai/flux-pro/kontext'
+    const modelConfig = getEditModelById(modelId)
 
     if (!modelConfig) {
+      console.error('[EDIT_FN] Unknown model:', modelId)
       throw new Error(`Unknown edit model: ${modelId}`)
+    }
+
+    // Validate image count against model's maxImages
+    if (data.imageUrls.length > modelConfig.maxImages) {
+      throw new Error(
+        `Model ${modelConfig.name} supports max ${modelConfig.maxImages} image(s), got ${data.imageUrls.length}`,
+      )
     }
 
     // Check user credits (admins have unlimited)
@@ -110,15 +113,21 @@ export const inpaintImageFn = createServerFn({ method: 'POST' })
       )
     }
 
-    // Start inpaint job
-    const job = await inpaintImage({
-      imageUrl: data.imageUrl,
-      maskUrl: data.maskUrl,
+    // Start edit job
+    console.log('[EDIT_FN] Starting edit job with editImage()...')
+    const job = await editImage({
+      imageUrls: data.imageUrls,
       prompt: data.prompt,
       model: modelId,
     })
+    console.log('[EDIT_FN] Edit job started:', {
+      requestId: job.requestId,
+      status: job.status,
+      statusUrl: job.statusUrl,
+      responseUrl: job.responseUrl,
+    })
 
-    // Create job record
+    // Create job record - save statusUrl and responseUrl in input for later polling
     const dbJob = await prisma.generationJob.create({
       data: {
         userId: context.user.id,
@@ -128,15 +137,21 @@ export const inpaintImageFn = createServerFn({ method: 'POST' })
         provider: 'fal',
         model: modelId,
         input: JSON.stringify({
-          imageUrl: data.imageUrl,
-          maskUrl: data.maskUrl,
+          imageUrls: data.imageUrls,
           prompt: data.prompt,
-          editType: 'inpaint',
-          sourceAssetId: data.sourceAssetId,
+          editType: 'edit',
+          sourceAssetIds: data.sourceAssetIds,
+          // Save fal.ai queue URLs for status polling - DO NOT construct these from modelId!
+          statusUrl: job.statusUrl,
+          responseUrl: job.responseUrl,
         }),
         externalId: job.requestId,
         creditsUsed: modelConfig.credits,
       },
+    })
+    console.log('[EDIT_FN] DB job created:', {
+      dbJobId: dbJob.id,
+      externalId: job.requestId,
     })
 
     // Deduct credits (skip for admins)
@@ -151,91 +166,7 @@ export const inpaintImageFn = createServerFn({ method: 'POST' })
       jobId: dbJob.id,
       externalId: job.requestId,
       model: modelId,
-      editType: 'inpaint',
-      credits: modelConfig.credits,
-      status: 'pending',
-    }
-  })
-
-// =============================================================================
-// Outpainting
-// =============================================================================
-
-/**
- * Start an outpainting job - expand image beyond borders
- */
-export const outpaintImageFn = createServerFn({ method: 'POST' })
-  .middleware([authMiddleware])
-  .inputValidator(outpaintSchema)
-  .handler(async ({ data, context }) => {
-    const modelId = data.model || 'fal-ai/flux-pro/v1/fill'
-    const modelConfig = getModelById(modelId, EDIT_MODELS)
-
-    if (!modelConfig) {
-      throw new Error(`Unknown edit model: ${modelId}`)
-    }
-
-    // Check user credits (admins have unlimited)
-    const isAdmin = context.user.role === 'admin'
-    const user = await prisma.user.findUnique({
-      where: { id: context.user.id },
-      select: { credits: true },
-    })
-
-    if (!isAdmin && (!user || user.credits < modelConfig.credits)) {
-      throw new Error(
-        `Insufficient credits. Required: ${modelConfig.credits}, Available: ${user?.credits || 0}`,
-      )
-    }
-
-    // Start outpaint job
-    const job = await outpaintImage({
-      imageUrl: data.imageUrl,
-      prompt: data.prompt,
-      model: modelId,
-      top: data.top,
-      bottom: data.bottom,
-      left: data.left,
-      right: data.right,
-    })
-
-    // Create job record
-    const dbJob = await prisma.generationJob.create({
-      data: {
-        userId: context.user.id,
-        projectId: data.projectId || null,
-        type: 'edit',
-        status: 'pending',
-        provider: 'fal',
-        model: modelId,
-        input: JSON.stringify({
-          imageUrl: data.imageUrl,
-          prompt: data.prompt,
-          editType: 'outpaint',
-          top: data.top,
-          bottom: data.bottom,
-          left: data.left,
-          right: data.right,
-          sourceAssetId: data.sourceAssetId,
-        }),
-        externalId: job.requestId,
-        creditsUsed: modelConfig.credits,
-      },
-    })
-
-    // Deduct credits (skip for admins)
-    if (!isAdmin) {
-      await prisma.user.update({
-        where: { id: context.user.id },
-        data: { credits: { decrement: modelConfig.credits } },
-      })
-    }
-
-    return {
-      jobId: dbJob.id,
-      externalId: job.requestId,
-      model: modelId,
-      editType: 'outpaint',
+      editType: 'edit',
       credits: modelConfig.credits,
       status: 'pending',
     }
@@ -252,7 +183,7 @@ export const upscaleImageFn = createServerFn({ method: 'POST' })
   .middleware([authMiddleware])
   .inputValidator(upscaleSchema)
   .handler(async ({ data, context }) => {
-    const modelId = data.model || 'fal-ai/creative-upscaler'
+    const modelId = data.model || 'fal-ai/seedvr/upscale/image'
     const modelConfig = getModelById(modelId, UPSCALE_MODELS)
 
     if (!modelConfig) {
@@ -272,16 +203,34 @@ export const upscaleImageFn = createServerFn({ method: 'POST' })
       )
     }
 
-    // Start upscale job
+    // Start upscale job with all new parameters
     const job = await upscaleImage({
       imageUrl: data.imageUrl,
       model: modelId,
       scale: data.scale,
+      outputFormat: data.outputFormat,
+      // Legacy
       creativity: data.creativity,
       prompt: data.prompt,
+      // SeedVR specific
+      upscaleMode: data.upscaleMode,
+      targetResolution: data.targetResolution,
+      noiseScale: data.noiseScale,
+      // Topaz specific
+      topazModel: data.topazModel,
+      subjectDetection: data.subjectDetection,
+      faceEnhancement: data.faceEnhancement,
+      faceEnhancementStrength: data.faceEnhancementStrength,
+      faceEnhancementCreativity: data.faceEnhancementCreativity,
+    })
+    console.log('[EDIT_FN] Upscale job started:', {
+      requestId: job.requestId,
+      statusUrl: job.statusUrl,
+      responseUrl: job.responseUrl,
+      model: modelId,
     })
 
-    // Create job record
+    // Create job record - save all parameters for reference
     const dbJob = await prisma.generationJob.create({
       data: {
         userId: context.user.id,
@@ -293,10 +242,18 @@ export const upscaleImageFn = createServerFn({ method: 'POST' })
         input: JSON.stringify({
           imageUrl: data.imageUrl,
           scale: data.scale || 2,
-          creativity: data.creativity,
-          prompt: data.prompt,
           editType: 'upscale',
           sourceAssetId: data.sourceAssetId,
+          // Model-specific params
+          upscaleMode: data.upscaleMode,
+          targetResolution: data.targetResolution,
+          noiseScale: data.noiseScale,
+          topazModel: data.topazModel,
+          subjectDetection: data.subjectDetection,
+          faceEnhancement: data.faceEnhancement,
+          // Save fal.ai queue URLs for status polling
+          statusUrl: job.statusUrl,
+          responseUrl: job.responseUrl,
         }),
         externalId: job.requestId,
         creditsUsed: modelConfig.credits,
@@ -322,101 +279,33 @@ export const upscaleImageFn = createServerFn({ method: 'POST' })
   })
 
 // =============================================================================
-// Variations
-// =============================================================================
-
-/**
- * Start a variation job - create variations of an image
- */
-export const createVariationFn = createServerFn({ method: 'POST' })
-  .middleware([authMiddleware])
-  .inputValidator(variationSchema)
-  .handler(async ({ data, context }) => {
-    const modelId = data.model || 'fal-ai/flux-pro/v1.1/redux'
-    const modelConfig = getModelById(modelId, VARIATION_MODELS)
-
-    if (!modelConfig) {
-      throw new Error(`Unknown variation model: ${modelId}`)
-    }
-
-    // Check user credits (admins have unlimited)
-    const isAdmin = context.user.role === 'admin'
-    const user = await prisma.user.findUnique({
-      where: { id: context.user.id },
-      select: { credits: true },
-    })
-
-    if (!isAdmin && (!user || user.credits < modelConfig.credits)) {
-      throw new Error(
-        `Insufficient credits. Required: ${modelConfig.credits}, Available: ${user?.credits || 0}`,
-      )
-    }
-
-    // Start variation job
-    const job = await createVariation({
-      imageUrl: data.imageUrl,
-      prompt: data.prompt,
-      model: modelId,
-      strength: data.strength,
-    })
-
-    // Create job record
-    const dbJob = await prisma.generationJob.create({
-      data: {
-        userId: context.user.id,
-        projectId: data.projectId || null,
-        type: 'variation',
-        status: 'pending',
-        provider: 'fal',
-        model: modelId,
-        input: JSON.stringify({
-          imageUrl: data.imageUrl,
-          prompt: data.prompt,
-          strength: data.strength,
-          editType: 'variation',
-          sourceAssetId: data.sourceAssetId,
-        }),
-        externalId: job.requestId,
-        creditsUsed: modelConfig.credits,
-      },
-    })
-
-    // Deduct credits (skip for admins)
-    if (!isAdmin) {
-      await prisma.user.update({
-        where: { id: context.user.id },
-        data: { credits: { decrement: modelConfig.credits } },
-      })
-    }
-
-    return {
-      jobId: dbJob.id,
-      externalId: job.requestId,
-      model: modelId,
-      editType: 'variation',
-      credits: modelConfig.credits,
-      status: 'pending',
-    }
-  })
-
-// =============================================================================
 // Job Status
 // =============================================================================
 
 /**
- * Check the status of an edit job (inpaint, outpaint, upscale, variation)
+ * Check the status of an edit job (edit, upscale, variation)
  */
 export const getEditJobStatusFn = createServerFn({ method: 'GET' })
   .middleware([authMiddleware])
   .inputValidator(jobIdSchema)
   .handler(async ({ data, context }) => {
+    console.log('[EDIT_FN] getEditJobStatusFn called:', { jobId: data.jobId })
+
     const job = await prisma.generationJob.findUnique({
       where: { id: data.jobId },
     })
 
     if (!job) {
+      console.error('[EDIT_FN] Job not found:', data.jobId)
       throw new Error('Job not found')
     }
+
+    console.log('[EDIT_FN] Found job:', {
+      id: job.id,
+      status: job.status,
+      externalId: job.externalId,
+      model: job.model,
+    })
 
     if (job.userId !== context.user.id) {
       throw new Error('Unauthorized')
@@ -424,6 +313,7 @@ export const getEditJobStatusFn = createServerFn({ method: 'GET' })
 
     // If already completed or failed, return cached result
     if (job.status === 'completed' || job.status === 'failed') {
+      console.log('[EDIT_FN] Returning cached result, status:', job.status)
       return {
         jobId: job.id,
         status: job.status,
@@ -433,40 +323,74 @@ export const getEditJobStatusFn = createServerFn({ method: 'GET' })
       }
     }
 
-    // Poll Fal.ai for status
+    // Poll Fal.ai for status using the saved URLs
     if (!job.externalId) {
+      console.error('[EDIT_FN] Job has no external ID!')
       throw new Error('Job has no external ID')
     }
 
-    const falStatus = await getEditJobStatus(job.externalId, job.model)
+    // Get statusUrl and responseUrl from saved input
+    const inputData = JSON.parse(job.input)
+    const { statusUrl, responseUrl } = inputData
+
+    if (!statusUrl || !responseUrl) {
+      console.error(
+        '[EDIT_FN] Job missing statusUrl or responseUrl in input!',
+        {
+          statusUrl,
+          responseUrl,
+        },
+      )
+      throw new Error(
+        'Job is missing fal.ai queue URLs. This job may have been created before the fix was applied.',
+      )
+    }
+
+    console.log('[EDIT_FN] Polling fal.ai for status using saved URLs...')
+    const falStatus = await getEditJobStatus(statusUrl, responseUrl)
+    console.log('[EDIT_FN] fal.ai status result:', {
+      status: falStatus.status,
+      hasResult: !!falStatus.result,
+    })
 
     // Update job status in database
     if (falStatus.status === 'completed' && falStatus.result) {
+      console.log('[EDIT_FN] Job completed! Processing result...')
       const result = falStatus.result
       // Handle both 'images' array and single 'image' response formats
       const falTempUrl = result.images?.[0]?.url || result.image?.url
       const imageWidth = result.images?.[0]?.width || result.image?.width
       const imageHeight = result.images?.[0]?.height || result.image?.height
 
+      console.log('[EDIT_FN] Extracted from result:', {
+        falTempUrl: falTempUrl?.slice(0, 80) + '...',
+        imageWidth,
+        imageHeight,
+      })
+
       if (falTempUrl) {
-        const inputData = JSON.parse(job.input)
+        // inputData already parsed above
         const filename = `${inputData.editType}-${Date.now()}.png`
 
         // Upload the edited image from FAL's temporary URL to Bunny CDN
         let permanentUrl = falTempUrl
 
+        console.log('[EDIT_FN] Uploading to Bunny CDN...')
         try {
           const uploadResult = await uploadFromUrl(falTempUrl, {
             folder: `images/${context.user.id}`,
             filename,
           })
           permanentUrl = uploadResult.url
+          console.log('[EDIT_FN] Bunny upload success:', permanentUrl)
         } catch (uploadError) {
           // Log error but continue - we'll fall back to FAL's URL
-          console.error('Failed to upload to Bunny CDN:', uploadError)
+          console.error('[EDIT_FN] Failed to upload to Bunny CDN:', uploadError)
+          console.log('[EDIT_FN] Falling back to FAL temp URL')
         }
 
         // Create asset for the edited image with permanent CDN URL
+        console.log('[EDIT_FN] Creating asset in DB...')
         const asset = await prisma.asset.create({
           data: {
             userId: context.user.id,
@@ -486,6 +410,7 @@ export const getEditJobStatusFn = createServerFn({ method: 'GET' })
             }),
           },
         })
+        console.log('[EDIT_FN] Asset created:', asset.id)
 
         // Update job as completed
         await prisma.generationJob.update({
@@ -502,6 +427,7 @@ export const getEditJobStatusFn = createServerFn({ method: 'GET' })
             }),
           },
         })
+        console.log('[EDIT_FN] Job marked as completed')
 
         return {
           jobId: job.id,
@@ -519,6 +445,7 @@ export const getEditJobStatusFn = createServerFn({ method: 'GET' })
     }
 
     if (falStatus.status === 'failed') {
+      console.error('[EDIT_FN] Job failed!', falStatus.error)
       await prisma.generationJob.update({
         where: { id: job.id },
         data: {
@@ -538,6 +465,11 @@ export const getEditJobStatusFn = createServerFn({ method: 'GET' })
     // Still processing
     const progress =
       falStatus.progress || (falStatus.status === 'processing' ? 50 : 10)
+
+    console.log('[EDIT_FN] Job still in progress:', {
+      falStatus: falStatus.status,
+      progress,
+    })
 
     await prisma.generationJob.update({
       where: { id: job.id },
@@ -579,17 +511,6 @@ export const getUpscaleModelsFn = createServerFn({ method: 'GET' }).handler(
 )
 
 /**
- * Get available variation models
- */
-export const getVariationModelsFn = createServerFn({ method: 'GET' }).handler(
-  () => {
-    return {
-      models: getVariationModels(),
-    }
-  },
-)
-
-/**
  * Get all edit-related models (combined)
  */
 export const getAllEditModelsFn = createServerFn({ method: 'GET' }).handler(
@@ -597,7 +518,6 @@ export const getAllEditModelsFn = createServerFn({ method: 'GET' }).handler(
     return {
       edit: getEditModels(),
       upscale: getUpscaleModels(),
-      variation: getVariationModels(),
     }
   },
 )

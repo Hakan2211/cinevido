@@ -8,10 +8,10 @@
  * - variations: Create variations of an image
  */
 
-import { ArrowUpCircle, Copy, Paintbrush, Sparkles } from 'lucide-react'
+import { ArrowUpCircle, Paintbrush, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-export type ImageMode = 'generate' | 'edit' | 'upscale' | 'variations'
+export type ImageMode = 'generate' | 'edit' | 'upscale'
 
 interface ModeToggleProps {
   mode: ImageMode
@@ -42,12 +42,6 @@ const modes: Array<{
     label: 'Upscale',
     icon: ArrowUpCircle,
     description: 'Enhance resolution',
-  },
-  {
-    id: 'variations',
-    label: 'Variations',
-    icon: Copy,
-    description: 'Create image variations',
   },
 ]
 

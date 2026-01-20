@@ -1,10 +1,11 @@
 /**
- * EditPanel - Bottom panel for inpainting/outpainting
+ * EditPanel - Bottom panel for prompt-based image editing
  *
  * Contains:
- * - Prompt input for what to replace masked area with
- * - Model selector
- * - Generate button
+ * - Prompt input describing what to change
+ * - Model selector with image count badges
+ * - Status showing selected images vs model max
+ * - Edit button
  */
 
 import { Loader2, Wand2 } from 'lucide-react'
@@ -27,8 +28,8 @@ interface EditPanelProps {
   onModelChange: (model: string) => void
   onGenerate: () => void
   isGenerating: boolean
-  hasMask: boolean
-  hasImage: boolean
+  selectedCount: number // Number of images currently selected
+  maxImages: number // Max images for current model
   error?: string | null
   className?: string
 }
@@ -40,25 +41,36 @@ export function EditPanel({
   onModelChange,
   onGenerate,
   isGenerating,
-  hasMask,
-  hasImage,
+  selectedCount,
+  maxImages,
   error,
   className,
 }: EditPanelProps) {
   const selectedModel = EDIT_MODELS.find((m) => m.id === model)
-  const canGenerate = hasImage && hasMask && prompt.trim() && !isGenerating
+  const canGenerate = selectedCount > 0 && prompt.trim() && !isGenerating
+
+  // Status message based on selection state
+  const getStatusMessage = () => {
+    if (selectedCount === 0) {
+      return 'Select an image to edit'
+    }
+    if (maxImages === 1) {
+      return '1 image selected'
+    }
+    return `${selectedCount} of ${maxImages} images selected`
+  }
 
   return (
     <div className={cn('space-y-3', className)}>
       {/* Prompt Input */}
       <div className="relative">
         <Textarea
-          placeholder="Describe what should replace the masked area..."
+          placeholder="Describe what to change... (e.g., 'Change the background to a sunset', 'Add a hat to the person')"
           value={prompt}
           onChange={(e) => onPromptChange(e.target.value)}
           className="min-h-[52px] resize-none pr-24 text-base"
           rows={1}
-          disabled={!hasImage}
+          disabled={selectedCount === 0}
         />
         <Button
           size="sm"
@@ -80,7 +92,7 @@ export function EditPanel({
       {/* Settings Row */}
       <div className="flex flex-wrap items-center gap-3">
         <Select value={model} onValueChange={onModelChange}>
-          <SelectTrigger className="h-8 w-44">
+          <SelectTrigger className="h-8 w-52">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -91,6 +103,9 @@ export function EditPanel({
                   <span className="text-xs text-muted-foreground">
                     {m.credits}cr
                   </span>
+                  <span className="text-xs text-muted-foreground">
+                    {m.maxImages === 1 ? '1 img' : `${m.maxImages} img`}
+                  </span>
                 </span>
               </SelectItem>
             ))}
@@ -98,24 +113,12 @@ export function EditPanel({
         </Select>
 
         {/* Status indicator */}
-        {!hasImage && (
-          <span className="text-xs text-muted-foreground">
-            Select an image to edit
-          </span>
-        )}
-        {hasImage && !hasMask && (
-          <span className="text-xs text-muted-foreground">
-            Paint a mask over areas to replace
-          </span>
-        )}
-        {hasImage && hasMask && !prompt.trim() && (
-          <span className="text-xs text-muted-foreground">
-            Enter a prompt describing the replacement
-          </span>
-        )}
+        <span className="text-xs text-muted-foreground">
+          {getStatusMessage()}
+        </span>
 
         <div className="ml-auto text-xs text-muted-foreground">
-          {selectedModel?.credits || 6} credits
+          {selectedModel?.credits || 4} credits
         </div>
       </div>
 

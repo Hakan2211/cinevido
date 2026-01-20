@@ -14,7 +14,7 @@ import {
   getImageModels,
   getJobStatus,
 } from './services/fal.service'
-import { uploadFromUrl } from './services/bunny.service'
+import { uploadBuffer, uploadFromUrl } from './services/bunny.service'
 import {
   GPT_IMAGE_QUALITY_TIERS,
   IMAGE_MODELS,
@@ -27,7 +27,7 @@ import type { FalImageResult } from './services/fal.service'
 // =============================================================================
 
 const generateImageSchema = z.object({
-  prompt: z.string().min(1).max(2000),
+  prompt: z.string().min(1),
   model: z.string().optional(),
   width: z.number().min(256).max(4096).optional(),
   height: z.number().min(256).max(4096).optional(),
@@ -35,6 +35,7 @@ const generateImageSchema = z.object({
   projectId: z.string().optional(),
   quality: z.enum(['low', 'medium', 'high']).optional(), // GPT Image quality tier
   style: z.string().optional(), // Recraft V3 style
+  numImages: z.number().min(1).max(4).optional(), // Number of images to generate
 })
 
 const listImagesSchema = z.object({
@@ -49,6 +50,12 @@ const imageIdSchema = z.object({
 
 const jobIdSchema = z.object({
   jobId: z.string(),
+})
+
+const uploadImageSchema = z.object({
+  imageData: z.string(), // Base64 encoded image data (without data URL prefix)
+  filename: z.string().optional(),
+  contentType: z.enum(['image/jpeg', 'image/png', 'image/webp', 'image/gif']),
 })
 
 // =============================================================================
@@ -96,6 +103,10 @@ export const generateImageFn = createServerFn({ method: 'POST' })
       creditsToCharge = creditsToCharge * 2
     }
 
+    // Multiply credits by number of images
+    const numImages = data.numImages || 1
+    creditsToCharge = creditsToCharge * numImages
+
     // Check user credits (admins have unlimited)
     const isAdmin = context.user.role === 'admin'
     const user = await prisma.user.findUnique({
@@ -129,6 +140,7 @@ export const generateImageFn = createServerFn({ method: 'POST' })
       negativePrompt: data.negativePrompt,
       quality: data.quality,
       style: data.style,
+      numImages,
     })
     console.log('[IMAGE] FAL job created:', job)
 
@@ -148,6 +160,7 @@ export const generateImageFn = createServerFn({ method: 'POST' })
           negativePrompt: data.negativePrompt,
           quality: data.quality,
           style: data.style,
+          numImages,
         }),
         externalId: job.requestId,
         // Store Fal.ai URLs for reliable status polling
@@ -245,110 +258,138 @@ export const getImageJobStatusFn = createServerFn({ method: 'GET' })
     if (falStatus.status === 'completed' && falStatus.result) {
       console.log('[IMAGE] FAL job completed! Processing result...')
       const result = falStatus.result as FalImageResult
+      const inputData = JSON.parse(job.input)
 
       // Handle both response formats:
       // - Most models: { images: [{ url, width, height }] }
       // - Some models (Bria): { image: { url, width, height } }
-      const imageData = result.images?.[0] || result.image
-      const falTempUrl = imageData?.url
+      const allImages = result.images || (result.image ? [result.image] : [])
 
       console.log('[IMAGE] Result structure:', {
         hasImages: !!result.images,
         hasImage: !!result.image,
-        imagesLength: result.images?.length,
-        extractedUrl: falTempUrl?.slice(0, 50) + '...',
+        imagesLength: allImages.length,
       })
 
-      if (falTempUrl && imageData) {
-        console.log(
-          '[IMAGE] Extracted FAL temp URL:',
-          falTempUrl.slice(0, 80) + '...',
-        )
+      if (allImages.length > 0) {
+        const createdAssets: Array<{
+          id: string
+          url: string
+          width: number
+          height: number
+        }> = []
 
-        // Upload the generated image from FAL's temporary URL to Bunny CDN
-        // This ensures the image is permanently stored and accessible
-        // Don't hardcode extension - let Bunny detect from content-type (handles SVG, PNG, etc.)
-        const filename = `generated-${Date.now()}`
-        let permanentUrl = falTempUrl
+        // Process each image in the result
+        for (let i = 0; i < allImages.length; i++) {
+          const imageData = allImages[i]
+          const falTempUrl = imageData.url
 
-        console.log('[IMAGE] Uploading to Bunny CDN...')
-        try {
-          const uploadResult = await uploadFromUrl(falTempUrl, {
-            folder: `images/${context.user.id}`,
-            filename, // Extension will be auto-detected from content-type
+          console.log(
+            `[IMAGE] Processing image ${i + 1}/${allImages.length}:`,
+            falTempUrl.slice(0, 80) + '...',
+          )
+
+          // Upload to Bunny CDN
+          const filename = `generated-${Date.now()}-${i}`
+          let permanentUrl = falTempUrl
+
+          try {
+            const uploadResult = await uploadFromUrl(falTempUrl, {
+              folder: `images/${context.user.id}`,
+              filename,
+            })
+            permanentUrl = uploadResult.url
+            console.log(`[IMAGE] Bunny upload ${i + 1} success:`, permanentUrl)
+          } catch (uploadError) {
+            console.error(
+              `[IMAGE] Failed to upload image ${i + 1} to Bunny CDN:`,
+              uploadError,
+            )
+          }
+
+          // Create asset record
+          const asset = await prisma.asset.create({
+            data: {
+              userId: context.user.id,
+              projectId: job.projectId,
+              type: 'image',
+              storageUrl: permanentUrl,
+              filename,
+              prompt: inputData.prompt,
+              provider: 'fal',
+              model: job.model,
+              metadata: JSON.stringify({
+                width: imageData.width,
+                height: imageData.height,
+                seed: result.seed,
+                batchIndex: i,
+                batchSize: allImages.length,
+              }),
+            },
           })
-          permanentUrl = uploadResult.url
-          console.log('[IMAGE] Bunny upload success:', permanentUrl)
-        } catch (uploadError) {
-          // Log error but continue - we'll fall back to FAL's URL
-          // which may expire, but at least shows the image initially
-          console.error('[IMAGE] Failed to upload to Bunny CDN:', uploadError)
-          console.log('[IMAGE] Falling back to FAL temp URL')
+          console.log(`[IMAGE] Asset ${i + 1} created:`, asset.id)
+
+          createdAssets.push({
+            id: asset.id,
+            url: permanentUrl,
+            width: imageData.width,
+            height: imageData.height,
+          })
         }
 
-        // Create asset for the generated image with permanent CDN URL
-        console.log('[IMAGE] Creating asset in DB...')
-        const asset = await prisma.asset.create({
-          data: {
-            userId: context.user.id,
-            projectId: job.projectId,
-            type: 'image',
-            storageUrl: permanentUrl,
-            filename,
-            prompt: JSON.parse(job.input).prompt,
-            provider: 'fal',
-            model: job.model,
-            metadata: JSON.stringify({
-              width: imageData.width,
-              height: imageData.height,
-              seed: result.seed,
-            }),
-          },
-        })
-        console.log('[IMAGE] Asset created:', asset.id)
-
-        // Update job as completed
+        // Update job as completed with all asset info
+        const primaryAsset = createdAssets[0]
         await prisma.generationJob.update({
           where: { id: job.id },
           data: {
             status: 'completed',
             progress: 100,
             output: JSON.stringify({
-              url: permanentUrl,
-              assetId: asset.id,
-              width: imageData.width,
-              height: imageData.height,
+              url: primaryAsset.url,
+              assetId: primaryAsset.id,
+              width: primaryAsset.width,
+              height: primaryAsset.height,
+              // Include all assets for batch generation
+              assets: createdAssets,
+              totalImages: createdAssets.length,
             }),
           },
         })
-        console.log('[IMAGE] Job updated to completed')
+        console.log(
+          '[IMAGE] Job updated to completed with',
+          createdAssets.length,
+          'images',
+        )
 
         return {
           jobId: job.id,
           status: 'completed' as const,
           progress: 100,
           output: {
-            url: permanentUrl,
-            assetId: asset.id,
-            width: imageData.width,
-            height: imageData.height,
+            url: primaryAsset.url,
+            assetId: primaryAsset.id,
+            width: primaryAsset.width,
+            height: primaryAsset.height,
+            assets: createdAssets,
+            totalImages: createdAssets.length,
           },
         }
       } else {
         console.error(
-          '[IMAGE] FAL result has no image URL! Result:',
+          '[IMAGE] FAL result has no images! Result:',
           JSON.stringify(result, null, 2),
         )
       }
     }
 
     if (falStatus.status === 'failed') {
-      console.error('[IMAGE] FAL job failed!')
+      const errorMessage = falStatus.error || 'Generation failed'
+      console.error('[IMAGE] FAL job failed!', errorMessage)
       await prisma.generationJob.update({
         where: { id: job.id },
         data: {
           status: 'failed',
-          error: 'Generation failed',
+          error: errorMessage,
         },
       })
 
@@ -356,7 +397,7 @@ export const getImageJobStatusFn = createServerFn({ method: 'GET' })
         jobId: job.id,
         status: 'failed' as const,
         progress: 0,
-        error: 'Generation failed',
+        error: errorMessage,
       }
     }
 
@@ -489,6 +530,91 @@ export const deleteImageFn = createServerFn({ method: 'POST' })
     })
 
     return { success: true }
+  })
+
+// =============================================================================
+// Image Upload
+// =============================================================================
+
+/**
+ * Upload a user's own image to their library
+ * Accepts base64-encoded image data, stores in Bunny CDN, creates Asset record
+ */
+export const uploadUserImageFn = createServerFn({ method: 'POST' })
+  .middleware([authMiddleware])
+  .inputValidator(uploadImageSchema)
+  .handler(async ({ data, context }) => {
+    console.log('[IMAGE] uploadUserImageFn called:', {
+      userId: context.user.id,
+      contentType: data.contentType,
+      dataLength: data.imageData.length,
+    })
+
+    // Decode base64 to buffer
+    const buffer = Buffer.from(data.imageData, 'base64')
+
+    // Validate file size (max 10MB)
+    const MAX_SIZE = 10 * 1024 * 1024 // 10MB
+    if (buffer.length > MAX_SIZE) {
+      throw new Error('Image too large. Maximum size is 10MB.')
+    }
+
+    // Generate filename with extension based on content type
+    const extensionMap: Record<string, string> = {
+      'image/jpeg': 'jpg',
+      'image/png': 'png',
+      'image/webp': 'webp',
+      'image/gif': 'gif',
+    }
+    const extension = extensionMap[data.contentType] || 'png'
+    const filename =
+      data.filename?.replace(/\.[^/.]+$/, '') || // Remove any existing extension
+      `upload-${Date.now()}`
+    const fullFilename = `${filename}.${extension}`
+
+    // Upload to Bunny CDN
+    console.log('[IMAGE] Uploading to Bunny CDN...')
+    const uploadResult = await uploadBuffer(buffer, data.contentType, {
+      folder: `images/${context.user.id}`,
+      filename: fullFilename,
+    })
+    console.log('[IMAGE] Upload success:', uploadResult.url)
+
+    // Get image dimensions (basic check from buffer header)
+    // For proper dimensions, we'd need an image library, but we'll skip for now
+    const metadata = {
+      uploadedAt: new Date().toISOString(),
+      originalFilename: data.filename,
+      size: buffer.length,
+    }
+
+    // Create asset record
+    const asset = await prisma.asset.create({
+      data: {
+        userId: context.user.id,
+        type: 'image',
+        storageUrl: uploadResult.url,
+        filename: fullFilename,
+        prompt: null, // User uploads don't have prompts
+        provider: 'upload', // Mark as user upload
+        model: null,
+        metadata: JSON.stringify(metadata),
+      },
+    })
+    console.log('[IMAGE] Asset created:', asset.id)
+
+    return {
+      success: true,
+      image: {
+        id: asset.id,
+        url: asset.storageUrl,
+        filename: asset.filename,
+        prompt: asset.prompt,
+        model: asset.model,
+        metadata,
+        createdAt: asset.createdAt,
+      },
+    }
   })
 
 // =============================================================================

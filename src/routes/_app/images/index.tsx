@@ -23,8 +23,14 @@ import {
   Trash2,
   Wand2,
 } from 'lucide-react'
-import type {ImageMode} from '@/components/images';
-import type {GptImageQuality, RecraftStyle} from '@/server/services/types';
+import { toast } from 'sonner'
+import type { ImageMode } from '@/components/images'
+import type {
+  GptImageQuality,
+  RecraftStyle,
+  SeedvrTargetResolution,
+  TopazModelType,
+} from '@/server/services/types'
 import {
   deleteImageFn,
   generateImageFn,
@@ -33,15 +39,15 @@ import {
   listUserImagesFn,
 } from '@/server/image.fn'
 import {
-  createVariationFn,
+  editImageFn,
   getEditJobStatusFn,
-  inpaintImageFn,
   upscaleImageFn,
 } from '@/server/edit.fn'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Slider } from '@/components/ui/slider'
 import {
   Select,
   SelectContent,
@@ -62,19 +68,15 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import {
-  BrushToolbar,
   EditPanel,
-  ImageCanvas,
-  
   ModeToggle,
+  UploadDropZone,
   UpscalePanel,
-  VariationsPanel
 } from '@/components/images'
 import {
   GPT_IMAGE_QUALITY_TIERS,
-  
-  RECRAFT_STYLES
-  
+  RECRAFT_STYLES,
+  getEditModelById,
 } from '@/server/services/types'
 
 export const Route = createFileRoute('/_app/images/')({
@@ -107,7 +109,6 @@ function ImagesPage() {
   const { mode: searchMode } = useSearch({ from: '/_app/images/' })
   const queryClient = useQueryClient()
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const canvasContainerRef = useRef<HTMLDivElement>(null)
 
   // Mode state
   const [mode, setMode] = useState<ImageMode>(searchMode || 'generate')
@@ -125,30 +126,40 @@ function ImagesPage() {
   const [gptQuality, setGptQuality] = useState<GptImageQuality>('medium')
   const [recraftStyle, setRecraftStyle] =
     useState<RecraftStyle>('realistic_image')
+  const [numImages, setNumImages] = useState(1)
 
-  // Edit mode state
+  // Edit mode state (prompt-based, no masks!)
   const [editPrompt, setEditPrompt] = useState('')
-  const [editModel, setEditModel] = useState('fal-ai/flux-pro/v1/fill')
-  const [brushSize, setBrushSize] = useState(30)
-  const [brushMode, setBrushMode] = useState<'draw' | 'erase'>('draw')
-  const [maskDataUrl, setMaskDataUrl] = useState<string | null>(null)
-  const [selectedEditImage, setSelectedEditImage] = useState<{
-    id: string
-    url: string
-    prompt: string | null
-  } | null>(null)
+  const [editModel, setEditModel] = useState('fal-ai/flux-pro/kontext')
+  // Multi-image selection for edit mode
+  const [selectedEditImages, setSelectedEditImages] = useState<
+    Array<{
+      id: string
+      url: string
+      prompt: string | null
+    }>
+  >([])
 
   // Upscale mode state
-  const [upscaleScale, setUpscaleScale] = useState(2)
-  const [upscaleCreativity, setUpscaleCreativity] = useState(0.5)
-  const [upscaleModel, setUpscaleModel] = useState('fal-ai/creative-upscaler')
-
-  // Variations mode state
-  const [variationPrompt, setVariationPrompt] = useState('')
-  const [variationStrength, setVariationStrength] = useState(0.3)
-  const [variationModel, setVariationModel] = useState(
-    'fal-ai/flux-pro/v1.1/redux',
+  const [upscaleModel, setUpscaleModel] = useState(
+    'fal-ai/seedvr/upscale/image',
   )
+  const [upscaleScale, setUpscaleScale] = useState(2)
+
+  // SeedVR specific state
+  const [upscaleMode, setUpscaleMode] = useState<'factor' | 'target'>('factor')
+  const [targetResolution, setTargetResolution] =
+    useState<SeedvrTargetResolution>('1080p')
+  const [noiseScale, setNoiseScale] = useState(0.1)
+
+  // Topaz specific state
+  const [topazModel, setTopazModel] = useState<TopazModelType>('Standard V2')
+  const [subjectDetection, setSubjectDetection] = useState<
+    'All' | 'Foreground' | 'Background'
+  >('All')
+  const [faceEnhancement, setFaceEnhancement] = useState(true)
+  const [faceEnhancementStrength, setFaceEnhancementStrength] = useState(0.8)
+  const [faceEnhancementCreativity, setFaceEnhancementCreativity] = useState(0)
 
   // UI state
   const [selectedImage, setSelectedImage] = useState<GeneratedImage | null>(
@@ -159,7 +170,7 @@ function ImagesPage() {
   // Generation state
   const [currentJobId, setCurrentJobId] = useState<string | null>(null)
   const [currentJobType, setCurrentJobType] = useState<
-    'generate' | 'edit' | 'upscale' | 'variation' | null
+    'generate' | 'edit' | 'upscale' | null
   >(null)
 
   // Pagination
@@ -205,10 +216,10 @@ function ImagesPage() {
     },
   })
 
-  // Inpaint mutation
-  const inpaintMutation = useMutation({
-    mutationFn: inpaintImageFn,
-    onSuccess: (result) => {
+  // Edit mutation (prompt-based, no masks!)
+  const editMutation = useMutation({
+    mutationFn: editImageFn,
+    onSuccess: (result: { jobId: string }) => {
       setCurrentJobId(result.jobId)
       setCurrentJobType('edit')
     },
@@ -220,15 +231,6 @@ function ImagesPage() {
     onSuccess: (result) => {
       setCurrentJobId(result.jobId)
       setCurrentJobType('upscale')
-    },
-  })
-
-  // Variation mutation
-  const variationMutation = useMutation({
-    mutationFn: createVariationFn,
-    onSuccess: (result) => {
-      setCurrentJobId(result.jobId)
-      setCurrentJobType('variation')
     },
   })
 
@@ -276,14 +278,6 @@ function ImagesPage() {
       setCurrentJobId(null)
       setCurrentJobType(null)
       queryClient.invalidateQueries({ queryKey: ['images'] })
-      // Reset mask after successful edit
-      if (currentJobType === 'edit') {
-        setMaskDataUrl(null)
-        const container = canvasContainerRef.current as HTMLDivElement & {
-          clearMask?: () => void
-        }
-        container?.clearMask?.()
-      }
     }
   }, [jobStatus, editJobStatus, currentJobType, queryClient])
 
@@ -334,6 +328,7 @@ function ImagesPage() {
         width: ratio.width,
         height: ratio.height,
         negativePrompt: negativePrompt.trim() || undefined,
+        numImages: numImages > 1 ? numImages : undefined,
         // Model-specific options
         quality: model === 'fal-ai/gpt-image-1.5' ? gptQuality : undefined,
         style: model.includes('recraft') ? recraftStyle : undefined,
@@ -341,50 +336,52 @@ function ImagesPage() {
     })
   }
 
-  const handleInpaint = () => {
-    if (
-      !selectedEditImage ||
-      !maskDataUrl ||
-      !editPrompt.trim() ||
-      isGenerating
-    )
+  const handleEdit = () => {
+    if (selectedEditImages.length === 0 || !editPrompt.trim() || isGenerating)
       return
 
-    inpaintMutation.mutate({
+    editMutation.mutate({
       data: {
-        imageUrl: selectedEditImage.url,
-        maskUrl: maskDataUrl,
+        imageUrls: selectedEditImages.map((img) => img.url),
         prompt: editPrompt.trim(),
         model: editModel,
-        sourceAssetId: selectedEditImage.id,
+        sourceAssetIds: selectedEditImages.map((img) => img.id),
       },
     })
   }
 
   const handleUpscale = () => {
-    if (!selectedEditImage || isGenerating) return
+    if (selectedEditImages.length === 0 || isGenerating) return
 
+    const isSeedVR = upscaleModel.includes('seedvr')
+    const isTopaz = upscaleModel.includes('topaz')
+
+    // Upscale only works with single image
     upscaleMutation.mutate({
       data: {
-        imageUrl: selectedEditImage.url,
+        imageUrl: selectedEditImages[0].url,
         model: upscaleModel,
         scale: upscaleScale,
-        creativity: upscaleCreativity,
-        sourceAssetId: selectedEditImage.id,
-      },
-    })
-  }
-
-  const handleCreateVariation = () => {
-    if (!selectedEditImage || isGenerating) return
-
-    variationMutation.mutate({
-      data: {
-        imageUrl: selectedEditImage.url,
-        prompt: variationPrompt.trim() || undefined,
-        model: variationModel,
-        strength: variationStrength,
-        sourceAssetId: selectedEditImage.id,
+        sourceAssetId: selectedEditImages[0].id,
+        // SeedVR specific
+        ...(isSeedVR && {
+          upscaleMode,
+          targetResolution:
+            upscaleMode === 'target' ? targetResolution : undefined,
+          noiseScale,
+        }),
+        // Topaz specific
+        ...(isTopaz && {
+          topazModel,
+          subjectDetection,
+          faceEnhancement,
+          faceEnhancementStrength: faceEnhancement
+            ? faceEnhancementStrength
+            : undefined,
+          faceEnhancementCreativity: faceEnhancement
+            ? faceEnhancementCreativity
+            : undefined,
+        }),
       },
     })
   }
@@ -417,33 +414,67 @@ function ImagesPage() {
   }
 
   const handleEditImage = (image: GeneratedImage) => {
-    setSelectedEditImage({ id: image.id, url: image.url, prompt: image.prompt })
+    setSelectedEditImages([
+      { id: image.id, url: image.url, prompt: image.prompt },
+    ])
     setSelectedImage(null)
     handleModeChange('edit')
   }
 
+  // Get current model's max images
+  const currentEditModelConfig = getEditModelById(editModel)
+  const maxImagesForModel = currentEditModelConfig?.maxImages || 1
+
+  // Handle selecting/deselecting images for edit mode
   const handleSelectImageForEdit = (image: {
     id: string
     url: string
     prompt: string | null
   }) => {
-    setSelectedEditImage(image)
-    setMaskDataUrl(null)
+    setSelectedEditImages((prev) => {
+      const isAlreadySelected = prev.some((img) => img.id === image.id)
+
+      if (isAlreadySelected) {
+        // Deselect: remove from array
+        return prev.filter((img) => img.id !== image.id)
+      }
+
+      // For single-image models, replace selection
+      if (maxImagesForModel === 1) {
+        return [image]
+      }
+
+      // For multi-image models, add if under limit
+      if (prev.length >= maxImagesForModel) {
+        toast.info(`Maximum ${maxImagesForModel} images for this model`)
+        return prev
+      }
+
+      return [...prev, image]
+    })
   }
 
-  const handleClearMask = () => {
-    setMaskDataUrl(null)
-    const container = canvasContainerRef.current as HTMLDivElement & {
-      clearMask?: () => void
+  // Handle model change - trim selection if needed
+  const handleEditModelChange = (newModel: string) => {
+    const newModelConfig = getEditModelById(newModel)
+    const newMaxImages = newModelConfig?.maxImages || 1
+
+    setEditModel(newModel)
+
+    // If current selection exceeds new model's limit, trim it
+    if (selectedEditImages.length > newMaxImages) {
+      const trimmed = selectedEditImages.slice(0, newMaxImages)
+      setSelectedEditImages(trimmed)
+      toast.info(
+        `${newModelConfig?.name || 'This model'} supports ${newMaxImages} image${newMaxImages === 1 ? '' : 's'}. Kept first ${newMaxImages}.`,
+      )
     }
-    container?.clearMask?.()
   }
 
   const isGenerating =
     generateMutation.isPending ||
-    inpaintMutation.isPending ||
+    editMutation.isPending ||
     upscaleMutation.isPending ||
-    variationMutation.isPending ||
     !!(
       currentJobId &&
       (currentJobType === 'generate'
@@ -459,10 +490,7 @@ function ImagesPage() {
       : editJobStatus?.progress || 0
 
   const currentError =
-    generateMutation.error ||
-    inpaintMutation.error ||
-    upscaleMutation.error ||
-    variationMutation.error
+    generateMutation.error || editMutation.error || upscaleMutation.error
 
   return (
     <div className="flex h-[calc(100vh-theme(spacing.16))] flex-col">
@@ -488,6 +516,7 @@ function ImagesPage() {
             jobStatus={jobStatus}
             progress={progress}
             hasMore={hasMore}
+            numImages={numImages}
             onLoadMore={() => setPage((p) => p + 1)}
             onSelect={setSelectedImage}
             onDownload={handleDownload}
@@ -497,41 +526,52 @@ function ImagesPage() {
             onEdit={handleEditImage}
           />
         ) : (
-          // Edit/Upscale/Variations Mode: Canvas + Image Selector
+          // Edit/Upscale/Variations Mode: Preview + Image Selector
           <div className="grid gap-6 lg:grid-cols-2">
-            {/* Canvas / Preview */}
+            {/* Preview Area */}
             <div className="space-y-3">
-              {mode === 'edit' && (
-                <BrushToolbar
-                  brushSize={brushSize}
-                  onBrushSizeChange={setBrushSize}
-                  brushMode={brushMode}
-                  onBrushModeChange={setBrushMode}
-                  onClearMask={handleClearMask}
-                />
-              )}
-              <div
-                ref={canvasContainerRef}
-                className="aspect-square rounded-lg border bg-muted/50 overflow-hidden"
-              >
-                {mode === 'edit' ? (
-                  <ImageCanvas
-                    imageUrl={selectedEditImage?.url || null}
-                    brushSize={brushSize}
-                    brushMode={brushMode}
-                    onMaskChange={setMaskDataUrl}
-                    className="h-full w-full"
-                  />
-                ) : selectedEditImage ? (
-                  <img
-                    src={selectedEditImage.url}
-                    alt="Selected"
-                    className="h-full w-full object-contain"
-                  />
+              <div className="aspect-square rounded-lg border bg-muted/50 overflow-hidden">
+                {selectedEditImages.length > 0 ? (
+                  selectedEditImages.length === 1 ? (
+                    // Single image preview
+                    <img
+                      src={selectedEditImages[0].url}
+                      alt="Selected"
+                      className="h-full w-full object-contain"
+                    />
+                  ) : (
+                    // Multi-image grid preview
+                    <div className="h-full w-full grid grid-cols-2 gap-1 p-1">
+                      {selectedEditImages.slice(0, 4).map((img, idx) => (
+                        <div
+                          key={img.id}
+                          className="relative overflow-hidden rounded"
+                        >
+                          <img
+                            src={img.url}
+                            alt={`Selected ${idx + 1}`}
+                            className="h-full w-full object-cover"
+                          />
+                          <div className="absolute top-1 left-1 bg-primary text-primary-foreground text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center">
+                            {idx + 1}
+                          </div>
+                        </div>
+                      ))}
+                      {selectedEditImages.length > 4 && (
+                        <div className="absolute bottom-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded">
+                          +{selectedEditImages.length - 4} more
+                        </div>
+                      )}
+                    </div>
+                  )
                 ) : (
                   <div className="h-full flex items-center justify-center">
                     <p className="text-muted-foreground">
-                      Select an image to {mode}
+                      Select{' '}
+                      {mode === 'edit' && maxImagesForModel > 1
+                        ? 'image(s)'
+                        : 'an image'}{' '}
+                      to {mode}
                     </p>
                   </div>
                 )}
@@ -546,10 +586,29 @@ function ImagesPage() {
 
             {/* Image Selector Grid */}
             <div>
-              <h3 className="mb-3 text-sm font-medium">Select Image</h3>
+              <h3 className="mb-3 text-sm font-medium">
+                Select Image
+                {mode === 'edit' && maxImagesForModel > 1 ? 's' : ''}
+                {mode === 'edit' && maxImagesForModel > 1 && (
+                  <span className="ml-2 text-xs text-muted-foreground font-normal">
+                    (up to {maxImagesForModel})
+                  </span>
+                )}
+              </h3>
+
+              {/* Upload drop zone */}
+              <UploadDropZone
+                onUploadComplete={() => {
+                  queryClient.invalidateQueries({ queryKey: ['images'] })
+                }}
+              />
+
               <div className="grid grid-cols-4 gap-2 max-h-[400px] overflow-y-auto">
                 {images.map((image) => {
-                  const isSelected = selectedEditImage?.id === image.id
+                  const selectionIndex = selectedEditImages.findIndex(
+                    (img) => img.id === image.id,
+                  )
+                  const isSelected = selectionIndex !== -1
                   return (
                     <button
                       key={image.id}
@@ -574,7 +633,14 @@ function ImagesPage() {
                       />
                       {isSelected && (
                         <div className="absolute inset-0 bg-primary/20 flex items-center justify-center">
-                          <Check className="h-6 w-6 text-primary" />
+                          {mode === 'edit' && maxImagesForModel > 1 ? (
+                            // Show number for multi-image models
+                            <div className="bg-primary text-primary-foreground text-sm font-bold w-7 h-7 rounded-full flex items-center justify-center">
+                              {selectionIndex + 1}
+                            </div>
+                          ) : (
+                            <Check className="h-6 w-6 text-primary" />
+                          )}
                         </div>
                       )}
                     </button>
@@ -600,7 +666,14 @@ function ImagesPage() {
               onPromptChange={setPrompt}
               textareaRef={textareaRef}
               model={model}
-              onModelChange={setModel}
+              onModelChange={(newModel) => {
+                setModel(newModel)
+                // Reset numImages to 1 if new model doesn't support it
+                const newModelConfig = models.find((m) => m.id === newModel)
+                if (!newModelConfig?.supportsNumImages) {
+                  setNumImages(1)
+                }
+              }}
               models={models}
               aspectRatio={aspectRatio}
               onAspectRatioChange={setAspectRatio}
@@ -620,6 +693,8 @@ function ImagesPage() {
               onGptQualityChange={setGptQuality}
               recraftStyle={recraftStyle}
               onRecraftStyleChange={setRecraftStyle}
+              numImages={numImages}
+              onNumImagesChange={setNumImages}
             />
           )}
 
@@ -628,14 +703,14 @@ function ImagesPage() {
               prompt={editPrompt}
               onPromptChange={setEditPrompt}
               model={editModel}
-              onModelChange={setEditModel}
-              onGenerate={handleInpaint}
+              onModelChange={handleEditModelChange}
+              onGenerate={handleEdit}
               isGenerating={isGenerating}
-              hasMask={!!maskDataUrl}
-              hasImage={!!selectedEditImage}
+              selectedCount={selectedEditImages.length}
+              maxImages={maxImagesForModel}
               error={
-                inpaintMutation.error instanceof Error
-                  ? inpaintMutation.error.message
+                editMutation.error instanceof Error
+                  ? editMutation.error.message
                   : editJobStatus?.error
               }
             />
@@ -643,37 +718,35 @@ function ImagesPage() {
 
           {mode === 'upscale' && (
             <UpscalePanel
-              scale={upscaleScale}
-              onScaleChange={setUpscaleScale}
-              creativity={upscaleCreativity}
-              onCreativityChange={setUpscaleCreativity}
               model={upscaleModel}
               onModelChange={setUpscaleModel}
+              scale={upscaleScale}
+              onScaleChange={setUpscaleScale}
+              // SeedVR specific
+              upscaleMode={upscaleMode}
+              onUpscaleModeChange={setUpscaleMode}
+              targetResolution={targetResolution}
+              onTargetResolutionChange={setTargetResolution}
+              noiseScale={noiseScale}
+              onNoiseScaleChange={setNoiseScale}
+              // Topaz specific
+              topazModel={topazModel}
+              onTopazModelChange={setTopazModel}
+              subjectDetection={subjectDetection}
+              onSubjectDetectionChange={setSubjectDetection}
+              faceEnhancement={faceEnhancement}
+              onFaceEnhancementChange={setFaceEnhancement}
+              faceEnhancementStrength={faceEnhancementStrength}
+              onFaceEnhancementStrengthChange={setFaceEnhancementStrength}
+              faceEnhancementCreativity={faceEnhancementCreativity}
+              onFaceEnhancementCreativityChange={setFaceEnhancementCreativity}
+              // Actions
               onUpscale={handleUpscale}
               isUpscaling={isGenerating}
-              hasImage={!!selectedEditImage}
+              hasImage={selectedEditImages.length > 0}
               error={
                 upscaleMutation.error instanceof Error
                   ? upscaleMutation.error.message
-                  : editJobStatus?.error
-              }
-            />
-          )}
-
-          {mode === 'variations' && (
-            <VariationsPanel
-              prompt={variationPrompt}
-              onPromptChange={setVariationPrompt}
-              strength={variationStrength}
-              onStrengthChange={setVariationStrength}
-              model={variationModel}
-              onModelChange={setVariationModel}
-              onGenerate={handleCreateVariation}
-              isGenerating={isGenerating}
-              hasImage={!!selectedEditImage}
-              error={
-                variationMutation.error instanceof Error
-                  ? variationMutation.error.message
                   : editJobStatus?.error
               }
             />
@@ -720,6 +793,7 @@ interface GenerateGalleryProps {
   jobStatus: { status?: string; progress?: number } | undefined
   progress: number
   hasMore: boolean
+  numImages: number
   onLoadMore: () => void
   onSelect: (image: GeneratedImage) => void
   onDownload: (url: string) => void
@@ -736,6 +810,7 @@ function GenerateGallery({
   jobStatus,
   progress,
   hasMore,
+  numImages,
   onLoadMore,
   onSelect,
   onDownload,
@@ -772,31 +847,35 @@ function GenerateGallery({
   return (
     <>
       <div className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-        {isGenerating && (
-          <Card className="aspect-square overflow-hidden">
-            <div className="relative h-full w-full bg-muted">
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                <p className="mt-3 text-sm text-muted-foreground">
-                  {jobStatus?.status === 'processing'
-                    ? 'Creating...'
-                    : 'Starting...'}
-                </p>
-                {progress > 0 && (
-                  <div className="mt-3 w-24">
-                    <div className="h-1.5 overflow-hidden rounded-full bg-muted-foreground/20">
-                      <div
-                        className="h-full bg-primary transition-all duration-300"
-                        style={{ width: `${progress}%` }}
-                      />
+        {isGenerating &&
+          Array.from({ length: numImages }).map((_, i) => (
+            <Card
+              key={`generating-${i}`}
+              className="aspect-square overflow-hidden"
+            >
+              <div className="relative h-full w-full bg-muted">
+                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                  <p className="mt-3 text-sm text-muted-foreground">
+                    {jobStatus?.status === 'processing'
+                      ? `Creating ${i + 1}/${numImages}...`
+                      : 'Starting...'}
+                  </p>
+                  {progress > 0 && (
+                    <div className="mt-3 w-24">
+                      <div className="h-1.5 overflow-hidden rounded-full bg-muted-foreground/20">
+                        <div
+                          className="h-full bg-primary transition-all duration-300"
+                          style={{ width: `${progress}%` }}
+                        />
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
+                <div className="absolute inset-0 -translate-x-full animate-[shimmer_2s_infinite] bg-gradient-to-r from-transparent via-white/10 to-transparent" />
               </div>
-              <div className="absolute inset-0 -translate-x-full animate-[shimmer_2s_infinite] bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-            </div>
-          </Card>
-        )}
+            </Card>
+          ))}
 
         {images.map((image) => (
           <ImageCard
@@ -832,7 +911,13 @@ interface GeneratePanelProps {
   textareaRef: React.RefObject<HTMLTextAreaElement | null>
   model: string
   onModelChange: (v: string) => void
-  models: Array<{ id: string; name: string; credits: number }>
+  models: Array<{
+    id: string
+    name: string
+    credits: number
+    supportsNumImages?: boolean
+    maxNumImages?: number
+  }>
   aspectRatio: string
   onAspectRatioChange: (v: string) => void
   showNegativePrompt: boolean
@@ -841,7 +926,9 @@ interface GeneratePanelProps {
   onNegativePromptChange: (v: string) => void
   onGenerate: () => void
   isGenerating: boolean
-  selectedModel: { credits: number } | undefined
+  selectedModel:
+    | { credits: number; supportsNumImages?: boolean; maxNumImages?: number }
+    | undefined
   error: Error | null
   jobStatus: { status?: string; error?: string | null } | undefined
   // Model-specific options
@@ -849,6 +936,8 @@ interface GeneratePanelProps {
   onGptQualityChange: (v: GptImageQuality) => void
   recraftStyle: RecraftStyle
   onRecraftStyleChange: (v: RecraftStyle) => void
+  numImages: number
+  onNumImagesChange: (v: number) => void
 }
 
 function GeneratePanel({
@@ -873,18 +962,25 @@ function GeneratePanel({
   onGptQualityChange,
   recraftStyle,
   onRecraftStyleChange,
+  numImages,
+  onNumImagesChange,
 }: GeneratePanelProps) {
   // Calculate displayed credits based on model-specific options
   const getDisplayedCredits = () => {
+    let baseCredits = selectedModel?.credits || 3
     if (model === 'fal-ai/gpt-image-1.5') {
       const tier = GPT_IMAGE_QUALITY_TIERS.find((t) => t.id === gptQuality)
-      return tier?.credits || 4
+      baseCredits = tier?.credits || 4
     }
     if (model.includes('recraft') && recraftStyle === 'vector_illustration') {
-      return (selectedModel?.credits || 4) * 2
+      baseCredits = (selectedModel?.credits || 4) * 2
     }
-    return selectedModel?.credits || 3
+    // Multiply by number of images
+    return baseCredits * numImages
   }
+
+  const supportsNumImages = selectedModel?.supportsNumImages ?? false
+  const maxNumImages = selectedModel?.maxNumImages ?? 4
   return (
     <>
       <div className="relative">
@@ -967,6 +1063,24 @@ function GeneratePanel({
               ))}
             </SelectContent>
           </Select>
+        )}
+
+        {/* Number of Images Slider - only shown for models that support it */}
+        {supportsNumImages && (
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground whitespace-nowrap">
+              Images
+            </span>
+            <Slider
+              value={[numImages]}
+              onValueChange={([value]) => onNumImagesChange(value)}
+              min={1}
+              max={maxNumImages}
+              step={1}
+              className="w-20"
+            />
+            <span className="text-xs font-medium w-4">{numImages}</span>
+          </div>
         )}
 
         <div className="flex rounded-md border">
