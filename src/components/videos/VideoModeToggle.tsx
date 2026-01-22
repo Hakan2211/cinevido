@@ -1,5 +1,5 @@
 /**
- * VideoModeToggle - Tab-style mode selector for video generation
+ * VideoModeToggle - Premium tab-style mode selector for video generation
  *
  * Modes:
  * - text-to-video: Generate videos from text prompts
@@ -52,7 +52,8 @@ export function VideoModeToggle({
   return (
     <div
       className={cn(
-        'inline-flex items-center rounded-lg border bg-muted p-1',
+        'inline-flex items-center gap-1 rounded-2xl border border-border/50 bg-card/50 p-1.5',
+        'shadow-sm backdrop-blur-sm',
         className,
       )}
     >
@@ -65,15 +66,19 @@ export function VideoModeToggle({
             key={m.id}
             onClick={() => onModeChange(m.id)}
             className={cn(
-              'inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-all',
+              'relative inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium',
+              'transition-all duration-200 ease-out',
               isActive
-                ? 'bg-background text-foreground shadow-sm'
-                : 'text-muted-foreground hover:text-foreground',
+                ? 'bg-primary text-primary-foreground active-glow'
+                : 'text-muted-foreground hover:text-foreground hover:bg-muted/50',
             )}
             title={m.description}
           >
-            <Icon className="h-4 w-4" />
+            <Icon className={cn('h-4 w-4', isActive && 'drop-shadow-sm')} />
             <span className="hidden sm:inline">{m.label}</span>
+            {isActive && (
+              <span className="absolute inset-0 rounded-xl bg-white/10 opacity-0 transition-opacity hover:opacity-100" />
+            )}
           </button>
         )
       })}

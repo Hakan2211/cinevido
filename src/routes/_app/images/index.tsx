@@ -10,18 +10,28 @@
 
 import { createFileRoute, useNavigate, useSearch } from '@tanstack/react-router'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query'
+import {
+  Calendar,
   Check,
   Copy,
   Download,
+  Hash,
   Image as ImageIcon,
   Loader2,
+  Maximize2,
+  MessageSquare,
   Paintbrush,
   Play,
   Sparkles,
   Trash2,
   Wand2,
+  Zap,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import type { ImageMode } from '@/components/images'
@@ -55,6 +65,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { ModelSelect } from '@/components/ui/model-select'
 import {
   Sheet,
   SheetContent,
@@ -94,6 +105,30 @@ const ASPECT_RATIOS = [
   { id: '16:9', name: '16:9', width: 1024, height: 576 },
   { id: '9:16', name: '9:16', width: 576, height: 1024 },
 ]
+
+// Calculate aspect ratio from dimensions
+function getAspectRatio(width: number, height: number): string {
+  const gcd = (a: number, b: number): number => (b === 0 ? a : gcd(b, a % b))
+  const divisor = gcd(width, height)
+  const ratioW = width / divisor
+  const ratioH = height / divisor
+  // Simplify common ratios
+  if (ratioW === 16 && ratioH === 9) return '16:9'
+  if (ratioW === 9 && ratioH === 16) return '9:16'
+  if (ratioW === 4 && ratioH === 3) return '4:3'
+  if (ratioW === 3 && ratioH === 4) return '3:4'
+  if (ratioW === 1 && ratioH === 1) return '1:1'
+  if (ratioW === 21 && ratioH === 9) return '21:9'
+  if (ratioW === 9 && ratioH === 21) return '9:21'
+  // For other ratios, try to approximate to common ones
+  const ratio = width / height
+  if (Math.abs(ratio - 16 / 9) < 0.05) return '16:9'
+  if (Math.abs(ratio - 9 / 16) < 0.05) return '9:16'
+  if (Math.abs(ratio - 4 / 3) < 0.05) return '4:3'
+  if (Math.abs(ratio - 3 / 4) < 0.05) return '3:4'
+  if (Math.abs(ratio - 1) < 0.05) return '1:1'
+  return `${ratioW}:${ratioH}`
+}
 
 interface GeneratedImage {
   id: string
@@ -174,8 +209,8 @@ function ImagesPage() {
   >(null)
 
   // Pagination
-  const [page, setPage] = useState(0)
   const limit = 20
+  const loadMoreRef = useRef<HTMLDivElement>(null)
 
   // Update URL when mode changes
   const handleModeChange = useCallback(
@@ -196,16 +231,46 @@ function ImagesPage() {
     queryFn: () => getImageModelsFn(),
   })
 
-  // Fetch images
-  const { data: imagesData, isLoading: imagesLoading } = useQuery({
-    queryKey: ['images', page],
-    queryFn: () => listUserImagesFn({ data: { limit, offset: page * limit } }),
+  // Fetch images with infinite scroll
+  const {
+    data: imagesData,
+    isLoading: imagesLoading,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteQuery({
+    queryKey: ['images'],
+    queryFn: ({ pageParam = 0 }) =>
+      listUserImagesFn({ data: { limit, offset: pageParam * limit } }),
+    getNextPageParam: (lastPage, allPages) => {
+      const loadedCount = allPages.length * limit
+      return loadedCount < lastPage.total ? allPages.length : undefined
+    },
+    initialPageParam: 0,
   })
 
   const models = modelsData?.models || []
-  const images = imagesData?.images || []
-  const total = imagesData?.total || 0
-  const hasMore = images.length + page * limit < total
+  // Flatten all pages into single array
+  const images = imagesData?.pages.flatMap((page) => page.images) ?? []
+  const total = imagesData?.pages[0]?.total ?? 0
+
+  // Intersection Observer for infinite scroll
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasNextPage && !isFetchingNextPage) {
+          fetchNextPage()
+        }
+      },
+      { threshold: 0.1 },
+    )
+
+    if (loadMoreRef.current) {
+      observer.observe(loadMoreRef.current)
+    }
+
+    return () => observer.disconnect()
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage])
 
   // Generate mutation
   const generateMutation = useMutation({
@@ -495,10 +560,10 @@ function ImagesPage() {
   return (
     <div className="flex h-[calc(100vh-theme(spacing.16))] flex-col">
       {/* Header with Mode Toggle */}
-      <div className="flex items-center justify-between px-1 pb-4">
+      <div className="flex items-center justify-between px-2 pb-6">
         <div>
-          <h1 className="text-2xl font-bold">Images</h1>
-          <p className="text-sm text-muted-foreground">
+          <h1 className="text-3xl font-bold tracking-tight">Images</h1>
+          <p className="text-sm text-muted-foreground mt-1">
             {total} image{total !== 1 ? 's' : ''} in your library
           </p>
         </div>
@@ -515,9 +580,10 @@ function ImagesPage() {
             isGenerating={isGenerating}
             jobStatus={jobStatus}
             progress={progress}
-            hasMore={hasMore}
+            hasNextPage={hasNextPage}
+            isFetchingNextPage={isFetchingNextPage}
+            loadMoreRef={loadMoreRef}
             numImages={numImages}
-            onLoadMore={() => setPage((p) => p + 1)}
             onSelect={setSelectedImage}
             onDownload={handleDownload}
             onAnimate={handleAnimate}
@@ -526,47 +592,50 @@ function ImagesPage() {
             onEdit={handleEditImage}
           />
         ) : (
-          // Edit/Upscale/Variations Mode: Preview + Image Selector
-          <div className="grid gap-6 lg:grid-cols-2">
-            {/* Preview Area */}
-            <div className="space-y-3">
-              <div className="aspect-square rounded-lg border bg-muted/50 overflow-hidden">
+          // Edit/Upscale Mode: Premium Preview + Image Selector
+          <div className="grid gap-8 lg:grid-cols-2 px-2">
+            {/* Preview Area - Premium Styling */}
+            <div className="space-y-4">
+              <div className="aspect-square rounded-2xl border border-border/30 bg-card/30 overflow-hidden shadow-lg">
                 {selectedEditImages.length > 0 ? (
                   selectedEditImages.length === 1 ? (
-                    // Single image preview
+                    // Single image preview - fills container
                     <img
                       src={selectedEditImages[0].url}
                       alt="Selected"
-                      className="h-full w-full object-contain"
+                      className="h-full w-full object-cover"
                     />
                   ) : (
                     // Multi-image grid preview
-                    <div className="h-full w-full grid grid-cols-2 gap-1 p-1">
+                    <div className="h-full w-full grid grid-cols-2 gap-2 p-2">
                       {selectedEditImages.slice(0, 4).map((img, idx) => (
                         <div
                           key={img.id}
-                          className="relative overflow-hidden rounded"
+                          className="relative overflow-hidden rounded-xl"
                         >
                           <img
                             src={img.url}
                             alt={`Selected ${idx + 1}`}
                             className="h-full w-full object-cover"
                           />
-                          <div className="absolute top-1 left-1 bg-primary text-primary-foreground text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center">
+                          <div className="absolute top-2 left-2 bg-primary text-primary-foreground text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center active-glow">
                             {idx + 1}
                           </div>
                         </div>
                       ))}
                       {selectedEditImages.length > 4 && (
-                        <div className="absolute bottom-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded">
+                        <div className="absolute bottom-3 right-3 bg-black/80 backdrop-blur-sm text-white text-xs px-3 py-1.5 rounded-full">
                           +{selectedEditImages.length - 4} more
                         </div>
                       )}
                     </div>
                   )
                 ) : (
-                  <div className="h-full flex items-center justify-center">
-                    <p className="text-muted-foreground">
+                  <div className="h-full flex flex-col items-center justify-center gap-4">
+                    <div className="rounded-2xl bg-gradient-to-br from-primary/10 to-accent/10 p-6 border border-primary/10">
+                      <ImageIcon className="h-12 w-12 text-primary/50" />
+                    </div>
+                    <p className="text-muted-foreground text-center">
                       Select{' '}
                       {mode === 'edit' && maxImagesForModel > 1
                         ? 'image(s)'
@@ -577,20 +646,22 @@ function ImagesPage() {
                 )}
               </div>
               {isGenerating && (
-                <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Processing... {progress > 0 && `${progress}%`}
+                <div className="flex items-center gap-3 rounded-xl bg-primary/10 border border-primary/20 px-4 py-3">
+                  <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                  <span className="text-sm font-medium">
+                    Processing... {progress > 0 && `${progress}%`}
+                  </span>
                 </div>
               )}
             </div>
 
-            {/* Image Selector Grid */}
+            {/* Image Selector Grid - Premium Styling */}
             <div>
-              <h3 className="mb-3 text-sm font-medium">
+              <h3 className="mb-4 text-lg font-semibold">
                 Select Image
                 {mode === 'edit' && maxImagesForModel > 1 ? 's' : ''}
                 {mode === 'edit' && maxImagesForModel > 1 && (
-                  <span className="ml-2 text-xs text-muted-foreground font-normal">
+                  <span className="ml-2 text-sm text-muted-foreground font-normal">
                     (up to {maxImagesForModel})
                   </span>
                 )}
@@ -603,7 +674,7 @@ function ImagesPage() {
                 }}
               />
 
-              <div className="grid grid-cols-4 gap-2 max-h-[400px] overflow-y-auto">
+              <div className="grid grid-cols-3 md:grid-cols-4 gap-3 max-h-[450px] overflow-y-auto pr-2">
                 {images.map((image) => {
                   const selectionIndex = selectedEditImages.findIndex(
                     (img) => img.id === image.id,
@@ -619,27 +690,28 @@ function ImagesPage() {
                           prompt: image.prompt,
                         })
                       }
-                      className={`relative aspect-square rounded-md overflow-hidden border-2 transition-all ${
+                      className={`relative aspect-square rounded-xl overflow-hidden border-2 transition-all duration-200 ${
                         isSelected
-                          ? 'border-primary ring-2 ring-primary/20'
-                          : 'border-transparent hover:border-muted-foreground/30'
+                          ? 'border-primary ring-2 ring-primary/30 shadow-lg shadow-primary/20'
+                          : 'border-border/30 hover:border-primary/30 hover:shadow-md'
                       }`}
                     >
                       <img
                         src={image.url}
                         alt={image.prompt || 'Image'}
-                        className="h-full w-full object-cover"
+                        className="absolute inset-0 h-full w-full object-cover"
                         loading="lazy"
                       />
                       {isSelected && (
-                        <div className="absolute inset-0 bg-primary/20 flex items-center justify-center">
+                        <div className="absolute inset-0 bg-primary/20 backdrop-blur-[1px] flex items-center justify-center">
                           {mode === 'edit' && maxImagesForModel > 1 ? (
-                            // Show number for multi-image models
-                            <div className="bg-primary text-primary-foreground text-sm font-bold w-7 h-7 rounded-full flex items-center justify-center">
+                            <div className="bg-primary text-primary-foreground text-sm font-bold w-8 h-8 rounded-full flex items-center justify-center active-glow">
                               {selectionIndex + 1}
                             </div>
                           ) : (
-                            <Check className="h-6 w-6 text-primary" />
+                            <div className="bg-primary rounded-full p-2 active-glow">
+                              <Check className="h-5 w-5 text-primary-foreground" />
+                            </div>
                           )}
                         </div>
                       )}
@@ -648,18 +720,20 @@ function ImagesPage() {
                 })}
               </div>
               {images.length === 0 && (
-                <p className="text-sm text-muted-foreground py-8 text-center">
-                  No images yet. Generate some first!
-                </p>
+                <div className="text-center py-12">
+                  <p className="text-muted-foreground">
+                    No images yet. Generate some first!
+                  </p>
+                </div>
               )}
             </div>
           </div>
         )}
       </div>
 
-      {/* Fixed Bottom Panel - Mode-specific */}
-      <div className="fixed bottom-0 left-0 right-0 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 md:left-64">
-        <div className="mx-auto max-w-4xl p-4">
+      {/* Fixed Bottom Panel - Premium Floating Action Bar */}
+      <div className="fixed bottom-0 left-0 right-0 md:left-64 p-4 pb-6">
+        <div className="mx-auto max-w-4xl rounded-2xl border border-border/50 bg-card/95 backdrop-blur-xl shadow-2xl shadow-black/20 p-5">
           {mode === 'generate' && (
             <GeneratePanel
               prompt={prompt}
@@ -756,8 +830,8 @@ function ImagesPage() {
 
       {/* Detail Panel */}
       <Sheet open={!!selectedImage} onOpenChange={() => setSelectedImage(null)}>
-        <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
-          <SheetHeader>
+        <SheetContent className="w-full sm:max-w-xl overflow-y-auto p-0">
+          <SheetHeader className="px-6 pt-6 pb-4 border-b border-border/30">
             <SheetTitle>Image Details</SheetTitle>
           </SheetHeader>
           {selectedImage && (
@@ -792,9 +866,10 @@ interface GenerateGalleryProps {
   isGenerating: boolean
   jobStatus: { status?: string; progress?: number } | undefined
   progress: number
-  hasMore: boolean
+  hasNextPage: boolean | undefined
+  isFetchingNextPage: boolean
+  loadMoreRef: React.RefObject<HTMLDivElement | null>
   numImages: number
-  onLoadMore: () => void
   onSelect: (image: GeneratedImage) => void
   onDownload: (url: string) => void
   onAnimate: (image: GeneratedImage) => void
@@ -809,9 +884,10 @@ function GenerateGallery({
   isGenerating,
   jobStatus,
   progress,
-  hasMore,
+  hasNextPage,
+  isFetchingNextPage,
+  loadMoreRef,
   numImages,
-  onLoadMore,
   onSelect,
   onDownload,
   onAnimate,
@@ -821,9 +897,9 @@ function GenerateGallery({
 }: GenerateGalleryProps) {
   if (isLoading && images.length === 0) {
     return (
-      <div className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-        {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
-          <Skeleton key={i} className="aspect-square rounded-lg" />
+      <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 px-2">
+        {[1, 2, 3, 4, 5, 6].map((i) => (
+          <Skeleton key={i} className="aspect-square rounded-2xl" />
         ))}
       </div>
     )
@@ -831,14 +907,14 @@ function GenerateGallery({
 
   if (images.length === 0 && !isGenerating) {
     return (
-      <div className="flex flex-col items-center justify-center py-20">
-        <div className="rounded-full bg-muted p-6">
-          <ImageIcon className="h-12 w-12 text-muted-foreground" />
+      <div className="flex flex-col items-center justify-center py-24">
+        <div className="rounded-2xl bg-gradient-to-br from-primary/20 to-accent/20 p-8 border border-primary/10">
+          <ImageIcon className="h-16 w-16 text-primary/70" />
         </div>
-        <h3 className="mt-6 text-lg font-medium">No images yet</h3>
-        <p className="mt-2 text-sm text-muted-foreground text-center max-w-sm">
-          Type a prompt below and press Enter to create your first AI-generated
-          image
+        <h3 className="mt-8 text-xl font-semibold">No images yet</h3>
+        <p className="mt-3 text-muted-foreground text-center max-w-md">
+          Describe your vision below and press Enter to create your first
+          AI-generated masterpiece
         </p>
       </div>
     )
@@ -846,33 +922,38 @@ function GenerateGallery({
 
   return (
     <>
-      <div className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+      <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 px-2">
         {isGenerating &&
           Array.from({ length: numImages }).map((_, i) => (
             <Card
               key={`generating-${i}`}
-              className="aspect-square overflow-hidden"
+              className="aspect-square overflow-hidden rounded-2xl border-border/50 bg-card/50 p-0"
             >
-              <div className="relative h-full w-full bg-muted">
+              <div className="relative h-full w-full bg-gradient-to-br from-muted to-muted/50">
                 <div className="absolute inset-0 flex flex-col items-center justify-center">
-                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                  <p className="mt-3 text-sm text-muted-foreground">
+                  <div className="rounded-full bg-primary/10 p-4">
+                    <Loader2 className="h-10 w-10 animate-spin text-primary" />
+                  </div>
+                  <p className="mt-4 text-sm font-medium text-foreground">
                     {jobStatus?.status === 'processing'
                       ? `Creating ${i + 1}/${numImages}...`
                       : 'Starting...'}
                   </p>
                   {progress > 0 && (
-                    <div className="mt-3 w-24">
-                      <div className="h-1.5 overflow-hidden rounded-full bg-muted-foreground/20">
+                    <div className="mt-4 w-32">
+                      <div className="h-2 overflow-hidden rounded-full bg-primary/20">
                         <div
-                          className="h-full bg-primary transition-all duration-300"
+                          className="h-full bg-primary transition-all duration-300 rounded-full"
                           style={{ width: `${progress}%` }}
                         />
                       </div>
+                      <p className="text-xs text-muted-foreground text-center mt-2">
+                        {progress}%
+                      </p>
                     </div>
                   )}
                 </div>
-                <div className="absolute inset-0 -translate-x-full animate-[shimmer_2s_infinite] bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+                <div className="absolute inset-0 -translate-x-full animate-[shimmer_2s_infinite] bg-gradient-to-r from-transparent via-white/5 to-transparent" />
               </div>
             </Card>
           ))}
@@ -891,16 +972,15 @@ function GenerateGallery({
         ))}
       </div>
 
-      {hasMore && (
-        <div className="mt-6 flex justify-center">
-          <Button variant="outline" onClick={onLoadMore} disabled={isLoading}>
-            {isLoading ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : null}
-            Load more
-          </Button>
-        </div>
-      )}
+      {/* Infinite scroll trigger */}
+      <div ref={loadMoreRef} className="col-span-full flex justify-center py-8">
+        {isFetchingNextPage && (
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        )}
+        {!hasNextPage && images.length > 0 && (
+          <p className="text-sm text-muted-foreground">No more images</p>
+        )}
+      </div>
     </>
   )
 }
@@ -983,18 +1063,19 @@ function GeneratePanel({
   const maxNumImages = selectedModel?.maxNumImages ?? 4
   return (
     <>
+      {/* Premium Textarea with Floating Generate Button */}
       <div className="relative">
         <Textarea
           ref={textareaRef}
-          placeholder="Describe the image you want to create... (Press Enter to generate)"
+          placeholder="Describe the image you want to create..."
           value={prompt}
           onChange={(e) => onPromptChange(e.target.value)}
-          className="min-h-[52px] resize-none pr-24 text-base"
-          rows={1}
+          className="min-h-[80px] resize-none pr-28 text-base rounded-xl border-border/50 bg-background/50 focus:border-primary/50 focus:ring-primary/20 placeholder:text-muted-foreground/60"
+          rows={2}
         />
         <Button
-          size="sm"
-          className="absolute bottom-2 right-2"
+          size="default"
+          className="absolute bottom-3 right-3 rounded-xl bg-primary hover:bg-primary/90 btn-primary-glow transition-all duration-200"
           onClick={onGenerate}
           disabled={!prompt.trim() || isGenerating}
         >
@@ -1002,39 +1083,31 @@ function GeneratePanel({
             <Loader2 className="h-4 w-4 animate-spin" />
           ) : (
             <>
-              <Sparkles className="mr-1.5 h-4 w-4" />
+              <Sparkles className="mr-2 h-4 w-4" />
               Generate
             </>
           )}
         </Button>
       </div>
 
-      <div className="mt-3 flex flex-wrap items-center gap-3">
-        <Select value={model} onValueChange={onModelChange}>
-          <SelectTrigger className="h-8 w-40">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {models.map((m) => (
-              <SelectItem key={m.id} value={m.id}>
-                <span className="flex items-center gap-2">
-                  {m.name}
-                  <span className="text-xs text-muted-foreground">
-                    {m.credits}cr
-                  </span>
-                </span>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      {/* Settings Row - Premium Styling */}
+      <div className="mt-4 flex flex-wrap items-center gap-4">
+        {/* Model Selector with Icons */}
+        <ModelSelect
+          value={model}
+          onValueChange={onModelChange}
+          models={models}
+          showDescription={true}
+          showProvider={true}
+        />
 
         {/* GPT Image Quality Selector */}
         {model === 'fal-ai/gpt-image-1.5' && (
           <Select value={gptQuality} onValueChange={onGptQualityChange}>
-            <SelectTrigger className="h-8 w-32">
+            <SelectTrigger className="h-9 w-32 rounded-xl border-border/50 bg-background/50">
               <SelectValue />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="rounded-xl">
               {GPT_IMAGE_QUALITY_TIERS.map((tier) => (
                 <SelectItem key={tier.id} value={tier.id}>
                   <span className="flex items-center gap-2">
@@ -1052,10 +1125,10 @@ function GeneratePanel({
         {/* Recraft Style Selector */}
         {model.includes('recraft') && (
           <Select value={recraftStyle} onValueChange={onRecraftStyleChange}>
-            <SelectTrigger className="h-8 w-40">
+            <SelectTrigger className="h-9 w-40 rounded-xl border-border/50 bg-background/50">
               <SelectValue />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="rounded-xl">
               {RECRAFT_STYLES.map((style) => (
                 <SelectItem key={style.id} value={style.id}>
                   {style.name}
@@ -1065,11 +1138,11 @@ function GeneratePanel({
           </Select>
         )}
 
-        {/* Number of Images Slider - only shown for models that support it */}
+        {/* Number of Images Slider - Premium Styling */}
         {supportsNumImages && (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3 rounded-xl border border-border/50 bg-background/50 px-3 py-2">
             <span className="text-xs text-muted-foreground whitespace-nowrap">
-              Images
+              Batch
             </span>
             <Slider
               value={[numImages]}
@@ -1079,19 +1152,22 @@ function GeneratePanel({
               step={1}
               className="w-20"
             />
-            <span className="text-xs font-medium w-4">{numImages}</span>
+            <span className="text-sm font-medium w-4 text-primary">
+              {numImages}
+            </span>
           </div>
         )}
 
-        <div className="flex rounded-md border">
+        {/* Aspect Ratio Selector - Premium Pills */}
+        <div className="flex rounded-xl border border-border/50 bg-background/50 p-1">
           {ASPECT_RATIOS.map((ratio) => (
             <button
               key={ratio.id}
               onClick={() => onAspectRatioChange(ratio.id)}
-              className={`px-2.5 py-1 text-xs font-medium transition-colors first:rounded-l-md last:rounded-r-md ${
+              className={`px-3 py-1.5 text-xs font-medium transition-all duration-200 rounded-lg ${
                 aspectRatio === ratio.id
-                  ? 'bg-primary text-primary-foreground'
-                  : 'hover:bg-muted'
+                  ? 'bg-primary text-primary-foreground active-glow'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
               }`}
             >
               {ratio.name}
@@ -1099,39 +1175,48 @@ function GeneratePanel({
           ))}
         </div>
 
+        {/* Negative Prompt Toggle */}
         <button
           onClick={onToggleNegativePrompt}
-          className={`text-xs font-medium transition-colors ${
+          className={`text-xs font-medium transition-colors rounded-lg px-3 py-1.5 ${
             showNegativePrompt
-              ? 'text-primary'
-              : 'text-muted-foreground hover:text-foreground'
+              ? 'text-primary bg-primary/10'
+              : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
           }`}
         >
-          {showNegativePrompt ? '- Hide negative' : '+ Negative prompt'}
+          {showNegativePrompt ? '- Negative' : '+ Negative'}
         </button>
 
-        <div className="ml-auto text-xs text-muted-foreground">
-          {getDisplayedCredits()} credits
+        {/* Credits Display - Premium Badge */}
+        <div className="ml-auto flex items-center gap-2 rounded-xl bg-primary/10 border border-primary/20 px-3 py-1.5">
+          <Sparkles className="h-3.5 w-3.5 text-primary" />
+          <span className="text-sm font-medium text-primary">
+            {getDisplayedCredits()} credits
+          </span>
         </div>
       </div>
 
+      {/* Negative Prompt Input */}
       {showNegativePrompt && (
-        <div className="mt-3">
+        <div className="mt-4">
           <Textarea
             placeholder="What to avoid in the image..."
             value={negativePrompt}
             onChange={(e) => onNegativePromptChange(e.target.value)}
-            className="h-16 resize-none text-sm"
+            className="h-16 resize-none text-sm rounded-xl border-border/50 bg-background/50"
           />
         </div>
       )}
 
+      {/* Error Display */}
       {(error || jobStatus?.status === 'failed') && (
-        <p className="mt-2 text-sm text-destructive">
-          {error instanceof Error
-            ? error.message
-            : jobStatus?.error || 'Generation failed'}
-        </p>
+        <div className="mt-3 rounded-xl bg-destructive/10 border border-destructive/20 px-4 py-2">
+          <p className="text-sm text-destructive">
+            {error instanceof Error
+              ? error.message
+              : jobStatus?.error || 'Generation failed'}
+          </p>
+        </div>
       )}
     </>
   )
@@ -1159,111 +1244,167 @@ function ImageDetailPanel({
   onUsePrompt,
 }: ImageDetailPanelProps) {
   return (
-    <div className="mt-6 space-y-6">
-      <div className="overflow-hidden rounded-lg bg-muted">
+    <div className="space-y-6 px-6 pb-6">
+      {/* Image Preview with Glow Border */}
+      <div className="overflow-hidden rounded-2xl border border-primary/20 premium-glow aspect-square">
         <img
           src={image.url}
           alt={image.prompt || 'Generated image'}
-          className="w-full object-contain"
+          className="h-full w-full object-cover"
         />
       </div>
 
+      {/* Prompt Card */}
       {image.prompt && (
-        <div>
-          <div className="flex items-center justify-between">
-            <h4 className="text-sm font-medium text-muted-foreground">
-              Prompt
-            </h4>
+        <div className="rounded-xl border border-border/30 bg-card/50 p-4">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <MessageSquare className="h-4 w-4" />
+              <span className="text-sm font-medium">Prompt</span>
+            </div>
             <Button
               variant="ghost"
               size="sm"
+              className="h-7 px-2 text-xs hover:bg-primary/10 hover:text-primary"
               onClick={() => onCopyPrompt(image.prompt!)}
             >
               {copiedPrompt ? (
-                <Check className="mr-1.5 h-3 w-3" />
+                <Check className="mr-1 h-3 w-3" />
               ) : (
-                <Copy className="mr-1.5 h-3 w-3" />
+                <Copy className="mr-1 h-3 w-3" />
               )}
-              {copiedPrompt ? 'Copied!' : 'Copy'}
+              {copiedPrompt ? 'Copied' : 'Copy'}
             </Button>
           </div>
-          <p className="mt-1 text-sm">{image.prompt}</p>
+          <p className="text-sm leading-relaxed">{image.prompt}</p>
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-4 text-sm">
-        {image.model && (
-          <div>
-            <span className="text-muted-foreground">Model</span>
-            <p className="font-medium">{image.model.split('/').pop()}</p>
+      {/* Metadata Card */}
+      <div className="rounded-xl border border-border/30 bg-card/50 p-4">
+        <div className="grid grid-cols-2 gap-4">
+          {image.model && (
+            <div className="flex items-start gap-3">
+              <div className="rounded-lg bg-primary/10 p-2">
+                <Zap className="h-4 w-4 text-primary" />
+              </div>
+              <div>
+                <span className="text-xs text-muted-foreground">Model</span>
+                <p className="text-sm font-medium">
+                  {image.model.split('/').pop()}
+                </p>
+              </div>
+            </div>
+          )}
+          {image.metadata?.width && image.metadata?.height && (
+            <div className="flex items-start gap-3">
+              <div className="rounded-lg bg-primary/10 p-2">
+                <Maximize2 className="h-4 w-4 text-primary" />
+              </div>
+              <div>
+                <span className="text-xs text-muted-foreground">
+                  Dimensions
+                </span>
+                <p className="text-sm font-medium">
+                  {image.metadata.width} x {image.metadata.height}{' '}
+                  <span className="text-muted-foreground">
+                    (
+                    {getAspectRatio(
+                      image.metadata.width,
+                      image.metadata.height,
+                    )}
+                    )
+                  </span>
+                </p>
+              </div>
+            </div>
+          )}
+          <div className="flex items-start gap-3">
+            <div className="rounded-lg bg-primary/10 p-2">
+              <Calendar className="h-4 w-4 text-primary" />
+            </div>
+            <div>
+              <span className="text-xs text-muted-foreground">Created</span>
+              <p className="text-sm font-medium">
+                {new Date(image.createdAt).toLocaleDateString('en-US', {
+                  month: 'short',
+                  day: 'numeric',
+                  year: 'numeric',
+                })}
+              </p>
+            </div>
           </div>
-        )}
-        {image.metadata?.width && (
-          <div>
-            <span className="text-muted-foreground">Dimensions</span>
-            <p className="font-medium">
-              {image.metadata.width} x {image.metadata.height}
-            </p>
-          </div>
-        )}
-        <div>
-          <span className="text-muted-foreground">Created</span>
-          <p className="font-medium">
-            {new Date(image.createdAt).toLocaleDateString('en-US', {
-              month: 'short',
-              day: 'numeric',
-              year: 'numeric',
-            })}
-          </p>
+          {image.metadata?.seed && (
+            <div className="flex items-start gap-3">
+              <div className="rounded-lg bg-primary/10 p-2">
+                <Hash className="h-4 w-4 text-primary" />
+              </div>
+              <div>
+                <span className="text-xs text-muted-foreground">Seed</span>
+                <p className="text-sm font-medium">{image.metadata.seed}</p>
+              </div>
+            </div>
+          )}
         </div>
-        {image.metadata?.seed && (
-          <div>
-            <span className="text-muted-foreground">Seed</span>
-            <p className="font-medium">{image.metadata.seed}</p>
-          </div>
-        )}
       </div>
 
-      <div className="flex flex-col gap-2">
-        <div className="grid grid-cols-3 gap-2">
-          <Button variant="outline" onClick={() => onDownload(image.url)}>
-            <Download className="mr-2 h-4 w-4" />
-            Download
-          </Button>
-          <Button variant="outline" onClick={() => onEdit(image)}>
-            <Paintbrush className="mr-2 h-4 w-4" />
-            Edit
-          </Button>
-          <Button onClick={() => onAnimate(image)}>
-            <Play className="mr-2 h-4 w-4" />
-            Animate
-          </Button>
-        </div>
+      {/* Primary Action: Animate */}
+      <Button
+        className="w-full rounded-xl bg-primary hover:bg-primary/90 btn-primary-glow h-11"
+        onClick={() => onAnimate(image)}
+      >
+        <Play className="mr-2 h-4 w-4" />
+        Animate
+      </Button>
+
+      {/* Secondary Actions */}
+      <div className="grid grid-cols-2 gap-3">
         <Button
           variant="outline"
-          className="text-destructive hover:bg-destructive hover:text-destructive-foreground"
-          onClick={() => onDelete(image.id)}
+          className="rounded-xl border-border/50 hover:bg-primary/10 hover:border-primary/30 hover:text-primary"
+          onClick={() => onDownload(image.url)}
         >
-          <Trash2 className="mr-2 h-4 w-4" />
-          Delete
+          <Download className="mr-2 h-4 w-4" />
+          Download
+        </Button>
+        <Button
+          variant="outline"
+          className="rounded-xl border-border/50 hover:bg-primary/10 hover:border-primary/30 hover:text-primary"
+          onClick={() => onEdit(image)}
+        >
+          <Paintbrush className="mr-2 h-4 w-4" />
+          Edit
         </Button>
       </div>
 
+      {/* Use Prompt Button */}
       {image.prompt && (
         <Button
           variant="secondary"
-          className="w-full"
+          className="w-full rounded-xl hover:bg-primary/10 hover:text-primary"
           onClick={() => onUsePrompt(image.prompt!)}
         >
           <Wand2 className="mr-2 h-4 w-4" />
           Use this prompt
         </Button>
       )}
+
+      {/* Delete Button - Separated at Bottom */}
+      <div className="pt-2 border-t border-border/30">
+        <Button
+          variant="ghost"
+          className="w-full rounded-xl text-destructive hover:bg-destructive/10 hover:text-destructive"
+          onClick={() => onDelete(image.id)}
+        >
+          <Trash2 className="mr-2 h-4 w-4" />
+          Delete Image
+        </Button>
+      </div>
     </div>
   )
 }
 
-// Image Card Component
+// Image Card Component - Premium Design
 interface ImageCardProps {
   image: GeneratedImage
   onSelect: () => void
@@ -1285,23 +1426,28 @@ function ImageCard({
 }: ImageCardProps) {
   return (
     <TooltipProvider delayDuration={300}>
-      <Card className="group cursor-pointer overflow-hidden" onClick={onSelect}>
-        <div className="relative aspect-square">
+      <Card
+        className="group cursor-pointer overflow-hidden rounded-2xl border-border/30 bg-card/30 p-0 transition-all duration-300 hover:border-primary/30 hover:shadow-xl hover:shadow-primary/5"
+        onClick={onSelect}
+      >
+        <div className="relative aspect-square overflow-hidden">
           <img
             src={image.url}
             alt={image.prompt || 'Generated image'}
-            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+            className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.03]"
             loading="lazy"
           />
 
-          <div className="absolute inset-0 bg-black/60 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
-            <div className="absolute right-2 top-2 flex gap-1">
+          {/* Frosted glass overlay on hover */}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 transition-all duration-300 group-hover:opacity-100 backdrop-blur-[2px]">
+            {/* Action buttons - top right */}
+            <div className="absolute right-3 top-3 flex gap-2 translate-y-2 opacity-0 transition-all duration-300 group-hover:translate-y-0 group-hover:opacity-100">
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
                     size="icon"
                     variant="secondary"
-                    className="h-8 w-8"
+                    className="h-9 w-9 rounded-xl bg-white/10 backdrop-blur-md border-white/20 hover:bg-white/20 text-white"
                     onClick={(e) => {
                       e.stopPropagation()
                       onDownload()
@@ -1318,7 +1464,7 @@ function ImageCard({
                   <Button
                     size="icon"
                     variant="secondary"
-                    className="h-8 w-8"
+                    className="h-9 w-9 rounded-xl bg-white/10 backdrop-blur-md border-white/20 hover:bg-white/20 text-white"
                     onClick={(e) => {
                       e.stopPropagation()
                       onEdit()
@@ -1335,7 +1481,7 @@ function ImageCard({
                   <Button
                     size="icon"
                     variant="secondary"
-                    className="h-8 w-8"
+                    className="h-9 w-9 rounded-xl bg-white/10 backdrop-blur-md border-white/20 hover:bg-white/20 text-white"
                     onClick={(e) => {
                       e.stopPropagation()
                       onAnimate()
@@ -1353,7 +1499,7 @@ function ImageCard({
                     <Button
                       size="icon"
                       variant="secondary"
-                      className="h-8 w-8"
+                      className="h-9 w-9 rounded-xl bg-white/10 backdrop-blur-md border-white/20 hover:bg-white/20 text-white"
                       onClick={(e) => {
                         e.stopPropagation()
                         onCopyPrompt()
@@ -1371,7 +1517,7 @@ function ImageCard({
                   <Button
                     size="icon"
                     variant="secondary"
-                    className="h-8 w-8 hover:bg-destructive hover:text-destructive-foreground"
+                    className="h-9 w-9 rounded-xl bg-white/10 backdrop-blur-md border-white/20 hover:bg-destructive/80 text-white"
                     onClick={(e) => {
                       e.stopPropagation()
                       onDelete()
@@ -1384,9 +1530,10 @@ function ImageCard({
               </Tooltip>
             </div>
 
+            {/* Prompt text at bottom */}
             {image.prompt && (
-              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-3 pt-8">
-                <p className="line-clamp-2 text-sm text-white">
+              <div className="absolute bottom-0 left-0 right-0 p-4 translate-y-2 opacity-0 transition-all duration-300 group-hover:translate-y-0 group-hover:opacity-100">
+                <p className="line-clamp-3 text-sm text-white/90 leading-relaxed">
                   {image.prompt}
                 </p>
               </div>

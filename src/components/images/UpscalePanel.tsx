@@ -1,12 +1,12 @@
 /**
- * UpscalePanel - Bottom panel for image upscaling
+ * UpscalePanel - Premium bottom panel for image upscaling
  *
  * Adaptive UI based on selected model:
  * - SeedVR2: Target resolution mode OR factor mode (up to 10x), noise scale
  * - Topaz: Multiple model types, face enhancement, subject detection
  */
 
-import { ArrowUpCircle, Loader2, Sparkles, User } from 'lucide-react'
+import { ArrowUpCircle, Loader2, Sparkles, User, Wand2 } from 'lucide-react'
 import type {
   SeedvrTargetResolution,
   TopazModelType,
@@ -22,6 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { ModelSelect } from '@/components/ui/model-select'
 import {
   SEEDVR_TARGET_RESOLUTIONS,
   TOPAZ_MODELS,
@@ -120,40 +121,30 @@ export function UpscalePanel({
   }
 
   return (
-    <div className={cn('space-y-3', className)}>
-      {/* Main controls row */}
+    <div className={cn('space-y-4', className)}>
+      {/* Main controls row - Premium Styling */}
       <div className="flex flex-wrap items-center gap-4">
-        {/* Model selector */}
-        <Select value={model} onValueChange={onModelChange}>
-          <SelectTrigger className="h-9 w-36">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {UPSCALE_MODELS.map((m) => (
-              <SelectItem key={m.id} value={m.id}>
-                <span className="flex items-center gap-2">
-                  {m.name}
-                  <span className="text-xs text-muted-foreground">
-                    {m.credits}cr
-                  </span>
-                </span>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {/* Model selector with Icons */}
+        <ModelSelect
+          value={model}
+          onValueChange={onModelChange}
+          models={UPSCALE_MODELS}
+          showDescription={true}
+          showProvider={true}
+        />
 
-        {/* SeedVR Controls */}
+        {/* SeedVR Controls - Premium */}
         {isSeedVR && (
           <>
-            {/* Mode toggle: Factor / Target */}
-            <div className="flex items-center rounded-md border">
+            {/* Mode toggle: Factor / Target - Premium Pills */}
+            <div className="flex rounded-xl border border-border/50 bg-background/50 p-1">
               <button
                 onClick={() => onUpscaleModeChange('factor')}
                 className={cn(
-                  'px-3 py-1.5 text-sm font-medium transition-colors rounded-l-md',
+                  'px-3 py-1.5 text-sm font-medium transition-all duration-200 rounded-lg',
                   upscaleMode === 'factor'
-                    ? 'bg-primary text-primary-foreground'
-                    : 'hover:bg-muted',
+                    ? 'bg-primary text-primary-foreground active-glow'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-muted/50',
                 )}
               >
                 Factor
@@ -161,10 +152,10 @@ export function UpscalePanel({
               <button
                 onClick={() => onUpscaleModeChange('target')}
                 className={cn(
-                  'px-3 py-1.5 text-sm font-medium transition-colors rounded-r-md',
+                  'px-3 py-1.5 text-sm font-medium transition-all duration-200 rounded-lg',
                   upscaleMode === 'target'
-                    ? 'bg-primary text-primary-foreground'
-                    : 'hover:bg-muted',
+                    ? 'bg-primary text-primary-foreground active-glow'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-muted/50',
                 )}
               >
                 Target
@@ -172,19 +163,17 @@ export function UpscalePanel({
             </div>
 
             {upscaleMode === 'factor' ? (
-              /* Scale selector for factor mode */
-              <div className="flex items-center rounded-md border">
-                {SEEDVR_SCALE_OPTIONS.map((s, idx) => (
+              /* Scale selector for factor mode - Premium Pills */
+              <div className="flex rounded-xl border border-border/50 bg-background/50 p-1">
+                {SEEDVR_SCALE_OPTIONS.map((s) => (
                   <button
                     key={s}
                     onClick={() => onScaleChange(s)}
                     className={cn(
-                      'px-2.5 py-1.5 text-sm font-medium transition-colors',
-                      idx === 0 && 'rounded-l-md',
-                      idx === SEEDVR_SCALE_OPTIONS.length - 1 && 'rounded-r-md',
+                      'px-2.5 py-1.5 text-sm font-medium transition-all duration-200 rounded-lg',
                       scale === s
-                        ? 'bg-primary text-primary-foreground'
-                        : 'hover:bg-muted',
+                        ? 'bg-primary text-primary-foreground active-glow'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-muted/50',
                     )}
                   >
                     {s}x
@@ -192,17 +181,17 @@ export function UpscalePanel({
                 ))}
               </div>
             ) : (
-              /* Target resolution dropdown */
+              /* Target resolution dropdown - Premium */
               <Select
                 value={targetResolution}
                 onValueChange={(v) =>
                   onTargetResolutionChange(v as SeedvrTargetResolution)
                 }
               >
-                <SelectTrigger className="h-9 w-32">
+                <SelectTrigger className="h-9 w-32 rounded-xl border-border/50 bg-background/50">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="rounded-xl">
                   {SEEDVR_TARGET_RESOLUTIONS.map((r) => (
                     <SelectItem key={r.id} value={r.id}>
                       {r.name}
@@ -212,9 +201,9 @@ export function UpscalePanel({
               </Select>
             )}
 
-            {/* Noise scale slider */}
-            <div className="flex items-center gap-3">
-              <span className="text-sm text-muted-foreground whitespace-nowrap">
+            {/* Noise scale slider - Premium */}
+            <div className="flex items-center gap-3 rounded-xl border border-border/50 bg-background/50 px-3 py-2">
+              <span className="text-xs text-muted-foreground whitespace-nowrap">
                 Noise
               </span>
               <Slider
@@ -225,29 +214,29 @@ export function UpscalePanel({
                 step={5}
                 className="w-20"
               />
-              <span className="text-sm text-muted-foreground w-8">
+              <span className="text-sm font-medium text-primary w-8">
                 {Math.round(noiseScale * 100)}%
               </span>
             </div>
           </>
         )}
 
-        {/* Topaz Controls */}
+        {/* Topaz Controls - Premium */}
         {isTopaz && (
           <>
-            {/* Topaz model type selector */}
+            {/* Topaz model type selector - Premium */}
             <Select
               value={topazModel}
               onValueChange={(v) => onTopazModelChange(v as TopazModelType)}
             >
-              <SelectTrigger className="h-9 w-40">
+              <SelectTrigger className="h-9 w-44 rounded-xl border-border/50 bg-background/50">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="rounded-xl">
                 {TOPAZ_MODELS.map((m) => (
                   <SelectItem key={m.id} value={m.id}>
                     <span className="flex flex-col">
-                      <span>{m.name}</span>
+                      <span className="font-medium">{m.name}</span>
                       <span className="text-xs text-muted-foreground">
                         {m.description}
                       </span>
@@ -257,19 +246,17 @@ export function UpscalePanel({
               </SelectContent>
             </Select>
 
-            {/* Scale selector for Topaz (1-4x) */}
-            <div className="flex items-center rounded-md border">
-              {TOPAZ_SCALE_OPTIONS.map((s, idx) => (
+            {/* Scale selector for Topaz (1-4x) - Premium Pills */}
+            <div className="flex rounded-xl border border-border/50 bg-background/50 p-1">
+              {TOPAZ_SCALE_OPTIONS.map((s) => (
                 <button
                   key={s}
                   onClick={() => onScaleChange(s)}
                   className={cn(
-                    'px-3 py-1.5 text-sm font-medium transition-colors',
-                    idx === 0 && 'rounded-l-md',
-                    idx === TOPAZ_SCALE_OPTIONS.length - 1 && 'rounded-r-md',
+                    'px-3 py-1.5 text-sm font-medium transition-all duration-200 rounded-lg',
                     scale === s
-                      ? 'bg-primary text-primary-foreground'
-                      : 'hover:bg-muted',
+                      ? 'bg-primary text-primary-foreground active-glow'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-muted/50',
                   )}
                 >
                   {s}x
@@ -277,7 +264,7 @@ export function UpscalePanel({
               ))}
             </div>
 
-            {/* Subject detection */}
+            {/* Subject detection - Premium */}
             <Select
               value={subjectDetection}
               onValueChange={(v) =>
@@ -286,10 +273,10 @@ export function UpscalePanel({
                 )
               }
             >
-              <SelectTrigger className="h-9 w-32">
+              <SelectTrigger className="h-9 w-32 rounded-xl border-border/50 bg-background/50">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="rounded-xl">
                 <SelectItem value="All">All</SelectItem>
                 <SelectItem value="Foreground">Foreground</SelectItem>
                 <SelectItem value="Background">Background</SelectItem>
@@ -298,20 +285,24 @@ export function UpscalePanel({
           </>
         )}
 
-        {/* Upscale button */}
-        <Button className="ml-auto" onClick={onUpscale} disabled={!canUpscale}>
+        {/* Upscale button - Premium Glow */}
+        <Button
+          className="ml-auto rounded-xl bg-primary hover:bg-primary/90 btn-primary-glow transition-all duration-200"
+          onClick={onUpscale}
+          disabled={!canUpscale}
+        >
           {isUpscaling ? (
-            <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
           ) : (
-            <ArrowUpCircle className="mr-1.5 h-4 w-4" />
+            <ArrowUpCircle className="mr-2 h-4 w-4" />
           )}
           {getUpscaleButtonText()}
         </Button>
       </div>
 
-      {/* Topaz Face Enhancement Row */}
+      {/* Topaz Face Enhancement Row - Premium */}
       {isTopaz && (
-        <div className="flex flex-wrap items-center gap-4 pt-1">
+        <div className="flex flex-wrap items-center gap-4 rounded-xl border border-border/50 bg-background/30 p-3">
           <div className="flex items-center gap-2">
             <Switch
               id="face-enhancement"
@@ -320,17 +311,17 @@ export function UpscalePanel({
             />
             <Label
               htmlFor="face-enhancement"
-              className="flex items-center gap-1.5 text-sm cursor-pointer"
+              className="flex items-center gap-1.5 text-sm cursor-pointer font-medium"
             >
-              <User className="h-4 w-4" />
+              <User className="h-4 w-4 text-primary" />
               Face Enhancement
             </Label>
           </div>
 
           {faceEnhancement && (
             <>
-              <div className="flex items-center gap-3">
-                <span className="text-sm text-muted-foreground whitespace-nowrap">
+              <div className="flex items-center gap-3 rounded-lg border border-border/50 bg-background/50 px-3 py-1.5">
+                <span className="text-xs text-muted-foreground whitespace-nowrap">
                   Strength
                 </span>
                 <Slider
@@ -341,17 +332,17 @@ export function UpscalePanel({
                   min={0}
                   max={100}
                   step={5}
-                  className="w-24"
+                  className="w-20"
                 />
-                <span className="text-sm text-muted-foreground w-8">
+                <span className="text-sm font-medium text-primary w-8">
                   {Math.round(faceEnhancementStrength * 100)}%
                 </span>
               </div>
 
-              <div className="flex items-center gap-3">
-                <span className="text-sm text-muted-foreground whitespace-nowrap flex items-center gap-1">
-                  <Sparkles className="h-3.5 w-3.5" />
-                  Creativity
+              <div className="flex items-center gap-3 rounded-lg border border-border/50 bg-background/50 px-3 py-1.5">
+                <span className="text-xs text-muted-foreground whitespace-nowrap flex items-center gap-1">
+                  <Sparkles className="h-3.5 w-3.5 text-accent" />
+                  Creative
                 </span>
                 <Slider
                   value={[faceEnhancementCreativity * 100]}
@@ -361,9 +352,9 @@ export function UpscalePanel({
                   min={0}
                   max={100}
                   step={5}
-                  className="w-24"
+                  className="w-20"
                 />
-                <span className="text-sm text-muted-foreground w-8">
+                <span className="text-sm font-medium text-primary w-8">
                   {Math.round(faceEnhancementCreativity * 100)}%
                 </span>
               </div>
@@ -372,9 +363,9 @@ export function UpscalePanel({
         </div>
       )}
 
-      {/* Info row */}
-      <div className="flex items-center justify-between text-xs text-muted-foreground">
-        <span>
+      {/* Info row - Premium */}
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-muted-foreground">
           {isSeedVR &&
             (upscaleMode === 'target'
               ? `Will upscale to ${targetResolution} resolution`
@@ -402,11 +393,21 @@ export function UpscalePanel({
             </>
           )}
         </span>
-        <span>{selectedModel?.credits || 2} credits</span>
+        {/* Credits Display - Premium Badge */}
+        <div className="flex items-center gap-2 rounded-xl bg-primary/10 border border-primary/20 px-3 py-1.5">
+          <Wand2 className="h-3.5 w-3.5 text-primary" />
+          <span className="text-sm font-medium text-primary">
+            {selectedModel?.credits || 2} credits
+          </span>
+        </div>
       </div>
 
-      {/* Error message */}
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      {/* Error Display - Premium */}
+      {error && (
+        <div className="rounded-xl bg-destructive/10 border border-destructive/20 px-4 py-2">
+          <p className="text-sm text-destructive">{error}</p>
+        </div>
+      )}
     </div>
   )
 }

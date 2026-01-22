@@ -286,8 +286,12 @@ export const getVideoJobStatusFn = createServerFn({ method: 'GET' })
             model: job.model,
             durationSeconds: inputData.duration || 5,
             metadata: JSON.stringify({
+              generationType: inputData.generationType,
               sourceImageUrl: inputData.imageUrl,
               sourceImageId: inputData.sourceImageId,
+              firstFrameUrl: inputData.firstFrameUrl,
+              lastFrameUrl: inputData.lastFrameUrl,
+              aspectRatio: inputData.aspectRatio,
               duration: inputData.duration || 5,
             }),
           },

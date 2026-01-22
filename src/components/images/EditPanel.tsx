@@ -1,23 +1,16 @@
 /**
- * EditPanel - Bottom panel for prompt-based image editing
+ * EditPanel - Premium bottom panel for prompt-based image editing
  *
  * Contains:
- * - Prompt input describing what to change
- * - Model selector with image count badges
+ * - Premium prompt input with floating edit button
+ * - Model selector with icons and image count badges
  * - Status showing selected images vs model max
- * - Edit button
  */
 
-import { Loader2, Wand2 } from 'lucide-react'
+import { Loader2, Paintbrush, Wand2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { ModelSelect } from '@/components/ui/model-select'
 import { EDIT_MODELS } from '@/server/services/types'
 import { cn } from '@/lib/utils'
 
@@ -61,20 +54,20 @@ export function EditPanel({
   }
 
   return (
-    <div className={cn('space-y-3', className)}>
-      {/* Prompt Input */}
+    <div className={cn('space-y-4', className)}>
+      {/* Premium Prompt Input */}
       <div className="relative">
         <Textarea
-          placeholder="Describe what to change... (e.g., 'Change the background to a sunset', 'Add a hat to the person')"
+          placeholder="Describe what to change... (e.g., 'Change the background to a sunset')"
           value={prompt}
           onChange={(e) => onPromptChange(e.target.value)}
-          className="min-h-[52px] resize-none pr-24 text-base"
-          rows={1}
+          className="min-h-[80px] resize-none pr-28 text-base rounded-xl border-border/50 bg-background/50 focus:border-primary/50 focus:ring-primary/20 placeholder:text-muted-foreground/60 disabled:opacity-50"
+          rows={2}
           disabled={selectedCount === 0}
         />
         <Button
-          size="sm"
-          className="absolute bottom-2 right-2"
+          size="default"
+          className="absolute bottom-3 right-3 rounded-xl bg-primary hover:bg-primary/90 btn-primary-glow transition-all duration-200 disabled:opacity-50 disabled:shadow-none"
           onClick={onGenerate}
           disabled={!canGenerate}
         >
@@ -82,48 +75,51 @@ export function EditPanel({
             <Loader2 className="h-4 w-4 animate-spin" />
           ) : (
             <>
-              <Wand2 className="mr-1.5 h-4 w-4" />
+              <Paintbrush className="mr-2 h-4 w-4" />
               Edit
             </>
           )}
         </Button>
       </div>
 
-      {/* Settings Row */}
-      <div className="flex flex-wrap items-center gap-3">
-        <Select value={model} onValueChange={onModelChange}>
-          <SelectTrigger className="h-8 w-52">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {EDIT_MODELS.map((m) => (
-              <SelectItem key={m.id} value={m.id}>
-                <span className="flex items-center gap-2">
-                  {m.name}
-                  <span className="text-xs text-muted-foreground">
-                    {m.credits}cr
-                  </span>
-                  <span className="text-xs text-muted-foreground">
-                    {m.maxImages === 1 ? '1 img' : `${m.maxImages} img`}
-                  </span>
-                </span>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      {/* Settings Row - Premium Styling */}
+      <div className="flex flex-wrap items-center gap-4">
+        {/* Model Selector with Icons */}
+        <ModelSelect
+          value={model}
+          onValueChange={onModelChange}
+          models={EDIT_MODELS}
+          showDescription={true}
+          showProvider={true}
+        />
 
-        {/* Status indicator */}
-        <span className="text-xs text-muted-foreground">
-          {getStatusMessage()}
-        </span>
+        {/* Status indicator - Premium Badge */}
+        <div className="flex items-center gap-2 rounded-xl border border-border/50 bg-background/50 px-3 py-1.5">
+          <span
+            className={cn(
+              'text-xs font-medium',
+              selectedCount > 0 ? 'text-primary' : 'text-muted-foreground',
+            )}
+          >
+            {getStatusMessage()}
+          </span>
+        </div>
 
-        <div className="ml-auto text-xs text-muted-foreground">
-          {selectedModel?.credits || 4} credits
+        {/* Credits Display - Premium Badge */}
+        <div className="ml-auto flex items-center gap-2 rounded-xl bg-primary/10 border border-primary/20 px-3 py-1.5">
+          <Wand2 className="h-3.5 w-3.5 text-primary" />
+          <span className="text-sm font-medium text-primary">
+            {selectedModel?.credits || 4} credits
+          </span>
         </div>
       </div>
 
-      {/* Error message */}
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      {/* Error Display - Premium */}
+      {error && (
+        <div className="rounded-xl bg-destructive/10 border border-destructive/20 px-4 py-2">
+          <p className="text-sm text-destructive">{error}</p>
+        </div>
+      )}
     </div>
   )
 }
