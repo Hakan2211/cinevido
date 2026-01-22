@@ -334,6 +334,7 @@ export type UserWhereInput = {
   projects?: Prisma.ProjectListRelationFilter
   assets?: Prisma.AssetListRelationFilter
   generationJobs?: Prisma.GenerationJobListRelationFilter
+  model3DAssets?: Prisma.Model3DAssetListRelationFilter
 }
 
 export type UserOrderByWithRelationInput = {
@@ -362,6 +363,7 @@ export type UserOrderByWithRelationInput = {
   projects?: Prisma.ProjectOrderByRelationAggregateInput
   assets?: Prisma.AssetOrderByRelationAggregateInput
   generationJobs?: Prisma.GenerationJobOrderByRelationAggregateInput
+  model3DAssets?: Prisma.Model3DAssetOrderByRelationAggregateInput
 }
 
 export type UserWhereUniqueInput = Prisma.AtLeast<{
@@ -393,6 +395,7 @@ export type UserWhereUniqueInput = Prisma.AtLeast<{
   projects?: Prisma.ProjectListRelationFilter
   assets?: Prisma.AssetListRelationFilter
   generationJobs?: Prisma.GenerationJobListRelationFilter
+  model3DAssets?: Prisma.Model3DAssetListRelationFilter
 }, "id" | "email">
 
 export type UserOrderByWithAggregationInput = {
@@ -473,6 +476,7 @@ export type UserCreateInput = {
   projects?: Prisma.ProjectCreateNestedManyWithoutUserInput
   assets?: Prisma.AssetCreateNestedManyWithoutUserInput
   generationJobs?: Prisma.GenerationJobCreateNestedManyWithoutUserInput
+  model3DAssets?: Prisma.Model3DAssetCreateNestedManyWithoutUserInput
 }
 
 export type UserUncheckedCreateInput = {
@@ -501,6 +505,7 @@ export type UserUncheckedCreateInput = {
   projects?: Prisma.ProjectUncheckedCreateNestedManyWithoutUserInput
   assets?: Prisma.AssetUncheckedCreateNestedManyWithoutUserInput
   generationJobs?: Prisma.GenerationJobUncheckedCreateNestedManyWithoutUserInput
+  model3DAssets?: Prisma.Model3DAssetUncheckedCreateNestedManyWithoutUserInput
 }
 
 export type UserUpdateInput = {
@@ -529,6 +534,7 @@ export type UserUpdateInput = {
   projects?: Prisma.ProjectUpdateManyWithoutUserNestedInput
   assets?: Prisma.AssetUpdateManyWithoutUserNestedInput
   generationJobs?: Prisma.GenerationJobUpdateManyWithoutUserNestedInput
+  model3DAssets?: Prisma.Model3DAssetUpdateManyWithoutUserNestedInput
 }
 
 export type UserUncheckedUpdateInput = {
@@ -557,6 +563,7 @@ export type UserUncheckedUpdateInput = {
   projects?: Prisma.ProjectUncheckedUpdateManyWithoutUserNestedInput
   assets?: Prisma.AssetUncheckedUpdateManyWithoutUserNestedInput
   generationJobs?: Prisma.GenerationJobUncheckedUpdateManyWithoutUserNestedInput
+  model3DAssets?: Prisma.Model3DAssetUncheckedUpdateManyWithoutUserNestedInput
 }
 
 export type UserCreateManyInput = {
@@ -816,6 +823,20 @@ export type UserUpdateOneRequiredWithoutSubscriptionEventsNestedInput = {
   update?: Prisma.XOR<Prisma.XOR<Prisma.UserUpdateToOneWithWhereWithoutSubscriptionEventsInput, Prisma.UserUpdateWithoutSubscriptionEventsInput>, Prisma.UserUncheckedUpdateWithoutSubscriptionEventsInput>
 }
 
+export type UserCreateNestedOneWithoutModel3DAssetsInput = {
+  create?: Prisma.XOR<Prisma.UserCreateWithoutModel3DAssetsInput, Prisma.UserUncheckedCreateWithoutModel3DAssetsInput>
+  connectOrCreate?: Prisma.UserCreateOrConnectWithoutModel3DAssetsInput
+  connect?: Prisma.UserWhereUniqueInput
+}
+
+export type UserUpdateOneRequiredWithoutModel3DAssetsNestedInput = {
+  create?: Prisma.XOR<Prisma.UserCreateWithoutModel3DAssetsInput, Prisma.UserUncheckedCreateWithoutModel3DAssetsInput>
+  connectOrCreate?: Prisma.UserCreateOrConnectWithoutModel3DAssetsInput
+  upsert?: Prisma.UserUpsertWithoutModel3DAssetsInput
+  connect?: Prisma.UserWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.UserUpdateToOneWithWhereWithoutModel3DAssetsInput, Prisma.UserUpdateWithoutModel3DAssetsInput>, Prisma.UserUncheckedUpdateWithoutModel3DAssetsInput>
+}
+
 export type UserCreateWithoutSessionsInput = {
   id?: string
   email: string
@@ -841,6 +862,7 @@ export type UserCreateWithoutSessionsInput = {
   projects?: Prisma.ProjectCreateNestedManyWithoutUserInput
   assets?: Prisma.AssetCreateNestedManyWithoutUserInput
   generationJobs?: Prisma.GenerationJobCreateNestedManyWithoutUserInput
+  model3DAssets?: Prisma.Model3DAssetCreateNestedManyWithoutUserInput
 }
 
 export type UserUncheckedCreateWithoutSessionsInput = {
@@ -868,6 +890,7 @@ export type UserUncheckedCreateWithoutSessionsInput = {
   projects?: Prisma.ProjectUncheckedCreateNestedManyWithoutUserInput
   assets?: Prisma.AssetUncheckedCreateNestedManyWithoutUserInput
   generationJobs?: Prisma.GenerationJobUncheckedCreateNestedManyWithoutUserInput
+  model3DAssets?: Prisma.Model3DAssetUncheckedCreateNestedManyWithoutUserInput
 }
 
 export type UserCreateOrConnectWithoutSessionsInput = {
@@ -911,6 +934,7 @@ export type UserUpdateWithoutSessionsInput = {
   projects?: Prisma.ProjectUpdateManyWithoutUserNestedInput
   assets?: Prisma.AssetUpdateManyWithoutUserNestedInput
   generationJobs?: Prisma.GenerationJobUpdateManyWithoutUserNestedInput
+  model3DAssets?: Prisma.Model3DAssetUpdateManyWithoutUserNestedInput
 }
 
 export type UserUncheckedUpdateWithoutSessionsInput = {
@@ -938,6 +962,7 @@ export type UserUncheckedUpdateWithoutSessionsInput = {
   projects?: Prisma.ProjectUncheckedUpdateManyWithoutUserNestedInput
   assets?: Prisma.AssetUncheckedUpdateManyWithoutUserNestedInput
   generationJobs?: Prisma.GenerationJobUncheckedUpdateManyWithoutUserNestedInput
+  model3DAssets?: Prisma.Model3DAssetUncheckedUpdateManyWithoutUserNestedInput
 }
 
 export type UserCreateWithoutAccountsInput = {
@@ -965,6 +990,7 @@ export type UserCreateWithoutAccountsInput = {
   projects?: Prisma.ProjectCreateNestedManyWithoutUserInput
   assets?: Prisma.AssetCreateNestedManyWithoutUserInput
   generationJobs?: Prisma.GenerationJobCreateNestedManyWithoutUserInput
+  model3DAssets?: Prisma.Model3DAssetCreateNestedManyWithoutUserInput
 }
 
 export type UserUncheckedCreateWithoutAccountsInput = {
@@ -992,6 +1018,7 @@ export type UserUncheckedCreateWithoutAccountsInput = {
   projects?: Prisma.ProjectUncheckedCreateNestedManyWithoutUserInput
   assets?: Prisma.AssetUncheckedCreateNestedManyWithoutUserInput
   generationJobs?: Prisma.GenerationJobUncheckedCreateNestedManyWithoutUserInput
+  model3DAssets?: Prisma.Model3DAssetUncheckedCreateNestedManyWithoutUserInput
 }
 
 export type UserCreateOrConnectWithoutAccountsInput = {
@@ -1035,6 +1062,7 @@ export type UserUpdateWithoutAccountsInput = {
   projects?: Prisma.ProjectUpdateManyWithoutUserNestedInput
   assets?: Prisma.AssetUpdateManyWithoutUserNestedInput
   generationJobs?: Prisma.GenerationJobUpdateManyWithoutUserNestedInput
+  model3DAssets?: Prisma.Model3DAssetUpdateManyWithoutUserNestedInput
 }
 
 export type UserUncheckedUpdateWithoutAccountsInput = {
@@ -1062,6 +1090,7 @@ export type UserUncheckedUpdateWithoutAccountsInput = {
   projects?: Prisma.ProjectUncheckedUpdateManyWithoutUserNestedInput
   assets?: Prisma.AssetUncheckedUpdateManyWithoutUserNestedInput
   generationJobs?: Prisma.GenerationJobUncheckedUpdateManyWithoutUserNestedInput
+  model3DAssets?: Prisma.Model3DAssetUncheckedUpdateManyWithoutUserNestedInput
 }
 
 export type UserCreateWithoutProjectsInput = {
@@ -1089,6 +1118,7 @@ export type UserCreateWithoutProjectsInput = {
   subscriptionEvents?: Prisma.SubscriptionEventCreateNestedManyWithoutUserInput
   assets?: Prisma.AssetCreateNestedManyWithoutUserInput
   generationJobs?: Prisma.GenerationJobCreateNestedManyWithoutUserInput
+  model3DAssets?: Prisma.Model3DAssetCreateNestedManyWithoutUserInput
 }
 
 export type UserUncheckedCreateWithoutProjectsInput = {
@@ -1116,6 +1146,7 @@ export type UserUncheckedCreateWithoutProjectsInput = {
   subscriptionEvents?: Prisma.SubscriptionEventUncheckedCreateNestedManyWithoutUserInput
   assets?: Prisma.AssetUncheckedCreateNestedManyWithoutUserInput
   generationJobs?: Prisma.GenerationJobUncheckedCreateNestedManyWithoutUserInput
+  model3DAssets?: Prisma.Model3DAssetUncheckedCreateNestedManyWithoutUserInput
 }
 
 export type UserCreateOrConnectWithoutProjectsInput = {
@@ -1159,6 +1190,7 @@ export type UserUpdateWithoutProjectsInput = {
   subscriptionEvents?: Prisma.SubscriptionEventUpdateManyWithoutUserNestedInput
   assets?: Prisma.AssetUpdateManyWithoutUserNestedInput
   generationJobs?: Prisma.GenerationJobUpdateManyWithoutUserNestedInput
+  model3DAssets?: Prisma.Model3DAssetUpdateManyWithoutUserNestedInput
 }
 
 export type UserUncheckedUpdateWithoutProjectsInput = {
@@ -1186,6 +1218,7 @@ export type UserUncheckedUpdateWithoutProjectsInput = {
   subscriptionEvents?: Prisma.SubscriptionEventUncheckedUpdateManyWithoutUserNestedInput
   assets?: Prisma.AssetUncheckedUpdateManyWithoutUserNestedInput
   generationJobs?: Prisma.GenerationJobUncheckedUpdateManyWithoutUserNestedInput
+  model3DAssets?: Prisma.Model3DAssetUncheckedUpdateManyWithoutUserNestedInput
 }
 
 export type UserCreateWithoutAssetsInput = {
@@ -1213,6 +1246,7 @@ export type UserCreateWithoutAssetsInput = {
   subscriptionEvents?: Prisma.SubscriptionEventCreateNestedManyWithoutUserInput
   projects?: Prisma.ProjectCreateNestedManyWithoutUserInput
   generationJobs?: Prisma.GenerationJobCreateNestedManyWithoutUserInput
+  model3DAssets?: Prisma.Model3DAssetCreateNestedManyWithoutUserInput
 }
 
 export type UserUncheckedCreateWithoutAssetsInput = {
@@ -1240,6 +1274,7 @@ export type UserUncheckedCreateWithoutAssetsInput = {
   subscriptionEvents?: Prisma.SubscriptionEventUncheckedCreateNestedManyWithoutUserInput
   projects?: Prisma.ProjectUncheckedCreateNestedManyWithoutUserInput
   generationJobs?: Prisma.GenerationJobUncheckedCreateNestedManyWithoutUserInput
+  model3DAssets?: Prisma.Model3DAssetUncheckedCreateNestedManyWithoutUserInput
 }
 
 export type UserCreateOrConnectWithoutAssetsInput = {
@@ -1283,6 +1318,7 @@ export type UserUpdateWithoutAssetsInput = {
   subscriptionEvents?: Prisma.SubscriptionEventUpdateManyWithoutUserNestedInput
   projects?: Prisma.ProjectUpdateManyWithoutUserNestedInput
   generationJobs?: Prisma.GenerationJobUpdateManyWithoutUserNestedInput
+  model3DAssets?: Prisma.Model3DAssetUpdateManyWithoutUserNestedInput
 }
 
 export type UserUncheckedUpdateWithoutAssetsInput = {
@@ -1310,6 +1346,7 @@ export type UserUncheckedUpdateWithoutAssetsInput = {
   subscriptionEvents?: Prisma.SubscriptionEventUncheckedUpdateManyWithoutUserNestedInput
   projects?: Prisma.ProjectUncheckedUpdateManyWithoutUserNestedInput
   generationJobs?: Prisma.GenerationJobUncheckedUpdateManyWithoutUserNestedInput
+  model3DAssets?: Prisma.Model3DAssetUncheckedUpdateManyWithoutUserNestedInput
 }
 
 export type UserCreateWithoutGenerationJobsInput = {
@@ -1337,6 +1374,7 @@ export type UserCreateWithoutGenerationJobsInput = {
   subscriptionEvents?: Prisma.SubscriptionEventCreateNestedManyWithoutUserInput
   projects?: Prisma.ProjectCreateNestedManyWithoutUserInput
   assets?: Prisma.AssetCreateNestedManyWithoutUserInput
+  model3DAssets?: Prisma.Model3DAssetCreateNestedManyWithoutUserInput
 }
 
 export type UserUncheckedCreateWithoutGenerationJobsInput = {
@@ -1364,6 +1402,7 @@ export type UserUncheckedCreateWithoutGenerationJobsInput = {
   subscriptionEvents?: Prisma.SubscriptionEventUncheckedCreateNestedManyWithoutUserInput
   projects?: Prisma.ProjectUncheckedCreateNestedManyWithoutUserInput
   assets?: Prisma.AssetUncheckedCreateNestedManyWithoutUserInput
+  model3DAssets?: Prisma.Model3DAssetUncheckedCreateNestedManyWithoutUserInput
 }
 
 export type UserCreateOrConnectWithoutGenerationJobsInput = {
@@ -1407,6 +1446,7 @@ export type UserUpdateWithoutGenerationJobsInput = {
   subscriptionEvents?: Prisma.SubscriptionEventUpdateManyWithoutUserNestedInput
   projects?: Prisma.ProjectUpdateManyWithoutUserNestedInput
   assets?: Prisma.AssetUpdateManyWithoutUserNestedInput
+  model3DAssets?: Prisma.Model3DAssetUpdateManyWithoutUserNestedInput
 }
 
 export type UserUncheckedUpdateWithoutGenerationJobsInput = {
@@ -1434,6 +1474,7 @@ export type UserUncheckedUpdateWithoutGenerationJobsInput = {
   subscriptionEvents?: Prisma.SubscriptionEventUncheckedUpdateManyWithoutUserNestedInput
   projects?: Prisma.ProjectUncheckedUpdateManyWithoutUserNestedInput
   assets?: Prisma.AssetUncheckedUpdateManyWithoutUserNestedInput
+  model3DAssets?: Prisma.Model3DAssetUncheckedUpdateManyWithoutUserNestedInput
 }
 
 export type UserCreateWithoutSubscriptionEventsInput = {
@@ -1461,6 +1502,7 @@ export type UserCreateWithoutSubscriptionEventsInput = {
   projects?: Prisma.ProjectCreateNestedManyWithoutUserInput
   assets?: Prisma.AssetCreateNestedManyWithoutUserInput
   generationJobs?: Prisma.GenerationJobCreateNestedManyWithoutUserInput
+  model3DAssets?: Prisma.Model3DAssetCreateNestedManyWithoutUserInput
 }
 
 export type UserUncheckedCreateWithoutSubscriptionEventsInput = {
@@ -1488,6 +1530,7 @@ export type UserUncheckedCreateWithoutSubscriptionEventsInput = {
   projects?: Prisma.ProjectUncheckedCreateNestedManyWithoutUserInput
   assets?: Prisma.AssetUncheckedCreateNestedManyWithoutUserInput
   generationJobs?: Prisma.GenerationJobUncheckedCreateNestedManyWithoutUserInput
+  model3DAssets?: Prisma.Model3DAssetUncheckedCreateNestedManyWithoutUserInput
 }
 
 export type UserCreateOrConnectWithoutSubscriptionEventsInput = {
@@ -1531,6 +1574,7 @@ export type UserUpdateWithoutSubscriptionEventsInput = {
   projects?: Prisma.ProjectUpdateManyWithoutUserNestedInput
   assets?: Prisma.AssetUpdateManyWithoutUserNestedInput
   generationJobs?: Prisma.GenerationJobUpdateManyWithoutUserNestedInput
+  model3DAssets?: Prisma.Model3DAssetUpdateManyWithoutUserNestedInput
 }
 
 export type UserUncheckedUpdateWithoutSubscriptionEventsInput = {
@@ -1558,6 +1602,135 @@ export type UserUncheckedUpdateWithoutSubscriptionEventsInput = {
   projects?: Prisma.ProjectUncheckedUpdateManyWithoutUserNestedInput
   assets?: Prisma.AssetUncheckedUpdateManyWithoutUserNestedInput
   generationJobs?: Prisma.GenerationJobUncheckedUpdateManyWithoutUserNestedInput
+  model3DAssets?: Prisma.Model3DAssetUncheckedUpdateManyWithoutUserNestedInput
+}
+
+export type UserCreateWithoutModel3DAssetsInput = {
+  id?: string
+  email: string
+  name?: string | null
+  image?: string | null
+  emailVerified?: boolean
+  role?: string
+  stripeCustomerId?: string | null
+  subscriptionStatus?: string | null
+  subscriptionTier?: string | null
+  subscriptionPeriodEnd?: Date | string | null
+  cancelAtPeriodEnd?: boolean
+  onboardingComplete?: boolean
+  credits?: number
+  preferredLlmModel?: string | null
+  preferredImageModel?: string | null
+  preferredVideoModel?: string | null
+  preferredVoiceId?: string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
+  sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
+  subscriptionEvents?: Prisma.SubscriptionEventCreateNestedManyWithoutUserInput
+  projects?: Prisma.ProjectCreateNestedManyWithoutUserInput
+  assets?: Prisma.AssetCreateNestedManyWithoutUserInput
+  generationJobs?: Prisma.GenerationJobCreateNestedManyWithoutUserInput
+}
+
+export type UserUncheckedCreateWithoutModel3DAssetsInput = {
+  id?: string
+  email: string
+  name?: string | null
+  image?: string | null
+  emailVerified?: boolean
+  role?: string
+  stripeCustomerId?: string | null
+  subscriptionStatus?: string | null
+  subscriptionTier?: string | null
+  subscriptionPeriodEnd?: Date | string | null
+  cancelAtPeriodEnd?: boolean
+  onboardingComplete?: boolean
+  credits?: number
+  preferredLlmModel?: string | null
+  preferredImageModel?: string | null
+  preferredVideoModel?: string | null
+  preferredVoiceId?: string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
+  sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
+  subscriptionEvents?: Prisma.SubscriptionEventUncheckedCreateNestedManyWithoutUserInput
+  projects?: Prisma.ProjectUncheckedCreateNestedManyWithoutUserInput
+  assets?: Prisma.AssetUncheckedCreateNestedManyWithoutUserInput
+  generationJobs?: Prisma.GenerationJobUncheckedCreateNestedManyWithoutUserInput
+}
+
+export type UserCreateOrConnectWithoutModel3DAssetsInput = {
+  where: Prisma.UserWhereUniqueInput
+  create: Prisma.XOR<Prisma.UserCreateWithoutModel3DAssetsInput, Prisma.UserUncheckedCreateWithoutModel3DAssetsInput>
+}
+
+export type UserUpsertWithoutModel3DAssetsInput = {
+  update: Prisma.XOR<Prisma.UserUpdateWithoutModel3DAssetsInput, Prisma.UserUncheckedUpdateWithoutModel3DAssetsInput>
+  create: Prisma.XOR<Prisma.UserCreateWithoutModel3DAssetsInput, Prisma.UserUncheckedCreateWithoutModel3DAssetsInput>
+  where?: Prisma.UserWhereInput
+}
+
+export type UserUpdateToOneWithWhereWithoutModel3DAssetsInput = {
+  where?: Prisma.UserWhereInput
+  data: Prisma.XOR<Prisma.UserUpdateWithoutModel3DAssetsInput, Prisma.UserUncheckedUpdateWithoutModel3DAssetsInput>
+}
+
+export type UserUpdateWithoutModel3DAssetsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  email?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  emailVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  role?: Prisma.StringFieldUpdateOperationsInput | string
+  stripeCustomerId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  subscriptionStatus?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  subscriptionTier?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  subscriptionPeriodEnd?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  cancelAtPeriodEnd?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  onboardingComplete?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  credits?: Prisma.IntFieldUpdateOperationsInput | number
+  preferredLlmModel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  preferredImageModel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  preferredVideoModel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  preferredVoiceId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
+  sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
+  subscriptionEvents?: Prisma.SubscriptionEventUpdateManyWithoutUserNestedInput
+  projects?: Prisma.ProjectUpdateManyWithoutUserNestedInput
+  assets?: Prisma.AssetUpdateManyWithoutUserNestedInput
+  generationJobs?: Prisma.GenerationJobUpdateManyWithoutUserNestedInput
+}
+
+export type UserUncheckedUpdateWithoutModel3DAssetsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  email?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  emailVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  role?: Prisma.StringFieldUpdateOperationsInput | string
+  stripeCustomerId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  subscriptionStatus?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  subscriptionTier?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  subscriptionPeriodEnd?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  cancelAtPeriodEnd?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  onboardingComplete?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  credits?: Prisma.IntFieldUpdateOperationsInput | number
+  preferredLlmModel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  preferredImageModel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  preferredVideoModel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  preferredVoiceId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
+  sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
+  subscriptionEvents?: Prisma.SubscriptionEventUncheckedUpdateManyWithoutUserNestedInput
+  projects?: Prisma.ProjectUncheckedUpdateManyWithoutUserNestedInput
+  assets?: Prisma.AssetUncheckedUpdateManyWithoutUserNestedInput
+  generationJobs?: Prisma.GenerationJobUncheckedUpdateManyWithoutUserNestedInput
 }
 
 
@@ -1572,6 +1745,7 @@ export type UserCountOutputType = {
   projects: number
   assets: number
   generationJobs: number
+  model3DAssets: number
 }
 
 export type UserCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
@@ -1581,6 +1755,7 @@ export type UserCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.I
   projects?: boolean | UserCountOutputTypeCountProjectsArgs
   assets?: boolean | UserCountOutputTypeCountAssetsArgs
   generationJobs?: boolean | UserCountOutputTypeCountGenerationJobsArgs
+  model3DAssets?: boolean | UserCountOutputTypeCountModel3DAssetsArgs
 }
 
 /**
@@ -1635,6 +1810,13 @@ export type UserCountOutputTypeCountGenerationJobsArgs<ExtArgs extends runtime.T
   where?: Prisma.GenerationJobWhereInput
 }
 
+/**
+ * UserCountOutputType without action
+ */
+export type UserCountOutputTypeCountModel3DAssetsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.Model3DAssetWhereInput
+}
+
 
 export type UserSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
@@ -1662,6 +1844,7 @@ export type UserSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = r
   projects?: boolean | Prisma.User$projectsArgs<ExtArgs>
   assets?: boolean | Prisma.User$assetsArgs<ExtArgs>
   generationJobs?: boolean | Prisma.User$generationJobsArgs<ExtArgs>
+  model3DAssets?: boolean | Prisma.User$model3DAssetsArgs<ExtArgs>
   _count?: boolean | Prisma.UserCountOutputTypeDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["user"]>
 
@@ -1739,6 +1922,7 @@ export type UserInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = 
   projects?: boolean | Prisma.User$projectsArgs<ExtArgs>
   assets?: boolean | Prisma.User$assetsArgs<ExtArgs>
   generationJobs?: boolean | Prisma.User$generationJobsArgs<ExtArgs>
+  model3DAssets?: boolean | Prisma.User$model3DAssetsArgs<ExtArgs>
   _count?: boolean | Prisma.UserCountOutputTypeDefaultArgs<ExtArgs>
 }
 export type UserIncludeCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {}
@@ -1753,6 +1937,7 @@ export type $UserPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs =
     projects: Prisma.$ProjectPayload<ExtArgs>[]
     assets: Prisma.$AssetPayload<ExtArgs>[]
     generationJobs: Prisma.$GenerationJobPayload<ExtArgs>[]
+    model3DAssets: Prisma.$Model3DAssetPayload<ExtArgs>[]
   }
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: string
@@ -2174,6 +2359,7 @@ export interface Prisma__UserClient<T, Null = never, ExtArgs extends runtime.Typ
   projects<T extends Prisma.User$projectsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$projectsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$ProjectPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   assets<T extends Prisma.User$assetsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$assetsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$AssetPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   generationJobs<T extends Prisma.User$generationJobsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$generationJobsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$GenerationJobPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  model3DAssets<T extends Prisma.User$model3DAssetsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$model3DAssetsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$Model3DAssetPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
    * @param onfulfilled The callback to execute when the Promise is resolved.
@@ -2749,6 +2935,30 @@ export type User$generationJobsArgs<ExtArgs extends runtime.Types.Extensions.Int
   take?: number
   skip?: number
   distinct?: Prisma.GenerationJobScalarFieldEnum | Prisma.GenerationJobScalarFieldEnum[]
+}
+
+/**
+ * User.model3DAssets
+ */
+export type User$model3DAssetsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the Model3DAsset
+   */
+  select?: Prisma.Model3DAssetSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the Model3DAsset
+   */
+  omit?: Prisma.Model3DAssetOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.Model3DAssetInclude<ExtArgs> | null
+  where?: Prisma.Model3DAssetWhereInput
+  orderBy?: Prisma.Model3DAssetOrderByWithRelationInput | Prisma.Model3DAssetOrderByWithRelationInput[]
+  cursor?: Prisma.Model3DAssetWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.Model3DAssetScalarFieldEnum | Prisma.Model3DAssetScalarFieldEnum[]
 }
 
 /**

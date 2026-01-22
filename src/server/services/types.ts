@@ -995,3 +995,224 @@ export function createEmptyManifest(): ProjectManifest {
     },
   }
 }
+
+// =============================================================================
+// 3D Model Configuration
+// =============================================================================
+
+export type Model3DMode = 'text-to-3d' | 'image-to-3d' | 'image-to-world'
+
+export interface Model3DConfig extends ModelConfig {
+  type: Model3DMode
+  endpoint: string // Full fal.ai endpoint path
+  supportsMultipleImages?: boolean
+  maxImages?: number
+  requiresPrompt?: boolean
+  supportsPBR?: boolean
+  outputFormats: Array<'glb' | 'obj' | 'fbx' | 'usdz' | 'stl' | 'blend'>
+  dropdownDescription: string // Shown in model selector
+}
+
+// =============================================================================
+// Text-to-3D Models
+// =============================================================================
+
+export const TEXT_TO_3D_MODELS: Array<Model3DConfig> = [
+  {
+    id: 'hunyuan3d-v3-text',
+    name: 'Hunyuan3D V3',
+    provider: 'hunyuan',
+    credits: 10,
+    description: 'Fast, high-quality textured models with PBR support',
+    dropdownDescription: 'Fast, high-quality textured models with PBR support',
+    type: 'text-to-3d',
+    endpoint: 'fal-ai/hunyuan3d-v3/text-to-3d',
+    supportsPBR: true,
+    outputFormats: ['glb', 'obj'],
+  },
+  {
+    id: 'meshy-v6-text',
+    name: 'Meshy 6 Preview',
+    provider: 'meshy',
+    credits: 30, // full mode
+    description: 'Production-ready with prompt expansion and art styles',
+    dropdownDescription:
+      'Production-ready with prompt expansion and art styles',
+    type: 'text-to-3d',
+    endpoint: 'fal-ai/meshy/v6-preview/text-to-3d',
+    supportsPBR: true,
+    outputFormats: ['glb', 'fbx', 'obj', 'usdz'],
+  },
+]
+
+// =============================================================================
+// Image-to-3D Models
+// =============================================================================
+
+export const IMAGE_TO_3D_MODELS: Array<Model3DConfig> = [
+  {
+    id: 'hunyuan3d-v3-sketch',
+    name: 'Hunyuan3D V3 Sketch',
+    provider: 'hunyuan',
+    credits: 10,
+    description: 'Convert sketches to 3D',
+    dropdownDescription:
+      'Convert sketches/line art to 3D. Requires text description.',
+    type: 'image-to-3d',
+    endpoint: 'fal-ai/hunyuan3d-v3/sketch-to-3d',
+    requiresPrompt: true,
+    supportsPBR: true,
+    outputFormats: ['glb', 'obj'],
+  },
+  {
+    id: 'hunyuan3d-v3-image',
+    name: 'Hunyuan3D V3 Image',
+    provider: 'hunyuan',
+    credits: 10,
+    description: 'General purpose image to 3D',
+    dropdownDescription:
+      'General purpose. Supports up to 4 views (front, back, left, right).',
+    type: 'image-to-3d',
+    endpoint: 'fal-ai/hunyuan3d-v3/image-to-3d',
+    supportsMultipleImages: true,
+    maxImages: 4,
+    supportsPBR: true,
+    outputFormats: ['glb', 'obj'],
+  },
+  {
+    id: 'meshy-v6-image',
+    name: 'Meshy 6 Image',
+    provider: 'meshy',
+    credits: 15,
+    description: 'Production-ready with extensive mesh controls',
+    dropdownDescription:
+      'Production-ready with extensive mesh controls and PBR.',
+    type: 'image-to-3d',
+    endpoint: 'fal-ai/meshy/v6-preview/image-to-3d',
+    supportsPBR: true,
+    outputFormats: ['glb', 'fbx', 'obj', 'usdz'],
+  },
+  {
+    id: 'meshy-v5-multi',
+    name: 'Meshy 5 Multi-Image',
+    provider: 'meshy',
+    credits: 15,
+    description: 'Multi-angle reconstruction',
+    dropdownDescription: 'Use 1-4 images of same object from different angles.',
+    type: 'image-to-3d',
+    endpoint: 'fal-ai/meshy/v5/multi-image-to-3d',
+    supportsMultipleImages: true,
+    maxImages: 4,
+    supportsPBR: true,
+    outputFormats: ['glb', 'fbx', 'obj', 'usdz'],
+  },
+  {
+    id: 'rodin-v2',
+    name: 'Hyper3D Rodin V2',
+    provider: 'hyper3d',
+    credits: 15,
+    description: 'High quality with material options',
+    dropdownDescription:
+      'High quality with material options. Supports up to 5 images.',
+    type: 'image-to-3d',
+    endpoint: 'fal-ai/hyper3d/rodin/v2',
+    supportsMultipleImages: true,
+    maxImages: 5,
+    supportsPBR: true,
+    outputFormats: ['glb', 'usdz', 'fbx', 'obj', 'stl'],
+  },
+  {
+    id: 'seed3d',
+    name: 'Bytedance Seed3D',
+    provider: 'bytedance',
+    credits: 10,
+    description: 'Simple, fast generation',
+    dropdownDescription: 'Simple, fast generation from single image.',
+    type: 'image-to-3d',
+    endpoint: 'fal-ai/bytedance/seed3d/image-to-3d',
+    outputFormats: ['glb'],
+  },
+  {
+    id: 'sam3d-objects',
+    name: 'SAM 3D Objects',
+    provider: 'meta',
+    credits: 12,
+    description: 'Object segmentation and reconstruction',
+    dropdownDescription:
+      'Segment and reconstruct specific objects from photos. Use prompts or masks to select objects.',
+    type: 'image-to-3d',
+    endpoint: 'fal-ai/sam-3/3d-objects',
+    outputFormats: ['glb'],
+  },
+  {
+    id: 'sam3d-body',
+    name: 'SAM 3D Body',
+    provider: 'meta',
+    credits: 12,
+    description: 'Human body reconstruction',
+    dropdownDescription:
+      'Human body reconstruction from photos. Outputs mesh with 3D keypoints.',
+    type: 'image-to-3d',
+    endpoint: 'fal-ai/sam-3/3d-body',
+    outputFormats: ['glb'],
+  },
+]
+
+// =============================================================================
+// Image-to-World Models
+// =============================================================================
+
+export const IMAGE_TO_WORLD_MODELS: Array<Model3DConfig> = [
+  {
+    id: 'hunyuan-world',
+    name: 'Hunyuan World',
+    provider: 'hunyuan',
+    credits: 15,
+    description: 'Transform images into 3D worlds',
+    dropdownDescription:
+      'Transform images into explorable 3D panoramas/worlds.',
+    type: 'image-to-world',
+    endpoint: 'fal-ai/hunyuan_world/image-to-world',
+    requiresPrompt: true, // Requires labels
+    outputFormats: [],
+  },
+]
+
+// =============================================================================
+// 3D Model Helper Functions
+// =============================================================================
+
+export function get3DModelsByMode(mode: Model3DMode): Array<Model3DConfig> {
+  switch (mode) {
+    case 'text-to-3d':
+      return TEXT_TO_3D_MODELS
+    case 'image-to-3d':
+      return IMAGE_TO_3D_MODELS
+    case 'image-to-world':
+      return IMAGE_TO_WORLD_MODELS
+    default:
+      return []
+  }
+}
+
+export function get3DModelById(modelId: string): Model3DConfig | undefined {
+  return [
+    ...TEXT_TO_3D_MODELS,
+    ...IMAGE_TO_3D_MODELS,
+    ...IMAGE_TO_WORLD_MODELS,
+  ].find((m) => m.id === modelId)
+}
+
+export function getDefault3DModel(mode: Model3DMode): Model3DConfig {
+  switch (mode) {
+    case 'text-to-3d':
+      return TEXT_TO_3D_MODELS[0] // Hunyuan3D V3
+    case 'image-to-3d':
+      return (
+        IMAGE_TO_3D_MODELS.find((m) => m.id === 'hunyuan3d-v3-image') ||
+        IMAGE_TO_3D_MODELS[0]
+      )
+    case 'image-to-world':
+      return IMAGE_TO_WORLD_MODELS[0]
+  }
+}

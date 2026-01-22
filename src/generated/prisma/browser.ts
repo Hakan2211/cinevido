@@ -62,3 +62,8 @@ export type SubscriptionEvent = Prisma.SubscriptionEventModel
  * 
  */
 export type ChatMessage = Prisma.ChatMessageModel
+/**
+ * Model Model3DAsset
+ * 
+ */
+export type Model3DAsset = Prisma.Model3DAssetModel

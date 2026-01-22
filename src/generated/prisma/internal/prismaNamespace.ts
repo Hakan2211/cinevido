@@ -392,7 +392,8 @@ export const ModelName = {
   Asset: 'Asset',
   GenerationJob: 'GenerationJob',
   SubscriptionEvent: 'SubscriptionEvent',
-  ChatMessage: 'ChatMessage'
+  ChatMessage: 'ChatMessage',
+  Model3DAsset: 'Model3DAsset'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -408,7 +409,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "user" | "session" | "account" | "verification" | "project" | "asset" | "generationJob" | "subscriptionEvent" | "chatMessage"
+    modelProps: "user" | "session" | "account" | "verification" | "project" | "asset" | "generationJob" | "subscriptionEvent" | "chatMessage" | "model3DAsset"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -1078,6 +1079,80 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         }
       }
     }
+    Model3DAsset: {
+      payload: Prisma.$Model3DAssetPayload<ExtArgs>
+      fields: Prisma.Model3DAssetFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.Model3DAssetFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$Model3DAssetPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.Model3DAssetFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$Model3DAssetPayload>
+        }
+        findFirst: {
+          args: Prisma.Model3DAssetFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$Model3DAssetPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.Model3DAssetFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$Model3DAssetPayload>
+        }
+        findMany: {
+          args: Prisma.Model3DAssetFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$Model3DAssetPayload>[]
+        }
+        create: {
+          args: Prisma.Model3DAssetCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$Model3DAssetPayload>
+        }
+        createMany: {
+          args: Prisma.Model3DAssetCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.Model3DAssetCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$Model3DAssetPayload>[]
+        }
+        delete: {
+          args: Prisma.Model3DAssetDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$Model3DAssetPayload>
+        }
+        update: {
+          args: Prisma.Model3DAssetUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$Model3DAssetPayload>
+        }
+        deleteMany: {
+          args: Prisma.Model3DAssetDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.Model3DAssetUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.Model3DAssetUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$Model3DAssetPayload>[]
+        }
+        upsert: {
+          args: Prisma.Model3DAssetUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$Model3DAssetPayload>
+        }
+        aggregate: {
+          args: Prisma.Model3DAssetAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateModel3DAsset>
+        }
+        groupBy: {
+          args: Prisma.Model3DAssetGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.Model3DAssetGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.Model3DAssetCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.Model3DAssetCountAggregateOutputType> | number
+        }
+      }
+    }
   }
 } & {
   other: {
@@ -1273,6 +1348,37 @@ export const ChatMessageScalarFieldEnum = {
 export type ChatMessageScalarFieldEnum = (typeof ChatMessageScalarFieldEnum)[keyof typeof ChatMessageScalarFieldEnum]
 
 
+export const Model3DAssetScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  modelId: 'modelId',
+  endpoint: 'endpoint',
+  mode: 'mode',
+  prompt: 'prompt',
+  sourceImageUrls: 'sourceImageUrls',
+  settings: 'settings',
+  modelGlbUrl: 'modelGlbUrl',
+  thumbnailUrl: 'thumbnailUrl',
+  modelUrls: 'modelUrls',
+  textureUrls: 'textureUrls',
+  worldFileUrl: 'worldFileUrl',
+  gaussianSplatUrl: 'gaussianSplatUrl',
+  status: 'status',
+  requestId: 'requestId',
+  statusUrl: 'statusUrl',
+  responseUrl: 'responseUrl',
+  cancelUrl: 'cancelUrl',
+  error: 'error',
+  progress: 'progress',
+  seed: 'seed',
+  creditsUsed: 'creditsUsed',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type Model3DAssetScalarFieldEnum = (typeof Model3DAssetScalarFieldEnum)[keyof typeof Model3DAssetScalarFieldEnum]
+
+
 export const SortOrder = {
   asc: 'asc',
   desc: 'desc'
@@ -1433,6 +1539,7 @@ export type GlobalOmitConfig = {
   generationJob?: Prisma.GenerationJobOmit
   subscriptionEvent?: Prisma.SubscriptionEventOmit
   chatMessage?: Prisma.ChatMessageOmit
+  model3DAsset?: Prisma.Model3DAssetOmit
 }
 
 /* Types for Logging */

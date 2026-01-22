@@ -13,12 +13,14 @@ import { Route as PricingRouteImport } from './routes/pricing'
 import { Route as AuthRouteImport } from './routes/_auth'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiProxyGlbRouteImport } from './routes/api/proxy-glb'
 import { Route as ApiChatRouteImport } from './routes/api/chat'
 import { Route as AuthSignupRouteImport } from './routes/_auth/signup'
 import { Route as AuthLoginRouteImport } from './routes/_auth/login'
 import { Route as AppProfileRouteImport } from './routes/_app/profile'
 import { Route as AppDashboardRouteImport } from './routes/_app/dashboard'
 import { Route as AppAdminRouteImport } from './routes/_app/admin'
+import { Route as App3dModelsRouteImport } from './routes/_app/3d-models'
 import { Route as AppVideosIndexRouteImport } from './routes/_app/videos/index'
 import { Route as AppProjectsIndexRouteImport } from './routes/_app/projects/index'
 import { Route as AppImagesIndexRouteImport } from './routes/_app/images/index'
@@ -41,6 +43,11 @@ const AppRoute = AppRouteImport.update({
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiProxyGlbRoute = ApiProxyGlbRouteImport.update({
+  id: '/api/proxy-glb',
+  path: '/api/proxy-glb',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiChatRoute = ApiChatRouteImport.update({
@@ -73,6 +80,11 @@ const AppAdminRoute = AppAdminRouteImport.update({
   path: '/admin',
   getParentRoute: () => AppRoute,
 } as any)
+const App3dModelsRoute = App3dModelsRouteImport.update({
+  id: '/3d-models',
+  path: '/3d-models',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppVideosIndexRoute = AppVideosIndexRouteImport.update({
   id: '/videos/',
   path: '/videos/',
@@ -102,12 +114,14 @@ const AppProjectsProjectIdRoute = AppProjectsProjectIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/pricing': typeof PricingRoute
+  '/3d-models': typeof App3dModelsRoute
   '/admin': typeof AppAdminRoute
   '/dashboard': typeof AppDashboardRoute
   '/profile': typeof AppProfileRoute
   '/login': typeof AuthLoginRoute
   '/signup': typeof AuthSignupRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/proxy-glb': typeof ApiProxyGlbRoute
   '/projects/$projectId': typeof AppProjectsProjectIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/images': typeof AppImagesIndexRoute
@@ -117,12 +131,14 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/pricing': typeof PricingRoute
+  '/3d-models': typeof App3dModelsRoute
   '/admin': typeof AppAdminRoute
   '/dashboard': typeof AppDashboardRoute
   '/profile': typeof AppProfileRoute
   '/login': typeof AuthLoginRoute
   '/signup': typeof AuthSignupRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/proxy-glb': typeof ApiProxyGlbRoute
   '/projects/$projectId': typeof AppProjectsProjectIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/images': typeof AppImagesIndexRoute
@@ -135,12 +151,14 @@ export interface FileRoutesById {
   '/_app': typeof AppRouteWithChildren
   '/_auth': typeof AuthRouteWithChildren
   '/pricing': typeof PricingRoute
+  '/_app/3d-models': typeof App3dModelsRoute
   '/_app/admin': typeof AppAdminRoute
   '/_app/dashboard': typeof AppDashboardRoute
   '/_app/profile': typeof AppProfileRoute
   '/_auth/login': typeof AuthLoginRoute
   '/_auth/signup': typeof AuthSignupRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/proxy-glb': typeof ApiProxyGlbRoute
   '/_app/projects/$projectId': typeof AppProjectsProjectIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/_app/images/': typeof AppImagesIndexRoute
@@ -152,12 +170,14 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/pricing'
+    | '/3d-models'
     | '/admin'
     | '/dashboard'
     | '/profile'
     | '/login'
     | '/signup'
     | '/api/chat'
+    | '/api/proxy-glb'
     | '/projects/$projectId'
     | '/api/auth/$'
     | '/images'
@@ -167,12 +187,14 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/pricing'
+    | '/3d-models'
     | '/admin'
     | '/dashboard'
     | '/profile'
     | '/login'
     | '/signup'
     | '/api/chat'
+    | '/api/proxy-glb'
     | '/projects/$projectId'
     | '/api/auth/$'
     | '/images'
@@ -184,12 +206,14 @@ export interface FileRouteTypes {
     | '/_app'
     | '/_auth'
     | '/pricing'
+    | '/_app/3d-models'
     | '/_app/admin'
     | '/_app/dashboard'
     | '/_app/profile'
     | '/_auth/login'
     | '/_auth/signup'
     | '/api/chat'
+    | '/api/proxy-glb'
     | '/_app/projects/$projectId'
     | '/api/auth/$'
     | '/_app/images/'
@@ -203,6 +227,7 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRouteWithChildren
   PricingRoute: typeof PricingRoute
   ApiChatRoute: typeof ApiChatRoute
+  ApiProxyGlbRoute: typeof ApiProxyGlbRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
 }
 
@@ -234,6 +259,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/proxy-glb': {
+      id: '/api/proxy-glb'
+      path: '/api/proxy-glb'
+      fullPath: '/api/proxy-glb'
+      preLoaderRoute: typeof ApiProxyGlbRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/chat': {
@@ -278,6 +310,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAdminRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/3d-models': {
+      id: '/_app/3d-models'
+      path: '/3d-models'
+      fullPath: '/3d-models'
+      preLoaderRoute: typeof App3dModelsRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/videos/': {
       id: '/_app/videos/'
       path: '/videos'
@@ -317,6 +356,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface AppRouteChildren {
+  App3dModelsRoute: typeof App3dModelsRoute
   AppAdminRoute: typeof AppAdminRoute
   AppDashboardRoute: typeof AppDashboardRoute
   AppProfileRoute: typeof AppProfileRoute
@@ -327,6 +367,7 @@ interface AppRouteChildren {
 }
 
 const AppRouteChildren: AppRouteChildren = {
+  App3dModelsRoute: App3dModelsRoute,
   AppAdminRoute: AppAdminRoute,
   AppDashboardRoute: AppDashboardRoute,
   AppProfileRoute: AppProfileRoute,
@@ -356,6 +397,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRouteWithChildren,
   PricingRoute: PricingRoute,
   ApiChatRoute: ApiChatRoute,
+  ApiProxyGlbRoute: ApiProxyGlbRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
 }
 export const routeTree = rootRouteImport

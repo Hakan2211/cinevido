@@ -49,6 +49,7 @@ model User {
   projects       Project[]
   assets         Asset[]
   generationJobs GenerationJob[]
+  model3DAssets  Model3DAsset[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -295,4 +296,51 @@ model ChatMessage {
   @@index([projectId])
   @@index([createdAt])
   @@map("chat_message")
+}
+
+// ====================================================================================
+// DirectorAI: 3D Model Assets
+// ====================================================================================
+
+model Model3DAsset {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Generation inputs
+  modelId         String  // e.g., 'hunyuan3d-v3-text'
+  endpoint        String  // e.g., 'fal-ai/hunyuan3d-v3/text-to-3d'
+  mode            String  // 'text-to-3d' | 'image-to-3d' | 'image-to-world'
+  prompt          String?
+  sourceImageUrls String? // JSON array of Bunny CDN URLs
+  settings        String? // JSON - Model-specific settings used
+
+  // Generation outputs (stored on Bunny CDN after download from fal.ai)
+  modelGlbUrl      String?
+  thumbnailUrl     String?
+  modelUrls        String? // JSON - { glb?, obj?, fbx?, usdz?, stl?, blend? }
+  textureUrls      String? // JSON - For models with separate textures
+  worldFileUrl     String? // For Hunyuan World
+  gaussianSplatUrl String? // For SAM 3D Objects
+
+  // Job tracking (fal.ai queue)
+  status      String  @default("pending") // pending, processing, completed, failed
+  requestId   String?
+  statusUrl   String?
+  responseUrl String?
+  cancelUrl   String?
+  error       String?
+  progress    Int?    // 0-100 percentage if available
+
+  // Metadata
+  seed        Int?
+  creditsUsed Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("model_3d_asset")
 }

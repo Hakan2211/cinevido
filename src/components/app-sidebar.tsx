@@ -1,6 +1,7 @@
 import { Link, useLocation, useNavigate } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import {
+  Box,
   FolderKanban,
   Image,
   LayoutDashboard,
@@ -160,6 +161,23 @@ export function AppSidebar({ user }: AppSidebarProps) {
                     <Video className="h-5! w-5!" />
                     <span className="text-base font-medium group-data-[collapsible=icon]:hidden">
                       Videos
+                    </span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  isActive={isActive('/3d-models')}
+                  tooltip="3D Models"
+                  size="lg"
+                  className="data-[active=true]:bg-primary/5 data-[active=true]:text-primary group-data-[collapsible=icon]:justify-center"
+                  onClick={handleNavClick}
+                >
+                  <Link to="/3d-models" search={{ mode: 'text-to-3d' }}>
+                    <Box className="h-5! w-5!" />
+                    <span className="text-base font-medium group-data-[collapsible=icon]:hidden">
+                      3D Models
                     </span>
                   </Link>
                 </SidebarMenuButton>

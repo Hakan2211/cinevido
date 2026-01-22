@@ -59,7 +59,8 @@ export const ModelName = {
   Asset: 'Asset',
   GenerationJob: 'GenerationJob',
   SubscriptionEvent: 'SubscriptionEvent',
-  ChatMessage: 'ChatMessage'
+  ChatMessage: 'ChatMessage',
+  Model3DAsset: 'Model3DAsset'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -232,6 +233,37 @@ export const ChatMessageScalarFieldEnum = {
 } as const
 
 export type ChatMessageScalarFieldEnum = (typeof ChatMessageScalarFieldEnum)[keyof typeof ChatMessageScalarFieldEnum]
+
+
+export const Model3DAssetScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  modelId: 'modelId',
+  endpoint: 'endpoint',
+  mode: 'mode',
+  prompt: 'prompt',
+  sourceImageUrls: 'sourceImageUrls',
+  settings: 'settings',
+  modelGlbUrl: 'modelGlbUrl',
+  thumbnailUrl: 'thumbnailUrl',
+  modelUrls: 'modelUrls',
+  textureUrls: 'textureUrls',
+  worldFileUrl: 'worldFileUrl',
+  gaussianSplatUrl: 'gaussianSplatUrl',
+  status: 'status',
+  requestId: 'requestId',
+  statusUrl: 'statusUrl',
+  responseUrl: 'responseUrl',
+  cancelUrl: 'cancelUrl',
+  error: 'error',
+  progress: 'progress',
+  seed: 'seed',
+  creditsUsed: 'creditsUsed',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type Model3DAssetScalarFieldEnum = (typeof Model3DAssetScalarFieldEnum)[keyof typeof Model3DAssetScalarFieldEnum]
 
 
 export const SortOrder = {

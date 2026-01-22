@@ -13,8 +13,9 @@ import {
   VIDEO_MODELS,
   getModelById,
   getVideoModelById,
+  get3DModelById,
 } from './types'
-import type { VideoModelConfig } from './types'
+import type { VideoModelConfig, Model3DConfig } from './types'
 
 const MOCK_FAL = process.env.MOCK_GENERATION === 'true'
 const FAL_API_URL = 'https://queue.fal.run'
@@ -844,5 +845,398 @@ function mockGetStatus(requestId: string): {
         file_size: 1024000,
       },
     } as FalVideoResult,
+  }
+}
+
+// =============================================================================
+// 3D Model Generation
+// =============================================================================
+
+export interface Model3DGenerationInput {
+  modelId: string
+
+  // Common
+  prompt?: string
+  seed?: number
+
+  // Image inputs (varies by model)
+  imageUrl?: string // Single image
+  imageUrls?: string[] // Multi-image models
+  backImageUrl?: string // Hunyuan3D multi-view
+  leftImageUrl?: string
+  rightImageUrl?: string
+
+  // Mesh controls
+  enablePbr?: boolean
+  faceCount?: number // Hunyuan: 40000-1500000
+  generateType?: 'Normal' | 'LowPoly' | 'Geometry'
+  polygonType?: 'triangle' | 'quadrilateral'
+  topology?: 'quad' | 'triangle'
+  targetPolycount?: number
+  shouldRemesh?: boolean
+  symmetryMode?: 'off' | 'auto' | 'on'
+
+  // Meshy-specific
+  mode?: 'preview' | 'full'
+  artStyle?: 'realistic' | 'sculpture'
+  shouldTexture?: boolean
+  enablePromptExpansion?: boolean
+  texturePrompt?: string
+  textureImageUrl?: string
+  isATpose?: boolean
+
+  // Rodin-specific
+  geometryFileFormat?: 'glb' | 'usdz' | 'fbx' | 'obj' | 'stl'
+  material?: 'PBR' | 'Shaded' | 'All'
+  qualityMeshOption?: string
+  useOriginalAlpha?: boolean
+  addons?: 'HighPack'
+  previewRender?: boolean
+
+  // SAM-specific
+  maskUrls?: string[]
+  samPrompt?: string // For SAM object segmentation
+  pointPrompts?: Array<{
+    x: number
+    y: number
+    label: 0 | 1
+    objectId?: number
+  }>
+  boxPrompts?: Array<{
+    xMin: number
+    yMin: number
+    xMax: number
+    yMax: number
+    objectId?: number
+  }>
+  exportMeshes?: boolean
+  include3dKeypoints?: boolean
+  exportTexturedGlb?: boolean
+
+  // Hunyuan World
+  labelsFg1?: string
+  labelsFg2?: string
+  classes?: string
+  exportDrc?: boolean
+}
+
+export interface Fal3DModelResult {
+  // Common outputs
+  model_glb?: {
+    url: string
+    file_size?: number
+    file_name?: string
+    content_type?: string
+  }
+  thumbnail?: {
+    url: string
+    file_size?: number
+    file_name?: string
+    content_type?: string
+  }
+  model_urls?: {
+    glb?: { url: string }
+    obj?: { url: string }
+    fbx?: { url: string }
+    usdz?: { url: string }
+    stl?: { url: string }
+    blend?: { url: string }
+  }
+  texture_urls?: Array<{
+    base_color?: { url: string }
+    metallic?: { url: string }
+    normal?: { url: string }
+    roughness?: { url: string }
+  }>
+  seed?: number
+
+  // SAM 3D Objects specific
+  gaussian_splat?: { url: string }
+  individual_splats?: Array<{ url: string }>
+  individual_glbs?: Array<{ url: string }>
+  metadata?: unknown
+
+  // SAM 3D Body specific
+  visualization?: { url: string }
+  meshes?: Array<{ url: string }>
+
+  // Rodin specific
+  model_mesh?: { url: string }
+  textures?: Array<{ url: string }>
+
+  // Bytedance Seed3D specific
+  model?: { url: string }
+
+  // Hunyuan World specific
+  world_file?: { url: string }
+}
+
+/**
+ * Start a 3D model generation job (queued)
+ * Supports text-to-3d, image-to-3d, and image-to-world generation
+ */
+export async function generate3DModel(
+  input: Model3DGenerationInput,
+): Promise<GenerationJob> {
+  const modelConfig = get3DModelById(input.modelId)
+
+  if (!modelConfig) {
+    throw new Error(`Unknown 3D model: ${input.modelId}`)
+  }
+
+  console.log('[FAL] generate3DModel called:', {
+    modelId: input.modelId,
+    endpoint: modelConfig.endpoint,
+    prompt: input.prompt?.slice(0, 50),
+  })
+
+  if (MOCK_FAL) {
+    console.log('[FAL] Using MOCK mode')
+    return mockGenerate3DJob(modelConfig.endpoint)
+  }
+
+  const apiKey = process.env.FAL_KEY
+  if (!apiKey) {
+    throw new Error('FAL_KEY not configured')
+  }
+
+  // Build the request payload based on model
+  const payload = build3DModelPayload(input, modelConfig)
+
+  console.log('[FAL] 3D Model payload:', JSON.stringify(payload, null, 2))
+
+  const response = await fetch(`${FAL_API_URL}/${modelConfig.endpoint}`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Key ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  })
+
+  if (!response.ok) {
+    const error = await response.text()
+    console.error('[FAL] 3D Model submit error:', error)
+    throw new Error(`Fal.ai error: ${response.status} - ${error}`)
+  }
+
+  const data: FalQueueResponse = await response.json()
+  console.log('[FAL] 3D Model submit success:', {
+    request_id: data.request_id,
+    status_url: data.status_url,
+    response_url: data.response_url,
+  })
+
+  return {
+    requestId: data.request_id,
+    status: 'pending',
+    model: modelConfig.endpoint,
+    provider: 'fal',
+    statusUrl: data.status_url,
+    responseUrl: data.response_url,
+    cancelUrl: data.cancel_url,
+  }
+}
+
+/**
+ * Build payload for 3D model generation based on model type
+ */
+function build3DModelPayload(
+  input: Model3DGenerationInput,
+  modelConfig: Model3DConfig,
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {}
+
+  // =============================================================================
+  // Hunyuan3D V3 Text-to-3D
+  // =============================================================================
+  if (modelConfig.id === 'hunyuan3d-v3-text') {
+    payload.prompt = input.prompt
+    if (input.enablePbr !== undefined) payload.enable_pbr = input.enablePbr
+    if (input.faceCount) payload.face_count = input.faceCount
+    if (input.generateType) payload.generate_type = input.generateType
+    if (input.polygonType) payload.polygon_type = input.polygonType
+  }
+
+  // =============================================================================
+  // Meshy 6 Preview Text-to-3D
+  // =============================================================================
+  else if (modelConfig.id === 'meshy-v6-text') {
+    payload.prompt = input.prompt
+    payload.mode = input.mode || 'full'
+    if (input.artStyle) payload.art_style = input.artStyle
+    if (input.seed !== undefined) payload.seed = input.seed
+    if (input.topology) payload.topology = input.topology
+    if (input.targetPolycount) payload.target_polycount = input.targetPolycount
+    if (input.shouldRemesh !== undefined)
+      payload.should_remesh = input.shouldRemesh
+    if (input.symmetryMode) payload.symmetry_mode = input.symmetryMode
+    if (input.isATpose !== undefined) payload.is_a_t_pose = input.isATpose
+    if (input.enablePbr !== undefined) payload.enable_pbr = input.enablePbr
+    if (input.enablePromptExpansion !== undefined)
+      payload.enable_prompt_expansion = input.enablePromptExpansion
+    if (input.texturePrompt) payload.texture_prompt = input.texturePrompt
+    if (input.textureImageUrl) payload.texture_image_url = input.textureImageUrl
+  }
+
+  // =============================================================================
+  // Hunyuan3D V3 Sketch-to-3D
+  // =============================================================================
+  else if (modelConfig.id === 'hunyuan3d-v3-sketch') {
+    payload.input_image_url = input.imageUrl
+    payload.prompt = input.prompt
+    if (input.enablePbr !== undefined) payload.enable_pbr = input.enablePbr
+    if (input.faceCount) payload.face_count = input.faceCount
+  }
+
+  // =============================================================================
+  // Hunyuan3D V3 Image-to-3D
+  // =============================================================================
+  else if (modelConfig.id === 'hunyuan3d-v3-image') {
+    payload.input_image_url = input.imageUrl || input.imageUrls?.[0]
+    if (input.backImageUrl) payload.back_image_url = input.backImageUrl
+    if (input.leftImageUrl) payload.left_image_url = input.leftImageUrl
+    if (input.rightImageUrl) payload.right_image_url = input.rightImageUrl
+    if (input.enablePbr !== undefined) payload.enable_pbr = input.enablePbr
+    if (input.faceCount) payload.face_count = input.faceCount
+    if (input.generateType) payload.generate_type = input.generateType
+    if (input.polygonType) payload.polygon_type = input.polygonType
+  }
+
+  // =============================================================================
+  // Meshy 6 Image-to-3D
+  // =============================================================================
+  else if (modelConfig.id === 'meshy-v6-image') {
+    payload.image_url = input.imageUrl || input.imageUrls?.[0]
+    if (input.topology) payload.topology = input.topology
+    if (input.targetPolycount) payload.target_polycount = input.targetPolycount
+    if (input.symmetryMode) payload.symmetry_mode = input.symmetryMode
+    if (input.shouldRemesh !== undefined)
+      payload.should_remesh = input.shouldRemesh
+    if (input.shouldTexture !== undefined)
+      payload.should_texture = input.shouldTexture
+    if (input.enablePbr !== undefined) payload.enable_pbr = input.enablePbr
+    if (input.isATpose !== undefined) payload.is_a_t_pose = input.isATpose
+    if (input.texturePrompt) payload.texture_prompt = input.texturePrompt
+    if (input.textureImageUrl) payload.texture_image_url = input.textureImageUrl
+  }
+
+  // =============================================================================
+  // Meshy 5 Multi-Image-to-3D
+  // =============================================================================
+  else if (modelConfig.id === 'meshy-v5-multi') {
+    payload.image_urls = input.imageUrls || [input.imageUrl]
+    if (input.topology) payload.topology = input.topology
+    if (input.targetPolycount) payload.target_polycount = input.targetPolycount
+    if (input.symmetryMode) payload.symmetry_mode = input.symmetryMode
+    if (input.shouldRemesh !== undefined)
+      payload.should_remesh = input.shouldRemesh
+    if (input.shouldTexture !== undefined)
+      payload.should_texture = input.shouldTexture
+    if (input.enablePbr !== undefined) payload.enable_pbr = input.enablePbr
+    if (input.isATpose !== undefined) payload.is_a_t_pose = input.isATpose
+    if (input.texturePrompt) payload.texture_prompt = input.texturePrompt
+    if (input.textureImageUrl) payload.texture_image_url = input.textureImageUrl
+  }
+
+  // =============================================================================
+  // Hyper3D Rodin V2
+  // =============================================================================
+  else if (modelConfig.id === 'rodin-v2') {
+    if (input.prompt) payload.prompt = input.prompt
+    payload.input_image_urls =
+      input.imageUrls || (input.imageUrl ? [input.imageUrl] : [])
+    if (input.useOriginalAlpha !== undefined)
+      payload.use_original_alpha = input.useOriginalAlpha
+    if (input.seed !== undefined) payload.seed = input.seed
+    payload.geometry_file_format = input.geometryFileFormat || 'glb'
+    payload.material = input.material || 'All'
+    payload.quality_mesh_option = input.qualityMeshOption || '500K Triangle'
+    if (input.isATpose !== undefined) payload.TAPose = input.isATpose
+    if (input.addons) payload.addons = input.addons
+    if (input.previewRender !== undefined)
+      payload.preview_render = input.previewRender
+  }
+
+  // =============================================================================
+  // Bytedance Seed3D
+  // =============================================================================
+  else if (modelConfig.id === 'seed3d') {
+    payload.image_url = input.imageUrl || input.imageUrls?.[0]
+  }
+
+  // =============================================================================
+  // SAM 3D Objects
+  // =============================================================================
+  else if (modelConfig.id === 'sam3d-objects') {
+    payload.image_url = input.imageUrl || input.imageUrls?.[0]
+    if (input.maskUrls && input.maskUrls.length > 0)
+      payload.mask_urls = input.maskUrls
+    if (input.samPrompt) payload.prompt = input.samPrompt
+    if (input.pointPrompts && input.pointPrompts.length > 0) {
+      payload.point_prompts = input.pointPrompts.map((p) => ({
+        x: p.x,
+        y: p.y,
+        label: p.label,
+        object_id: p.objectId,
+      }))
+    }
+    if (input.boxPrompts && input.boxPrompts.length > 0) {
+      payload.box_prompts = input.boxPrompts.map((b) => ({
+        x_min: b.xMin,
+        y_min: b.yMin,
+        x_max: b.xMax,
+        y_max: b.yMax,
+        object_id: b.objectId,
+      }))
+    }
+    if (input.seed !== undefined) payload.seed = input.seed
+    if (input.exportTexturedGlb !== undefined)
+      payload.export_textured_glb = input.exportTexturedGlb
+  }
+
+  // =============================================================================
+  // SAM 3D Body
+  // =============================================================================
+  else if (modelConfig.id === 'sam3d-body') {
+    payload.image_url = input.imageUrl || input.imageUrls?.[0]
+    if (input.maskUrls && input.maskUrls.length > 0)
+      payload.mask_url = input.maskUrls[0]
+    payload.export_meshes = input.exportMeshes !== false // default true
+    payload.include_3d_keypoints = input.include3dKeypoints !== false // default true
+  }
+
+  // =============================================================================
+  // Hunyuan World
+  // =============================================================================
+  else if (modelConfig.id === 'hunyuan-world') {
+    payload.image_url = input.imageUrl || input.imageUrls?.[0]
+    payload.labels_fg1 = input.labelsFg1 || ''
+    payload.labels_fg2 = input.labelsFg2 || ''
+    payload.classes = input.classes || ''
+    if (input.exportDrc !== undefined) payload.export_drc = input.exportDrc
+  }
+
+  return payload
+}
+
+/**
+ * Mock 3D model generation for development
+ */
+function mockGenerate3DJob(endpoint: string): GenerationJob {
+  const requestId = `mock-3d-${Date.now()}-${Math.random().toString(36).slice(2)}`
+
+  mockJobs.set(requestId, { startTime: Date.now(), type: 'video' }) // Use video timing (longer)
+
+  const mockBaseUrl = `https://queue.fal.run/${endpoint}/requests/${requestId}`
+
+  return {
+    requestId,
+    status: 'pending',
+    model: endpoint,
+    provider: 'fal',
+    statusUrl: `${mockBaseUrl}/status`,
+    responseUrl: mockBaseUrl,
+    cancelUrl: `${mockBaseUrl}/cancel`,
   }
 }
