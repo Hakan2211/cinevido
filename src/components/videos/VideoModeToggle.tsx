@@ -5,12 +5,17 @@
  * - text-to-video: Generate videos from text prompts
  * - image-to-video: Animate an image (first frame)
  * - keyframes: Create transitions between first and last frame
+ * - upscale: Enhance video resolution with AI
  */
 
-import { Film, Image, Layers } from 'lucide-react'
+import { ArrowUpCircle, Film, Image, Layers } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-export type VideoMode = 'text-to-video' | 'image-to-video' | 'keyframes'
+export type VideoMode =
+  | 'text-to-video'
+  | 'image-to-video'
+  | 'keyframes'
+  | 'upscale'
 
 interface VideoModeToggleProps {
   mode: VideoMode
@@ -41,6 +46,12 @@ const modes: Array<{
     label: 'Keyframes',
     icon: Layers,
     description: 'Transition between images',
+  },
+  {
+    id: 'upscale',
+    label: 'Upscale',
+    icon: ArrowUpCircle,
+    description: 'Enhance video resolution',
   },
 ]
 

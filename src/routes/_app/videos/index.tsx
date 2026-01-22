@@ -45,6 +45,10 @@ import {
   getVideoModelsFn,
   listUserVideosFn,
 } from '../../../server/video.fn'
+import {
+  getVideoUpscaleJobStatusFn,
+  upscaleVideoFn,
+} from '../../../server/video-upscale.fn'
 import { listUserImagesFn } from '../../../server/image.fn'
 import { Button } from '../../../components/ui/button'
 import { Card } from '../../../components/ui/card'
@@ -79,8 +83,16 @@ import {
 import { Switch } from '../../../components/ui/switch'
 import { Label } from '../../../components/ui/label'
 import { VideoModeToggle } from '../../../components/videos/VideoModeToggle'
+import { VideoUpscalePanel } from '../../../components/videos/VideoUpscalePanel'
 import type { VideoMode } from '../../../components/videos/VideoModeToggle'
-import type { VideoModelConfig } from '../../../server/services/types'
+import type {
+  BytedanceVideoTargetFps,
+  BytedanceVideoTargetResolution,
+  SeedvrTargetResolution,
+  SeedvrVideoOutputFormat,
+  SeedvrVideoOutputQuality,
+  VideoModelConfig,
+} from '../../../server/services/types'
 
 export const Route = createFileRoute('/_app/videos/')({
   component: VideosPage,
@@ -141,9 +153,43 @@ function VideosPage() {
   const [imagePickerTarget, setImagePickerTarget] = useState<
     'image' | 'first' | 'last' | number
   >('image')
+  const [videoPickerOpen, setVideoPickerOpen] = useState(false)
+
+  // Video upscale state
+  const [upscaleModel, setUpscaleModel] = useState(
+    'fal-ai/seedvr/upscale/video',
+  )
+  const [upscaleVideoUrl, setUpscaleVideoUrl] = useState('')
+  const [selectedUpscaleVideo, setSelectedUpscaleVideo] =
+    useState<GeneratedVideo | null>(null)
+  const [upscaleFactor, setUpscaleFactor] = useState(2)
+  // Topaz specific
+  const [topazTargetFps, setTopazTargetFps] = useState<number | undefined>(
+    undefined,
+  )
+  const [topazH264Output, setTopazH264Output] = useState(false)
+  // SeedVR specific
+  const [seedvrUpscaleMode, setSeedvrUpscaleMode] = useState<
+    'factor' | 'target'
+  >('factor')
+  const [seedvrTargetResolution, setSeedvrTargetResolution] =
+    useState<SeedvrTargetResolution>('1080p')
+  const [seedvrNoiseScale, setSeedvrNoiseScale] = useState(0.1)
+  const [seedvrOutputFormat, setSeedvrOutputFormat] =
+    useState<SeedvrVideoOutputFormat>('X264 (.mp4)')
+  const [seedvrOutputQuality, setSeedvrOutputQuality] =
+    useState<SeedvrVideoOutputQuality>('high')
+  // Bytedance specific
+  const [bytedanceTargetResolution, setBytedanceTargetResolution] =
+    useState<BytedanceVideoTargetResolution>('1080p')
+  const [bytedanceTargetFps, setBytedanceTargetFps] =
+    useState<BytedanceVideoTargetFps>('30fps')
 
   // Generation state
   const [currentJobId, setCurrentJobId] = useState<string | null>(null)
+  const [currentUpscaleJobId, setCurrentUpscaleJobId] = useState<string | null>(
+    null,
+  )
 
   // Pagination
   const limit = 12
@@ -277,6 +323,14 @@ function VideosPage() {
     },
   })
 
+  // Video upscale mutation
+  const upscaleMutation = useMutation({
+    mutationFn: upscaleVideoFn,
+    onSuccess: (result) => {
+      setCurrentUpscaleJobId(result.jobId)
+    },
+  })
+
   // Poll job status
   const { data: jobStatus } = useQuery({
     queryKey: ['videoJob', currentJobId],
@@ -298,6 +352,29 @@ function VideosPage() {
       queryClient.invalidateQueries({ queryKey: ['videos'] })
     }
   }, [jobStatus, queryClient])
+
+  // Poll video upscale job status
+  const { data: upscaleJobStatus } = useQuery({
+    queryKey: ['videoUpscaleJob', currentUpscaleJobId],
+    queryFn: () =>
+      getVideoUpscaleJobStatusFn({ data: { jobId: currentUpscaleJobId! } }),
+    enabled: !!currentUpscaleJobId,
+    refetchInterval: (query) => {
+      const status = query.state.data?.status
+      if (status === 'completed' || status === 'failed') {
+        return false
+      }
+      return 3000 // Video upscaling takes longer
+    },
+  })
+
+  // Handle upscale job completion
+  useEffect(() => {
+    if (upscaleJobStatus?.status === 'completed') {
+      setCurrentUpscaleJobId(null)
+      queryClient.invalidateQueries({ queryKey: ['videos'] })
+    }
+  }, [upscaleJobStatus, queryClient])
 
   // Auto-resize textarea
   const adjustTextareaHeight = useCallback(() => {
@@ -344,6 +421,7 @@ function VideosPage() {
   ])
 
   const canGenerate = () => {
+    if (mode === 'upscale') return false // Upscale uses different button
     if (!prompt.trim() || isGenerating) return false
 
     switch (mode) {
@@ -356,7 +434,14 @@ function VideosPage() {
           return keyframes.length >= 2
         }
         return !!firstFrame && !!lastFrame
+      default:
+        return false
     }
+  }
+
+  const canUpscale = () => {
+    if (isUpscaling) return false
+    return !!(upscaleVideoUrl || selectedUpscaleVideo?.url)
   }
 
   const handleGenerate = () => {
@@ -462,6 +547,40 @@ function VideosPage() {
     }
   }
 
+  // Video upscale handler
+  const handleVideoUpscale = () => {
+    const videoUrl = upscaleVideoUrl || selectedUpscaleVideo?.url
+    if (!videoUrl) return
+
+    upscaleMutation.mutate({
+      data: {
+        videoUrl,
+        model: upscaleModel,
+        sourceAssetId: selectedUpscaleVideo?.id,
+        upscaleFactor,
+        // Topaz
+        targetFps: topazTargetFps,
+        h264Output: topazH264Output,
+        // SeedVR
+        upscaleMode: seedvrUpscaleMode,
+        seedvrTargetResolution,
+        noiseScale: seedvrNoiseScale,
+        outputFormat: seedvrOutputFormat,
+        outputQuality: seedvrOutputQuality,
+        // Bytedance
+        bytedanceTargetResolution,
+        bytedanceTargetFps,
+      },
+    })
+  }
+
+  // Video picker handler
+  const handleVideoSelect = (video: GeneratedVideo) => {
+    setSelectedUpscaleVideo(video)
+    setUpscaleVideoUrl(video.url)
+    setVideoPickerOpen(false)
+  }
+
   const handleAddToProject = () => {
     navigate({ to: '/projects' })
   }
@@ -474,7 +593,18 @@ function VideosPage() {
       jobStatus?.status !== 'failed'
     )
 
+  const isUpscaling =
+    upscaleMutation.isPending ||
+    !!(
+      currentUpscaleJobId &&
+      upscaleJobStatus?.status !== 'completed' &&
+      upscaleJobStatus?.status !== 'failed'
+    )
+
   const progress = jobStatus?.progress || 0
+  // Video upscaling progress (can be used for progress indicator)
+  const _upscaleProgress = upscaleJobStatus?.progress || 0
+  void _upscaleProgress // Unused for now, but available for future progress UI
 
   // Calculate credits (including Pika extra frames)
   const creditCost = () => {
@@ -591,275 +721,376 @@ function VideosPage() {
       {/* Fixed Bottom Panel - Premium Floating Action Bar */}
       <div className="fixed bottom-0 left-0 right-0 md:left-64 p-4 pb-6">
         <div className="mx-auto max-w-4xl rounded-2xl border border-border/50 bg-card/95 backdrop-blur-xl shadow-2xl shadow-black/20 p-5">
-          {/* Mode-specific inputs - Premium Styling */}
-          {mode === 'image-to-video' && (
-            <div className="mb-4 flex gap-4 items-center">
-              {/* Image Picker Thumbnail - Premium */}
-              <button
-                onClick={() => openImagePicker('image')}
-                className="relative h-[80px] w-[80px] shrink-0 overflow-hidden rounded-xl border-2 border-dashed border-border/50 transition-all duration-200 hover:border-primary/50 hover:bg-primary/5 hover:shadow-lg hover:shadow-primary/10"
-              >
-                {selectedImage ? (
-                  <>
-                    <img
-                      src={selectedImage.url}
-                      alt="Selected"
-                      className="h-full w-full object-cover"
-                    />
-                    <div className="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-[1px] opacity-0 transition-opacity hover:opacity-100">
-                      <span className="text-xs font-medium text-white">
-                        Change
-                      </span>
-                    </div>
-                  </>
-                ) : (
-                  <div className="flex h-full flex-col items-center justify-center gap-1">
-                    <Plus className="h-6 w-6 text-muted-foreground" />
-                    <span className="text-[10px] text-muted-foreground font-medium">
-                      Image
-                    </span>
-                  </div>
-                )}
-              </button>
-              <div className="flex-1">
-                <p className="font-medium text-sm">First Frame</p>
-                <p className="text-xs text-muted-foreground">
-                  Select an image to animate
-                </p>
-              </div>
-            </div>
-          )}
-
-          {mode === 'keyframes' && !isPikaKeyframes && (
-            <div className="mb-4 flex gap-4 items-center">
-              {/* First Frame - Premium */}
-              <button
-                onClick={() => openImagePicker('first')}
-                className="relative h-[80px] w-[80px] shrink-0 overflow-hidden rounded-xl border-2 border-dashed border-border/50 transition-all duration-200 hover:border-primary/50 hover:bg-primary/5 hover:shadow-lg hover:shadow-primary/10"
-              >
-                {firstFrame ? (
-                  <>
-                    <img
-                      src={firstFrame.url}
-                      alt="First frame"
-                      className="h-full w-full object-cover"
-                    />
-                    <div className="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-[1px] opacity-0 transition-opacity hover:opacity-100">
-                      <span className="text-xs font-medium text-white">
-                        Change
-                      </span>
-                    </div>
-                  </>
-                ) : (
-                  <div className="flex h-full flex-col items-center justify-center gap-1">
-                    <Plus className="h-6 w-6 text-muted-foreground" />
-                    <span className="text-[10px] text-muted-foreground font-medium">
-                      First
-                    </span>
-                  </div>
-                )}
-              </button>
-
-              {/* Arrow - Premium */}
-              <div className="flex items-center text-primary">
-                <span className="text-xl font-bold">→</span>
-              </div>
-
-              {/* Last Frame - Premium */}
-              <button
-                onClick={() => openImagePicker('last')}
-                className="relative h-[80px] w-[80px] shrink-0 overflow-hidden rounded-xl border-2 border-dashed border-border/50 transition-all duration-200 hover:border-primary/50 hover:bg-primary/5 hover:shadow-lg hover:shadow-primary/10"
-              >
-                {lastFrame ? (
-                  <>
-                    <img
-                      src={lastFrame.url}
-                      alt="Last frame"
-                      className="h-full w-full object-cover"
-                    />
-                    <div className="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-[1px] opacity-0 transition-opacity hover:opacity-100">
-                      <span className="text-xs font-medium text-white">
-                        Change
-                      </span>
-                    </div>
-                  </>
-                ) : (
-                  <div className="flex h-full flex-col items-center justify-center gap-1">
-                    <Plus className="h-6 w-6 text-muted-foreground" />
-                    <span className="text-[10px] text-muted-foreground font-medium">
-                      Last
-                    </span>
-                  </div>
-                )}
-              </button>
-
-              <div className="flex-1">
-                <p className="font-medium text-sm">Keyframes</p>
-                <p className="text-xs text-muted-foreground">
-                  Create a transition between images
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* Pika multi-keyframe UI */}
-          {mode === 'keyframes' && isPikaKeyframes && (
-            <div className="mb-3">
-              <div className="flex items-center gap-2 mb-2">
-                <span className="text-sm font-medium">
-                  Keyframes ({keyframes.length}/5)
-                </span>
-                <span className="text-xs text-muted-foreground">
-                  Add 2-5 images for smooth transitions
-                </span>
-              </div>
-              <div className="flex gap-2 flex-wrap">
-                {keyframes.map((kf, index) => (
-                  <div key={index} className="relative">
-                    <button
-                      onClick={() => openImagePicker(index)}
-                      className="relative h-[60px] w-[60px] overflow-hidden rounded-lg border"
-                    >
-                      <img
-                        src={kf.url}
-                        alt={`Frame ${index + 1}`}
-                        className="h-full w-full object-cover"
-                      />
-                    </button>
-                    <button
-                      onClick={() => removeKeyframe(index)}
-                      className="absolute -right-1 -top-1 rounded-full bg-destructive p-0.5 text-destructive-foreground"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </div>
-                ))}
-                {keyframes.length < 5 && (
-                  <button
-                    onClick={addKeyframe}
-                    className="flex h-[60px] w-[60px] items-center justify-center rounded-lg border-2 border-dashed hover:border-primary hover:bg-accent/50"
-                  >
-                    <Plus className="h-5 w-5 text-muted-foreground" />
-                  </button>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Prompt Input - Premium Styling */}
-          <div className="relative">
-            <Textarea
-              ref={textareaRef}
-              placeholder={
-                mode === 'text-to-video'
-                  ? 'Describe your video scene...'
-                  : mode === 'image-to-video'
-                    ? 'Describe the motion...'
-                    : 'Describe the transition...'
+          {/* Upscale Mode Panel */}
+          {mode === 'upscale' ? (
+            <VideoUpscalePanel
+              model={upscaleModel}
+              onModelChange={setUpscaleModel}
+              videoUrl={upscaleVideoUrl}
+              onVideoUrlChange={setUpscaleVideoUrl}
+              onSelectFromLibrary={() => setVideoPickerOpen(true)}
+              selectedVideoName={
+                selectedUpscaleVideo?.prompt?.slice(0, 30) || undefined
               }
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              className="min-h-[80px] resize-none pr-28 text-base rounded-xl border-border/50 bg-background/50 focus:border-primary/50 focus:ring-primary/20 placeholder:text-muted-foreground/60"
-              rows={2}
+              upscaleFactor={upscaleFactor}
+              onUpscaleFactorChange={setUpscaleFactor}
+              targetFps={topazTargetFps}
+              onTargetFpsChange={setTopazTargetFps}
+              h264Output={topazH264Output}
+              onH264OutputChange={setTopazH264Output}
+              upscaleMode={seedvrUpscaleMode}
+              onUpscaleModeChange={setSeedvrUpscaleMode}
+              seedvrTargetResolution={seedvrTargetResolution}
+              onSeedvrTargetResolutionChange={setSeedvrTargetResolution}
+              noiseScale={seedvrNoiseScale}
+              onNoiseScaleChange={setSeedvrNoiseScale}
+              outputFormat={seedvrOutputFormat}
+              onOutputFormatChange={setSeedvrOutputFormat}
+              outputQuality={seedvrOutputQuality}
+              onOutputQualityChange={setSeedvrOutputQuality}
+              bytedanceTargetResolution={bytedanceTargetResolution}
+              onBytedanceTargetResolutionChange={setBytedanceTargetResolution}
+              bytedanceTargetFps={bytedanceTargetFps}
+              onBytedanceTargetFpsChange={setBytedanceTargetFps}
+              onUpscale={handleVideoUpscale}
+              isUpscaling={isUpscaling}
+              hasVideo={canUpscale()}
+              error={
+                upscaleMutation.isError
+                  ? upscaleMutation.error instanceof Error
+                    ? upscaleMutation.error.message
+                    : 'Upscale failed'
+                  : upscaleJobStatus?.status === 'failed'
+                    ? upscaleJobStatus.error || 'Upscale failed'
+                    : null
+              }
             />
-            <Button
-              size="default"
-              className="absolute bottom-3 right-3 rounded-xl bg-primary hover:bg-primary/90 btn-primary-glow transition-all duration-200"
-              onClick={handleGenerate}
-              disabled={!canGenerate()}
-            >
-              {isGenerating ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <>
-                  <Wand2 className="mr-2 h-4 w-4" />
-                  Generate
-                </>
-              )}
-            </Button>
-          </div>
-
-          {/* Settings Row - Premium Styling */}
-          <div className="mt-4 flex flex-wrap items-center gap-4">
-            {/* Model Selector with Icons */}
-            <ModelSelect
-              value={model}
-              onValueChange={handleModelChange}
-              models={availableModels}
-              showDescription={true}
-              showProvider={true}
-            />
-
-            {/* Duration - Premium Pills */}
-            {selectedModel && selectedModel.durations.length > 1 && (
-              <div className="flex rounded-xl border border-border/50 bg-background/50 p-1">
-                {selectedModel.durations.map((d) => (
+          ) : (
+            <>
+              {/* Mode-specific inputs - Premium Styling */}
+              {mode === 'image-to-video' && (
+                <div className="mb-4 flex gap-4 items-center">
+                  {/* Image Picker Thumbnail - Premium */}
                   <button
-                    key={d}
-                    onClick={() => setDuration(d)}
-                    className={`px-3 py-1.5 text-xs font-medium transition-all duration-200 rounded-lg ${
-                      duration === d
-                        ? 'bg-primary text-primary-foreground active-glow'
-                        : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
-                    }`}
+                    onClick={() => openImagePicker('image')}
+                    className="relative h-[80px] w-[80px] shrink-0 overflow-hidden rounded-xl border-2 border-dashed border-border/50 transition-all duration-200 hover:border-primary/50 hover:bg-primary/5 hover:shadow-lg hover:shadow-primary/10"
                   >
-                    {d}s
+                    {selectedImage ? (
+                      <>
+                        <img
+                          src={selectedImage.url}
+                          alt="Selected"
+                          className="h-full w-full object-cover"
+                        />
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-[1px] opacity-0 transition-opacity hover:opacity-100">
+                          <span className="text-xs font-medium text-white">
+                            Change
+                          </span>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="flex h-full flex-col items-center justify-center gap-1">
+                        <Plus className="h-6 w-6 text-muted-foreground" />
+                        <span className="text-[10px] text-muted-foreground font-medium">
+                          Image
+                        </span>
+                      </div>
+                    )}
                   </button>
-                ))}
-              </div>
-            )}
+                  <div className="flex-1">
+                    <p className="font-medium text-sm">First Frame</p>
+                    <p className="text-xs text-muted-foreground">
+                      Select an image to animate
+                    </p>
+                  </div>
+                </div>
+              )}
 
-            {/* Aspect Ratio (for text-to-video) - Premium */}
-            {mode === 'text-to-video' && selectedModel?.aspectRatios && (
-              <Select value={aspectRatio} onValueChange={setAspectRatio}>
-                <SelectTrigger className="h-9 w-24 rounded-xl border-border/50 bg-background/50">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="rounded-xl">
-                  {selectedModel.aspectRatios.map((ar) => (
-                    <SelectItem key={ar} value={ar}>
-                      {ar}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
+              {mode === 'keyframes' && !isPikaKeyframes && (
+                <div className="mb-4 flex gap-4 items-center">
+                  {/* First Frame - Premium */}
+                  <button
+                    onClick={() => openImagePicker('first')}
+                    className="relative h-[80px] w-[80px] shrink-0 overflow-hidden rounded-xl border-2 border-dashed border-border/50 transition-all duration-200 hover:border-primary/50 hover:bg-primary/5 hover:shadow-lg hover:shadow-primary/10"
+                  >
+                    {firstFrame ? (
+                      <>
+                        <img
+                          src={firstFrame.url}
+                          alt="First frame"
+                          className="h-full w-full object-cover"
+                        />
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-[1px] opacity-0 transition-opacity hover:opacity-100">
+                          <span className="text-xs font-medium text-white">
+                            Change
+                          </span>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="flex h-full flex-col items-center justify-center gap-1">
+                        <Plus className="h-6 w-6 text-muted-foreground" />
+                        <span className="text-[10px] text-muted-foreground font-medium">
+                          First
+                        </span>
+                      </div>
+                    )}
+                  </button>
 
-            {/* Audio Toggle - Premium */}
-            {selectedModel?.supportsAudio && (
-              <div className="flex items-center gap-2 rounded-xl border border-border/50 bg-background/50 px-3 py-2">
-                <Switch
-                  id="audio"
-                  checked={generateAudio}
-                  onCheckedChange={setGenerateAudio}
+                  {/* Arrow - Premium */}
+                  <div className="flex items-center text-primary">
+                    <span className="text-xl font-bold">→</span>
+                  </div>
+
+                  {/* Last Frame - Premium */}
+                  <button
+                    onClick={() => openImagePicker('last')}
+                    className="relative h-[80px] w-[80px] shrink-0 overflow-hidden rounded-xl border-2 border-dashed border-border/50 transition-all duration-200 hover:border-primary/50 hover:bg-primary/5 hover:shadow-lg hover:shadow-primary/10"
+                  >
+                    {lastFrame ? (
+                      <>
+                        <img
+                          src={lastFrame.url}
+                          alt="Last frame"
+                          className="h-full w-full object-cover"
+                        />
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-[1px] opacity-0 transition-opacity hover:opacity-100">
+                          <span className="text-xs font-medium text-white">
+                            Change
+                          </span>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="flex h-full flex-col items-center justify-center gap-1">
+                        <Plus className="h-6 w-6 text-muted-foreground" />
+                        <span className="text-[10px] text-muted-foreground font-medium">
+                          Last
+                        </span>
+                      </div>
+                    )}
+                  </button>
+
+                  <div className="flex-1">
+                    <p className="font-medium text-sm">Keyframes</p>
+                    <p className="text-xs text-muted-foreground">
+                      Create a transition between images
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Pika multi-keyframe UI */}
+              {mode === 'keyframes' && isPikaKeyframes && (
+                <div className="mb-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-sm font-medium">
+                      Keyframes ({keyframes.length}/5)
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      Add 2-5 images for smooth transitions
+                    </span>
+                  </div>
+                  <div className="flex gap-2 flex-wrap">
+                    {keyframes.map((kf, index) => (
+                      <div key={index} className="relative">
+                        <button
+                          onClick={() => openImagePicker(index)}
+                          className="relative h-[60px] w-[60px] overflow-hidden rounded-lg border"
+                        >
+                          <img
+                            src={kf.url}
+                            alt={`Frame ${index + 1}`}
+                            className="h-full w-full object-cover"
+                          />
+                        </button>
+                        <button
+                          onClick={() => removeKeyframe(index)}
+                          className="absolute -right-1 -top-1 rounded-full bg-destructive p-0.5 text-destructive-foreground"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ))}
+                    {keyframes.length < 5 && (
+                      <button
+                        onClick={addKeyframe}
+                        className="flex h-[60px] w-[60px] items-center justify-center rounded-lg border-2 border-dashed hover:border-primary hover:bg-accent/50"
+                      >
+                        <Plus className="h-5 w-5 text-muted-foreground" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Prompt Input - Premium Styling */}
+              <div className="relative">
+                <Textarea
+                  ref={textareaRef}
+                  placeholder={
+                    mode === 'text-to-video'
+                      ? 'Describe your video scene...'
+                      : mode === 'image-to-video'
+                        ? 'Describe the motion...'
+                        : 'Describe the transition...'
+                  }
+                  value={prompt}
+                  onChange={(e) => setPrompt(e.target.value)}
+                  className="min-h-[80px] resize-none pr-28 text-base rounded-xl border-border/50 bg-background/50 focus:border-primary/50 focus:ring-primary/20 placeholder:text-muted-foreground/60"
+                  rows={2}
                 />
-                <Label htmlFor="audio" className="text-xs font-medium">
-                  Audio
-                </Label>
+                <Button
+                  size="default"
+                  className="absolute bottom-3 right-3 rounded-xl bg-primary hover:bg-primary/90 btn-primary-glow transition-all duration-200"
+                  onClick={handleGenerate}
+                  disabled={!canGenerate()}
+                >
+                  {isGenerating ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <>
+                      <Wand2 className="mr-2 h-4 w-4" />
+                      Generate
+                    </>
+                  )}
+                </Button>
               </div>
-            )}
 
-            {/* Credits Display - Premium Badge */}
-            <div className="ml-auto flex items-center gap-2 rounded-xl bg-primary/10 border border-primary/20 px-3 py-1.5">
-              <Wand2 className="h-3.5 w-3.5 text-primary" />
-              <span className="text-sm font-medium text-primary">
-                {creditCost()} credits
-              </span>
-            </div>
-          </div>
+              {/* Settings Row - Premium Styling */}
+              <div className="mt-4 flex flex-wrap items-center gap-4">
+                {/* Model Selector with Icons */}
+                <ModelSelect
+                  value={model}
+                  onValueChange={handleModelChange}
+                  models={availableModels}
+                  showDescription={true}
+                  showProvider={true}
+                />
 
-          {/* Error Display - Premium */}
-          {(generateMutation.isError || jobStatus?.status === 'failed') && (
-            <div className="mt-3 rounded-xl bg-destructive/10 border border-destructive/20 px-4 py-2">
-              <p className="text-sm text-destructive">
-                {generateMutation.error instanceof Error
-                  ? generateMutation.error.message
-                  : jobStatus?.error || 'Generation failed'}
-              </p>
-            </div>
+                {/* Duration - Premium Pills */}
+                {selectedModel && selectedModel.durations.length > 1 && (
+                  <div className="flex rounded-xl border border-border/50 bg-background/50 p-1">
+                    {selectedModel.durations.map((d) => (
+                      <button
+                        key={d}
+                        onClick={() => setDuration(d)}
+                        className={`px-3 py-1.5 text-xs font-medium transition-all duration-200 rounded-lg ${
+                          duration === d
+                            ? 'bg-primary text-primary-foreground active-glow'
+                            : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                        }`}
+                      >
+                        {d}s
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* Aspect Ratio (for text-to-video) - Premium */}
+                {mode === 'text-to-video' && selectedModel?.aspectRatios && (
+                  <Select value={aspectRatio} onValueChange={setAspectRatio}>
+                    <SelectTrigger className="h-9 w-24 rounded-xl border-border/50 bg-background/50">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl">
+                      {selectedModel.aspectRatios.map((ar) => (
+                        <SelectItem key={ar} value={ar}>
+                          {ar}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+
+                {/* Audio Toggle - Premium */}
+                {selectedModel?.supportsAudio && (
+                  <div className="flex items-center gap-2 rounded-xl border border-border/50 bg-background/50 px-3 py-2">
+                    <Switch
+                      id="audio"
+                      checked={generateAudio}
+                      onCheckedChange={setGenerateAudio}
+                    />
+                    <Label htmlFor="audio" className="text-xs font-medium">
+                      Audio
+                    </Label>
+                  </div>
+                )}
+
+                {/* Credits Display - Premium Badge */}
+                <div className="ml-auto flex items-center gap-2 rounded-xl bg-primary/10 border border-primary/20 px-3 py-1.5">
+                  <Wand2 className="h-3.5 w-3.5 text-primary" />
+                  <span className="text-sm font-medium text-primary">
+                    {creditCost()} credits
+                  </span>
+                </div>
+              </div>
+
+              {/* Error Display - Premium */}
+              {(generateMutation.isError || jobStatus?.status === 'failed') && (
+                <div className="mt-3 rounded-xl bg-destructive/10 border border-destructive/20 px-4 py-2">
+                  <p className="text-sm text-destructive">
+                    {generateMutation.error instanceof Error
+                      ? generateMutation.error.message
+                      : jobStatus?.error || 'Generation failed'}
+                  </p>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
+
+      {/* Video Picker Dialog for Upscale */}
+      <Dialog open={videoPickerOpen} onOpenChange={setVideoPickerOpen}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Select a video to upscale</DialogTitle>
+          </DialogHeader>
+          {videosLoading ? (
+            <div className="flex h-64 items-center justify-center">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+          ) : videos.length === 0 ? (
+            <div className="flex h-64 flex-col items-center justify-center">
+              <Video className="h-12 w-12 text-muted-foreground" />
+              <p className="mt-4 text-muted-foreground">No videos yet</p>
+              <p className="text-sm text-muted-foreground mt-2">
+                Generate some videos first to upscale them
+              </p>
+            </div>
+          ) : (
+            <div className="grid max-h-[60vh] gap-3 overflow-y-auto sm:grid-cols-2 md:grid-cols-3">
+              {videos.map((video) => (
+                <button
+                  key={video.id}
+                  className="group relative aspect-video overflow-hidden rounded-xl bg-muted"
+                  onClick={() => handleVideoSelect(video)}
+                >
+                  <video
+                    src={video.url}
+                    className="absolute inset-0 h-full w-full object-cover"
+                    muted
+                    playsInline
+                    onMouseEnter={(e) => e.currentTarget.play()}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.pause()
+                      e.currentTarget.currentTime = 0
+                    }}
+                  />
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
+                    <Check className="h-8 w-8 text-white" />
+                  </div>
+                  {video.durationSeconds && (
+                    <div className="absolute bottom-2 left-2 flex items-center gap-1 rounded-full bg-black/60 px-2 py-1 text-xs text-white">
+                      <Clock className="h-3 w-3" />
+                      {video.durationSeconds}s
+                    </div>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Image Picker Dialog */}
       <Dialog open={imagePickerOpen} onOpenChange={setImagePickerOpen}>

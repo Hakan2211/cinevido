@@ -282,6 +282,51 @@ export const SEEDVR_TARGET_RESOLUTIONS = [
 export type SeedvrTargetResolution =
   (typeof SEEDVR_TARGET_RESOLUTIONS)[number]['id']
 
+// SeedVR video output format options
+export const SEEDVR_VIDEO_OUTPUT_FORMATS = [
+  { id: 'X264 (.mp4)', name: 'MP4 (H.264)', description: 'Most compatible' },
+  { id: 'VP9 (.webm)', name: 'WebM (VP9)', description: 'Web optimized' },
+  {
+    id: 'PRORES4444 (.mov)',
+    name: 'ProRes 4444',
+    description: 'Professional editing',
+  },
+  { id: 'GIF (.gif)', name: 'GIF', description: 'Animated image' },
+] as const
+
+export type SeedvrVideoOutputFormat =
+  (typeof SEEDVR_VIDEO_OUTPUT_FORMATS)[number]['id']
+
+// SeedVR video output quality options
+export const SEEDVR_VIDEO_OUTPUT_QUALITIES = [
+  { id: 'low', name: 'Low', description: 'Smallest file size' },
+  { id: 'medium', name: 'Medium', description: 'Balanced' },
+  { id: 'high', name: 'High', description: 'Good quality' },
+  { id: 'maximum', name: 'Maximum', description: 'Best quality' },
+] as const
+
+export type SeedvrVideoOutputQuality =
+  (typeof SEEDVR_VIDEO_OUTPUT_QUALITIES)[number]['id']
+
+// Bytedance video target resolution options
+export const BYTEDANCE_VIDEO_TARGET_RESOLUTIONS = [
+  { id: '1080p', name: '1080p', description: '1920x1080' },
+  { id: '2k', name: '2K', description: '2560x1440' },
+  { id: '4k', name: '4K', description: '3840x2160' },
+] as const
+
+export type BytedanceVideoTargetResolution =
+  (typeof BYTEDANCE_VIDEO_TARGET_RESOLUTIONS)[number]['id']
+
+// Bytedance video target FPS options
+export const BYTEDANCE_VIDEO_TARGET_FPS = [
+  { id: '30fps', name: '30 FPS', description: 'Standard' },
+  { id: '60fps', name: '60 FPS', description: 'Smooth motion' },
+] as const
+
+export type BytedanceVideoTargetFps =
+  (typeof BYTEDANCE_VIDEO_TARGET_FPS)[number]['id']
+
 // Upscaling models
 export const UPSCALE_MODELS: Array<UpscaleModelConfig> = [
   {
@@ -693,6 +738,7 @@ export type JobType =
   | 'render'
   | 'edit'
   | 'upscale'
+  | 'video-upscale'
 export type JobStatus = 'pending' | 'processing' | 'completed' | 'failed'
 
 export interface GenerationJobInput {
@@ -852,6 +898,88 @@ export function getUpscaleModelById(
   modelId: string,
 ): UpscaleModelConfig | undefined {
   return UPSCALE_MODELS.find((m) => m.id === modelId)
+}
+
+// =============================================================================
+// Video Upscale Model Configuration
+// =============================================================================
+
+export interface VideoUpscaleModelConfig extends ModelConfig {
+  maxScale?: number
+  supportsTargetResolution?: boolean
+  supportsFrameInterpolation?: boolean
+  targetResolutions?: Array<string>
+  outputFormats?: Array<string>
+}
+
+export const VIDEO_UPSCALE_MODELS: Array<VideoUpscaleModelConfig> = [
+  {
+    id: 'fal-ai/seedvr/upscale/video',
+    name: 'SeedVR2',
+    provider: 'fal',
+    credits: 10,
+    description: 'Temporal consistency, flexible output formats',
+    maxScale: 10,
+    supportsTargetResolution: true,
+    outputFormats: SEEDVR_VIDEO_OUTPUT_FORMATS.map((f) => f.id),
+  },
+  {
+    id: 'fal-ai/topaz/upscale/video',
+    name: 'Topaz',
+    provider: 'fal',
+    credits: 15,
+    description: 'Professional-grade, frame interpolation support',
+    maxScale: 8,
+    supportsFrameInterpolation: true,
+  },
+  {
+    id: 'fal-ai/bytedance-upscaler/upscale/video',
+    name: 'Bytedance',
+    provider: 'fal',
+    credits: 8,
+    description: 'Simple resolution targeting (1080p/2k/4k)',
+    targetResolutions: BYTEDANCE_VIDEO_TARGET_RESOLUTIONS.map((r) => r.id),
+  },
+]
+
+export function getVideoUpscaleModelById(
+  modelId: string,
+): VideoUpscaleModelConfig | undefined {
+  return VIDEO_UPSCALE_MODELS.find((m) => m.id === modelId)
+}
+
+export function getDefaultVideoUpscaleModel(): VideoUpscaleModelConfig {
+  return VIDEO_UPSCALE_MODELS[0]
+}
+
+// =============================================================================
+// Video Upscale Input Types
+// =============================================================================
+
+export interface VideoUpscaleInput {
+  videoUrl: string
+  model?: string
+  sourceAssetId?: string
+  projectId?: string
+
+  // Common
+  upscaleFactor?: number
+
+  // Topaz specific
+  targetFps?: number // Enables frame interpolation when set
+  h264Output?: boolean // Use H.264 instead of H.265
+
+  // SeedVR specific
+  upscaleMode?: 'factor' | 'target'
+  seedvrTargetResolution?: '720p' | '1080p' | '1440p' | '2160p'
+  noiseScale?: number // 0-1, default 0.1
+  outputFormat?: SeedvrVideoOutputFormat
+  outputQuality?: SeedvrVideoOutputQuality
+  seed?: number
+
+  // Bytedance specific
+  bytedanceTargetResolution?: BytedanceVideoTargetResolution
+  bytedanceTargetFps?: BytedanceVideoTargetFps
 }
 
 export function createEmptyManifest(): ProjectManifest {
