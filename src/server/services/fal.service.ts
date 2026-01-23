@@ -14,8 +14,15 @@ import {
   getModelById,
   getVideoModelById,
   get3DModelById,
+  getAgingModelByType,
 } from './types'
-import type { VideoModelConfig, Model3DConfig } from './types'
+import type {
+  VideoModelConfig,
+  Model3DConfig,
+  AgeGroup,
+  AgingGender,
+  AgingSubMode,
+} from './types'
 
 const MOCK_FAL = process.env.MOCK_GENERATION === 'true'
 const FAL_API_URL = 'https://queue.fal.run'
@@ -478,6 +485,169 @@ export function getImageModels() {
  */
 export function getVideoModels(): Array<VideoModelConfig> {
   return VIDEO_MODELS
+}
+
+// =============================================================================
+// AI Baby & Aging Generation
+// =============================================================================
+
+export interface AgingGenerationInput {
+  subMode: AgingSubMode
+  ageGroup: AgeGroup
+  gender: AgingGender
+  prompt?: string
+  imageSize?: { width: number; height: number }
+  numImages?: number
+  seed?: number
+  outputFormat?: 'jpeg' | 'png'
+  // Single mode - age progression/regression from one photo
+  idImageUrls?: string[]
+  // Multi mode - baby prediction from two parent photos
+  motherImageUrls?: string[]
+  fatherImageUrls?: string[]
+  fatherWeight?: number // 0-1, default 0.5
+}
+
+/**
+ * Start an aging/baby generation job (queued)
+ * Supports:
+ * - Single: Age progression/regression from a single face photo
+ * - Multi: Baby prediction from two parent photos
+ */
+export async function generateAging(
+  input: AgingGenerationInput,
+): Promise<GenerationJob> {
+  const modelConfig = getAgingModelByType(input.subMode)
+  if (!modelConfig) {
+    throw new Error(`Unknown aging mode: ${input.subMode}`)
+  }
+
+  const modelId = modelConfig.id
+
+  console.log('[FAL] generateAging called:', {
+    modelId,
+    subMode: input.subMode,
+    ageGroup: input.ageGroup,
+    gender: input.gender,
+  })
+
+  if (MOCK_FAL) {
+    console.log('[FAL] Using MOCK mode for aging')
+    return mockGenerateJob(modelId)
+  }
+
+  const apiKey = process.env.FAL_KEY
+  if (!apiKey) {
+    console.error('[FAL] FAL_KEY not configured!')
+    throw new Error('FAL_KEY not configured')
+  }
+
+  // Build the request payload based on the sub-mode
+  const payload = buildAgingPayload(input)
+  const submitUrl = `${FAL_API_URL}/${modelId}`
+
+  console.log('[FAL] Submitting aging to:', submitUrl)
+  console.log('[FAL] Aging payload:', JSON.stringify(payload, null, 2))
+
+  const response = await fetch(submitUrl, {
+    method: 'POST',
+    headers: {
+      Authorization: `Key ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  })
+
+  console.log('[FAL] Aging submit response status:', response.status)
+
+  if (!response.ok) {
+    const error = await response.text()
+    console.error('[FAL] Aging submit error:', error)
+    throw new Error(`Fal.ai error: ${response.status} - ${error}`)
+  }
+
+  const data: FalQueueResponse = await response.json()
+  console.log('[FAL] Aging submit success:', {
+    request_id: data.request_id,
+    status_url: data.status_url,
+    response_url: data.response_url,
+  })
+
+  return {
+    requestId: data.request_id,
+    status: 'pending',
+    model: modelId,
+    provider: 'fal',
+    statusUrl: data.status_url,
+    responseUrl: data.response_url,
+    cancelUrl: data.cancel_url,
+  }
+}
+
+/**
+ * Build payload for aging generation based on sub-mode
+ */
+function buildAgingPayload(
+  input: AgingGenerationInput,
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {
+    age_group: input.ageGroup,
+    gender: input.gender,
+  }
+
+  // Optional prompt
+  if (input.prompt?.trim()) {
+    payload.prompt = input.prompt.trim()
+  }
+
+  // Image size
+  if (input.imageSize) {
+    payload.image_size = {
+      width: input.imageSize.width,
+      height: input.imageSize.height,
+    }
+  }
+
+  // Number of images
+  if (input.numImages && input.numImages > 1) {
+    payload.num_images = input.numImages
+  }
+
+  // Seed for reproducibility
+  if (input.seed !== undefined) {
+    payload.seed = input.seed
+  }
+
+  // Output format
+  if (input.outputFormat) {
+    payload.output_format = input.outputFormat
+  }
+
+  // Sub-mode specific fields
+  if (input.subMode === 'single') {
+    // Single person mode - requires id_image_urls
+    if (!input.idImageUrls || input.idImageUrls.length === 0) {
+      throw new Error('idImageUrls is required for single person aging')
+    }
+    payload.id_image_urls = input.idImageUrls
+  } else {
+    // Multi person mode - requires mother and father images
+    if (!input.motherImageUrls || input.motherImageUrls.length === 0) {
+      throw new Error('motherImageUrls is required for baby prediction')
+    }
+    if (!input.fatherImageUrls || input.fatherImageUrls.length === 0) {
+      throw new Error('fatherImageUrls is required for baby prediction')
+    }
+    payload.mother_image_urls = input.motherImageUrls
+    payload.father_image_urls = input.fatherImageUrls
+
+    // Father weight (influence balance)
+    if (input.fatherWeight !== undefined) {
+      payload.father_weight = input.fatherWeight
+    }
+  }
+
+  return payload
 }
 
 // =============================================================================

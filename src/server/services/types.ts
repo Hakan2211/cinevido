@@ -1216,3 +1216,55 @@ export function getDefault3DModel(mode: Model3DMode): Model3DConfig {
       return IMAGE_TO_WORLD_MODELS[0]
   }
 }
+
+// =============================================================================
+// AI Baby & Aging Generator Configuration
+// =============================================================================
+
+export const AGE_GROUPS = [
+  { id: 'baby', name: 'Baby', description: '0-12 months' },
+  { id: 'toddler', name: 'Toddler', description: '1-3 years' },
+  { id: 'preschool', name: 'Preschool', description: '3-5 years' },
+  { id: 'gradeschooler', name: 'Grade School', description: '6-12 years' },
+  { id: 'teen', name: 'Teen', description: '13-19 years' },
+  { id: 'adult', name: 'Adult', description: '20-40 years' },
+  { id: 'mid', name: 'Middle Age', description: '40-60 years' },
+  { id: 'senior', name: 'Senior', description: '60+ years' },
+] as const
+
+export type AgeGroup = (typeof AGE_GROUPS)[number]['id']
+export type AgingGender = 'male' | 'female'
+export type AgingSubMode = 'single' | 'multi'
+
+export interface AgingModelConfig extends ModelConfig {
+  type: AgingSubMode
+}
+
+export const AGING_MODELS: Array<AgingModelConfig> = [
+  {
+    id: 'half-moon-ai/ai-baby-and-aging-generator/single',
+    name: 'Single Person',
+    provider: 'fal',
+    credits: 8,
+    description: 'Age progression/regression from one photo',
+    type: 'single',
+  },
+  {
+    id: 'half-moon-ai/ai-baby-and-aging-generator/multi',
+    name: 'Two Parents',
+    provider: 'fal',
+    credits: 10,
+    description: 'Predict baby from parent photos',
+    type: 'multi',
+  },
+]
+
+export function getAgingModelByType(
+  type: AgingSubMode,
+): AgingModelConfig | undefined {
+  return AGING_MODELS.find((m) => m.type === type)
+}
+
+export function getDefaultAgingModel(): AgingModelConfig {
+  return AGING_MODELS[0]
+}

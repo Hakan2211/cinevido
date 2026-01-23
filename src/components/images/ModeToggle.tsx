@@ -7,10 +7,10 @@
  * - upscale: Enhance image resolution
  */
 
-import { ArrowUpCircle, Paintbrush, Sparkles } from 'lucide-react'
+import { ArrowUpCircle, Baby, Paintbrush, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-export type ImageMode = 'generate' | 'edit' | 'upscale'
+export type ImageMode = 'generate' | 'edit' | 'upscale' | 'aging'
 
 interface ModeToggleProps {
   mode: ImageMode
@@ -41,6 +41,12 @@ const modes: Array<{
     label: 'Upscale',
     icon: ArrowUpCircle,
     description: 'Enhance resolution',
+  },
+  {
+    id: 'aging',
+    label: 'Aging',
+    icon: Baby,
+    description: 'Age & baby prediction',
   },
 ]
 

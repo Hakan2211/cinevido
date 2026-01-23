@@ -1,10 +1,11 @@
 /**
- * Images Page - Unified Create, Edit, Upscale & Variations
+ * Images Page - Unified Create, Edit, Upscale, Aging & Variations
  *
  * Professional image interface with mode switching:
  * - Generate: Create new images from text prompts
  * - Edit: Inpaint/outpaint existing images with mask drawing
  * - Upscale: Enhance image resolution with AI
+ * - Aging: AI age transformation and baby prediction
  * - Variations: Create variations from reference images
  */
 
@@ -36,6 +37,9 @@ import {
 import { toast } from 'sonner'
 import type { ImageMode } from '@/components/images'
 import type {
+  AgeGroup,
+  AgingGender,
+  AgingSubMode,
   GptImageQuality,
   RecraftStyle,
   SeedvrTargetResolution,
@@ -53,6 +57,7 @@ import {
   getEditJobStatusFn,
   upscaleImageFn,
 } from '@/server/edit.fn'
+import { generateAgingFn, getAgingJobStatusFn } from '@/server/aging.fn'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
@@ -79,6 +84,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import {
+  AgingPanel,
   EditPanel,
   ModeToggle,
   UploadDropZone,
@@ -196,6 +202,24 @@ function ImagesPage() {
   const [faceEnhancementStrength, setFaceEnhancementStrength] = useState(0.8)
   const [faceEnhancementCreativity, setFaceEnhancementCreativity] = useState(0)
 
+  // Aging mode state
+  const [agingSubMode, setAgingSubMode] = useState<AgingSubMode>('single')
+  const [ageGroup, setAgeGroup] = useState<AgeGroup>('baby')
+  const [agingGender, setAgingGender] = useState<AgingGender>('male')
+  const [agingPrompt, setAgingPrompt] = useState('')
+  const [agingNumImages, setAgingNumImages] = useState(1)
+  const [fatherWeight, setFatherWeight] = useState(0.5)
+  // For single mode - reuse selectedEditImages for the single image
+  // For multi mode - track mother/father separately
+  const [motherImage, setMotherImage] = useState<{
+    id: string
+    url: string
+  } | null>(null)
+  const [fatherImage, setFatherImage] = useState<{
+    id: string
+    url: string
+  } | null>(null)
+
   // UI state
   const [selectedImage, setSelectedImage] = useState<GeneratedImage | null>(
     null,
@@ -205,7 +229,7 @@ function ImagesPage() {
   // Generation state
   const [currentJobId, setCurrentJobId] = useState<string | null>(null)
   const [currentJobType, setCurrentJobType] = useState<
-    'generate' | 'edit' | 'upscale' | null
+    'generate' | 'edit' | 'upscale' | 'aging' | null
   >(null)
 
   // Pagination
@@ -299,6 +323,15 @@ function ImagesPage() {
     },
   })
 
+  // Aging mutation
+  const agingMutation = useMutation({
+    mutationFn: generateAgingFn,
+    onSuccess: (result) => {
+      setCurrentJobId(result.jobId)
+      setCurrentJobType('aging')
+    },
+  })
+
   // Delete mutation
   const deleteMutation = useMutation({
     mutationFn: deleteImageFn,
@@ -322,11 +355,27 @@ function ImagesPage() {
     },
   })
 
-  // Poll edit job status
+  // Poll edit job status (edit, upscale)
   const { data: editJobStatus } = useQuery({
     queryKey: ['editJob', currentJobId],
     queryFn: () => getEditJobStatusFn({ data: { jobId: currentJobId! } }),
-    enabled: !!currentJobId && currentJobType !== 'generate',
+    enabled:
+      !!currentJobId &&
+      (currentJobType === 'edit' || currentJobType === 'upscale'),
+    refetchInterval: (query) => {
+      const status = query.state.data?.status
+      if (status === 'completed' || status === 'failed') {
+        return false
+      }
+      return 2000
+    },
+  })
+
+  // Poll aging job status
+  const { data: agingJobStatus } = useQuery({
+    queryKey: ['agingJob', currentJobId],
+    queryFn: () => getAgingJobStatusFn({ data: { jobId: currentJobId! } }),
+    enabled: !!currentJobId && currentJobType === 'aging',
     refetchInterval: (query) => {
       const status = query.state.data?.status
       if (status === 'completed' || status === 'failed') {
@@ -338,13 +387,20 @@ function ImagesPage() {
 
   // Handle job completion
   useEffect(() => {
-    const status = currentJobType === 'generate' ? jobStatus : editJobStatus
+    let status
+    if (currentJobType === 'generate') {
+      status = jobStatus
+    } else if (currentJobType === 'aging') {
+      status = agingJobStatus
+    } else {
+      status = editJobStatus
+    }
     if (status?.status === 'completed') {
       setCurrentJobId(null)
       setCurrentJobType(null)
       queryClient.invalidateQueries({ queryKey: ['images'] })
     }
-  }, [jobStatus, editJobStatus, currentJobType, queryClient])
+  }, [jobStatus, editJobStatus, agingJobStatus, currentJobType, queryClient])
 
   // Auto-resize textarea
   const adjustTextareaHeight = useCallback(() => {
@@ -451,6 +507,53 @@ function ImagesPage() {
     })
   }
 
+  const handleAging = () => {
+    if (isGenerating) return
+
+    // Validate based on sub-mode
+    if (agingSubMode === 'single') {
+      if (selectedEditImages.length === 0) {
+        toast.error('Please select an image to transform')
+        return
+      }
+      agingMutation.mutate({
+        data: {
+          subMode: 'single',
+          ageGroup,
+          gender: agingGender,
+          prompt: agingPrompt.trim() || undefined,
+          numImages: agingNumImages,
+          idImageUrls: [selectedEditImages[0].url],
+          sourceAssetId: selectedEditImages[0].id,
+        },
+      })
+    } else {
+      // Multi mode
+      if (!motherImage) {
+        toast.error('Please select a mother image')
+        return
+      }
+      if (!fatherImage) {
+        toast.error('Please select a father image')
+        return
+      }
+      agingMutation.mutate({
+        data: {
+          subMode: 'multi',
+          ageGroup,
+          gender: agingGender,
+          prompt: agingPrompt.trim() || undefined,
+          numImages: agingNumImages,
+          motherImageUrls: [motherImage.url],
+          fatherImageUrls: [fatherImage.url],
+          motherAssetId: motherImage.id,
+          fatherAssetId: fatherImage.id,
+          fatherWeight,
+        },
+      })
+    }
+  }
+
   const handleCopyPrompt = async (text: string) => {
     await navigator.clipboard.writeText(text)
     setCopiedPrompt(true)
@@ -540,22 +643,31 @@ function ImagesPage() {
     generateMutation.isPending ||
     editMutation.isPending ||
     upscaleMutation.isPending ||
+    agingMutation.isPending ||
     !!(
       currentJobId &&
       (currentJobType === 'generate'
         ? jobStatus?.status !== 'completed' && jobStatus?.status !== 'failed'
-        : editJobStatus?.status !== 'completed' &&
-          editJobStatus?.status !== 'failed')
+        : currentJobType === 'aging'
+          ? agingJobStatus?.status !== 'completed' &&
+            agingJobStatus?.status !== 'failed'
+          : editJobStatus?.status !== 'completed' &&
+            editJobStatus?.status !== 'failed')
     )
 
   const selectedModel = models.find((m) => m.id === model)
   const progress =
     currentJobType === 'generate'
       ? jobStatus?.progress || 0
-      : editJobStatus?.progress || 0
+      : currentJobType === 'aging'
+        ? agingJobStatus?.progress || 0
+        : editJobStatus?.progress || 0
 
   const currentError =
-    generateMutation.error || editMutation.error || upscaleMutation.error
+    generateMutation.error ||
+    editMutation.error ||
+    upscaleMutation.error ||
+    agingMutation.error
 
   return (
     <div className="flex h-[calc(100vh-theme(spacing.16))] flex-col">
@@ -591,8 +703,165 @@ function ImagesPage() {
             onDelete={handleDelete}
             onEdit={handleEditImage}
           />
+        ) : mode === 'aging' && agingSubMode === 'multi' ? (
+          // Aging Multi Mode: Mother + Father preview slots
+          <div className="grid gap-8 lg:grid-cols-2 px-2">
+            {/* Preview Area - Two Parent Slots */}
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4 aspect-square">
+                {/* Mother Slot */}
+                <div className="rounded-2xl border border-border/30 bg-card/30 overflow-hidden shadow-lg">
+                  {motherImage ? (
+                    <div className="relative h-full">
+                      <img
+                        src={motherImage.url}
+                        alt="Mother"
+                        className="h-full w-full object-cover"
+                      />
+                      <div className="absolute top-2 left-2 bg-pink-500 text-white text-xs font-bold px-2 py-1 rounded-lg">
+                        Mother
+                      </div>
+                      <button
+                        onClick={() => setMotherImage(null)}
+                        className="absolute top-2 right-2 bg-black/50 hover:bg-black/70 text-white p-1 rounded-lg transition-colors"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="h-full flex flex-col items-center justify-center gap-2 p-4">
+                      <div className="rounded-xl bg-pink-500/10 p-4 border border-pink-500/20">
+                        <ImageIcon className="h-8 w-8 text-pink-500/50" />
+                      </div>
+                      <p className="text-muted-foreground text-center text-sm">
+                        Select mother
+                      </p>
+                    </div>
+                  )}
+                </div>
+                {/* Father Slot */}
+                <div className="rounded-2xl border border-border/30 bg-card/30 overflow-hidden shadow-lg">
+                  {fatherImage ? (
+                    <div className="relative h-full">
+                      <img
+                        src={fatherImage.url}
+                        alt="Father"
+                        className="h-full w-full object-cover"
+                      />
+                      <div className="absolute top-2 left-2 bg-blue-500 text-white text-xs font-bold px-2 py-1 rounded-lg">
+                        Father
+                      </div>
+                      <button
+                        onClick={() => setFatherImage(null)}
+                        className="absolute top-2 right-2 bg-black/50 hover:bg-black/70 text-white p-1 rounded-lg transition-colors"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="h-full flex flex-col items-center justify-center gap-2 p-4">
+                      <div className="rounded-xl bg-blue-500/10 p-4 border border-blue-500/20">
+                        <ImageIcon className="h-8 w-8 text-blue-500/50" />
+                      </div>
+                      <p className="text-muted-foreground text-center text-sm">
+                        Select father
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+              {isGenerating && (
+                <div className="flex items-center gap-3 rounded-xl bg-primary/10 border border-primary/20 px-4 py-3">
+                  <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                  <span className="text-sm font-medium">
+                    Processing... {progress > 0 && `${progress}%`}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Image Selector for Multi Mode */}
+            <div>
+              <h3 className="mb-4 text-lg font-semibold">
+                Select Parent Photos
+                <span className="ml-2 text-sm text-muted-foreground font-normal">
+                  (click to assign as mother or father)
+                </span>
+              </h3>
+
+              <UploadDropZone
+                onUploadComplete={() => {
+                  queryClient.invalidateQueries({ queryKey: ['images'] })
+                }}
+              />
+
+              <div className="grid grid-cols-3 md:grid-cols-4 gap-3 max-h-[450px] overflow-y-auto pr-2">
+                {images.map((image) => {
+                  const isMother = motherImage?.id === image.id
+                  const isFather = fatherImage?.id === image.id
+                  const isSelected = isMother || isFather
+                  return (
+                    <button
+                      key={image.id}
+                      onClick={() => {
+                        // If already selected as mother/father, deselect
+                        if (isMother) {
+                          setMotherImage(null)
+                        } else if (isFather) {
+                          setFatherImage(null)
+                        } else {
+                          // Assign to empty slot (mother first, then father)
+                          if (!motherImage) {
+                            setMotherImage({ id: image.id, url: image.url })
+                          } else if (!fatherImage) {
+                            setFatherImage({ id: image.id, url: image.url })
+                          } else {
+                            toast.info(
+                              'Both slots filled. Click an image to deselect first.',
+                            )
+                          }
+                        }
+                      }}
+                      className={`relative aspect-square rounded-xl overflow-hidden border-2 transition-all duration-200 ${
+                        isSelected
+                          ? isMother
+                            ? 'border-pink-500 ring-2 ring-pink-500/30 shadow-lg shadow-pink-500/20'
+                            : 'border-blue-500 ring-2 ring-blue-500/30 shadow-lg shadow-blue-500/20'
+                          : 'border-border/30 hover:border-primary/30 hover:shadow-md'
+                      }`}
+                    >
+                      <img
+                        src={image.url}
+                        alt={image.prompt || 'Image'}
+                        className="absolute inset-0 h-full w-full object-cover"
+                        loading="lazy"
+                      />
+                      {isSelected && (
+                        <div
+                          className={`absolute inset-0 ${isMother ? 'bg-pink-500/20' : 'bg-blue-500/20'} backdrop-blur-[1px] flex items-center justify-center`}
+                        >
+                          <div
+                            className={`${isMother ? 'bg-pink-500' : 'bg-blue-500'} text-white text-xs font-bold px-2 py-1 rounded-lg`}
+                          >
+                            {isMother ? 'Mother' : 'Father'}
+                          </div>
+                        </div>
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
+              {images.length === 0 && (
+                <div className="text-center py-12">
+                  <p className="text-muted-foreground">
+                    No images yet. Generate some first!
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
         ) : (
-          // Edit/Upscale Mode: Premium Preview + Image Selector
+          // Edit/Upscale/Aging(Single) Mode: Premium Preview + Image Selector
           <div className="grid gap-8 lg:grid-cols-2 px-2">
             {/* Preview Area - Premium Styling */}
             <div className="space-y-4">
@@ -640,7 +909,7 @@ function ImagesPage() {
                       {mode === 'edit' && maxImagesForModel > 1
                         ? 'image(s)'
                         : 'an image'}{' '}
-                      to {mode}
+                      to {mode === 'aging' ? 'transform' : mode}
                     </p>
                   </div>
                 )}
@@ -822,6 +1091,33 @@ function ImagesPage() {
                 upscaleMutation.error instanceof Error
                   ? upscaleMutation.error.message
                   : editJobStatus?.error
+              }
+            />
+          )}
+
+          {mode === 'aging' && (
+            <AgingPanel
+              subMode={agingSubMode}
+              onSubModeChange={setAgingSubMode}
+              ageGroup={ageGroup}
+              onAgeGroupChange={setAgeGroup}
+              gender={agingGender}
+              onGenderChange={setAgingGender}
+              prompt={agingPrompt}
+              onPromptChange={setAgingPrompt}
+              numImages={agingNumImages}
+              onNumImagesChange={setAgingNumImages}
+              fatherWeight={fatherWeight}
+              onFatherWeightChange={setFatherWeight}
+              onGenerate={handleAging}
+              isGenerating={isGenerating}
+              singleImageSelected={selectedEditImages.length > 0}
+              motherSelected={motherImage !== null}
+              fatherSelected={fatherImage !== null}
+              error={
+                agingMutation.error instanceof Error
+                  ? agingMutation.error.message
+                  : agingJobStatus?.error
               }
             />
           )}

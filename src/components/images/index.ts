@@ -5,6 +5,7 @@
 export { ModeToggle, IMAGE_MODES, type ImageMode } from './ModeToggle'
 export { EditPanel } from './EditPanel'
 export { UpscalePanel } from './UpscalePanel'
+export { AgingPanel } from './AgingPanel'
 export { ImageSelector } from './ImageSelector'
 export { UploadDropZone } from './UploadDropZone'
 

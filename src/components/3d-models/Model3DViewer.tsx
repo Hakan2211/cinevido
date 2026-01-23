@@ -41,11 +41,12 @@ interface Model3DViewerProps {
 function Model({ url }: { url: string }) {
   const proxiedUrl = useMemo(() => getProxiedUrl(url), [url])
   const { scene } = useGLTF(proxiedUrl)
-  const groupRef = useRef<Group>(null)
+  // Clone scene so each mount gets its own copy - prevents R3F errors on remount
+  const clonedScene = useMemo(() => scene.clone(true), [scene])
 
   return (
-    <group ref={groupRef}>
-      <primitive object={scene} />
+    <group>
+      <primitive object={clonedScene} />
     </group>
   )
 }
@@ -53,6 +54,8 @@ function Model({ url }: { url: string }) {
 function AutoRotateModel({ url }: { url: string }) {
   const proxiedUrl = useMemo(() => getProxiedUrl(url), [url])
   const { scene } = useGLTF(proxiedUrl)
+  // Clone scene so each mount gets its own copy - prevents R3F errors on remount
+  const clonedScene = useMemo(() => scene.clone(true), [scene])
   const groupRef = useRef<Group>(null)
 
   useFrame((_, delta) => {
@@ -63,7 +66,7 @@ function AutoRotateModel({ url }: { url: string }) {
 
   return (
     <group ref={groupRef}>
-      <primitive object={scene} />
+      <primitive object={clonedScene} />
     </group>
   )
 }
