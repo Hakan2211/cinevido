@@ -1,8 +1,8 @@
 'use client'
 
-import { cn } from '@/lib/utils'
-import { Type, Image, Globe } from 'lucide-react'
+import { Globe, Image, Type } from 'lucide-react'
 import type { Model3DMode } from '@/server/services/types'
+import { cn } from '@/lib/utils'
 
 interface Model3DModeToggleProps {
   mode: Model3DMode

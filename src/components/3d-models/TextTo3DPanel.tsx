@@ -4,6 +4,9 @@ import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Loader2, Sparkles } from 'lucide-react'
 import { toast } from 'sonner'
+import { Model3DModelSelect } from './Model3DModelSelect'
+import {  MeshSettingsPanel } from './MeshSettingsPanel'
+import type {MeshSettings} from './MeshSettingsPanel';
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -21,10 +24,8 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
-import { Model3DModelSelect } from './Model3DModelSelect'
-import { MeshSettingsPanel, type MeshSettings } from './MeshSettingsPanel'
 import { generate3DModelFn } from '@/server/model3d.fn'
-import { get3DModelById, TEXT_TO_3D_MODELS } from '@/server/services/types'
+import { TEXT_TO_3D_MODELS, get3DModelById } from '@/server/services/types'
 
 interface TextTo3DPanelProps {
   className?: string

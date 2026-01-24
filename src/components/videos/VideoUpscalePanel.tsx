@@ -337,11 +337,7 @@ export function VideoUpscalePanel({
               {BYTEDANCE_VIDEO_TARGET_RESOLUTIONS.map((r) => (
                 <button
                   key={r.id}
-                  onClick={() =>
-                    onBytedanceTargetResolutionChange(
-                      r.id,
-                    )
-                  }
+                  onClick={() => onBytedanceTargetResolutionChange(r.id)}
                   className={cn(
                     'px-3 py-1.5 text-sm font-medium transition-all duration-200 rounded-lg',
                     bytedanceTargetResolution === r.id
@@ -359,9 +355,7 @@ export function VideoUpscalePanel({
               {BYTEDANCE_VIDEO_TARGET_FPS.map((f) => (
                 <button
                   key={f.id}
-                  onClick={() =>
-                    onBytedanceTargetFpsChange(f.id)
-                  }
+                  onClick={() => onBytedanceTargetFpsChange(f.id)}
                   className={cn(
                     'px-3 py-1.5 text-sm font-medium transition-all duration-200 rounded-lg',
                     bytedanceTargetFps === f.id

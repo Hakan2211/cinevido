@@ -4,6 +4,11 @@ import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Loader2, Sparkles } from 'lucide-react'
 import { toast } from 'sonner'
+import { Model3DModelSelect } from './Model3DModelSelect'
+import {  MeshSettingsPanel } from './MeshSettingsPanel'
+import { MultiImagePicker  } from './MultiImagePicker'
+import type {MeshSettings} from './MeshSettingsPanel';
+import type {SelectedImage} from './MultiImagePicker';
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -12,11 +17,8 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
-import { Model3DModelSelect } from './Model3DModelSelect'
-import { MeshSettingsPanel, type MeshSettings } from './MeshSettingsPanel'
-import { MultiImagePicker, type SelectedImage } from './MultiImagePicker'
 import { generate3DModelFn } from '@/server/model3d.fn'
-import { get3DModelById, IMAGE_TO_3D_MODELS } from '@/server/services/types'
+import { IMAGE_TO_3D_MODELS, get3DModelById } from '@/server/services/types'
 import { listUserImagesFn, uploadUserImageFn } from '@/server/image.fn'
 
 interface ImageTo3DPanelProps {
@@ -31,7 +33,7 @@ export function ImageTo3DPanel({ className }: ImageTo3DPanelProps) {
     IMAGE_TO_3D_MODELS.find((m) => m.id === 'hunyuan3d-v3-image')?.id ||
       IMAGE_TO_3D_MODELS[0].id,
   )
-  const [images, setImages] = useState<SelectedImage[]>([])
+  const [images, setImages] = useState<Array<SelectedImage>>([])
   const [prompt, setPrompt] = useState('')
   const [showAdvanced, setShowAdvanced] = useState(false)
 

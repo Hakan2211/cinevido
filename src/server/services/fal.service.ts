@@ -11,17 +11,17 @@
 import {
   IMAGE_MODELS,
   VIDEO_MODELS,
-  getModelById,
-  getVideoModelById,
   get3DModelById,
   getAgingModelByType,
+  getModelById,
+  getVideoModelById,
 } from './types'
 import type {
-  VideoModelConfig,
-  Model3DConfig,
   AgeGroup,
   AgingGender,
   AgingSubMode,
+  Model3DConfig,
+  VideoModelConfig,
 } from './types'
 
 const MOCK_FAL = process.env.MOCK_GENERATION === 'true'
@@ -501,10 +501,10 @@ export interface AgingGenerationInput {
   seed?: number
   outputFormat?: 'jpeg' | 'png'
   // Single mode - age progression/regression from one photo
-  idImageUrls?: string[]
+  idImageUrls?: Array<string>
   // Multi mode - baby prediction from two parent photos
-  motherImageUrls?: string[]
-  fatherImageUrls?: string[]
+  motherImageUrls?: Array<string>
+  fatherImageUrls?: Array<string>
   fatherWeight?: number // 0-1, default 0.5
 }
 
@@ -1031,7 +1031,7 @@ export interface Model3DGenerationInput {
 
   // Image inputs (varies by model)
   imageUrl?: string // Single image
-  imageUrls?: string[] // Multi-image models
+  imageUrls?: Array<string> // Multi-image models
   backImageUrl?: string // Hunyuan3D multi-view
   leftImageUrl?: string
   rightImageUrl?: string
@@ -1064,7 +1064,7 @@ export interface Model3DGenerationInput {
   previewRender?: boolean
 
   // SAM-specific
-  maskUrls?: string[]
+  maskUrls?: Array<string>
   samPrompt?: string // For SAM object segmentation
   pointPrompts?: Array<{
     x: number

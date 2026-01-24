@@ -1,5 +1,6 @@
 'use client'
 
+import type { Model3DConfig, Model3DMode } from '@/server/services/types'
 import {
   Select,
   SelectContent,
@@ -9,11 +10,10 @@ import {
 } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
-import type { Model3DConfig, Model3DMode } from '@/server/services/types'
 import {
-  TEXT_TO_3D_MODELS,
   IMAGE_TO_3D_MODELS,
   IMAGE_TO_WORLD_MODELS,
+  TEXT_TO_3D_MODELS,
 } from '@/server/services/types'
 
 interface Model3DModelSelectProps {
@@ -23,7 +23,7 @@ interface Model3DModelSelectProps {
   className?: string
 }
 
-function getModelsForMode(mode: Model3DMode): Model3DConfig[] {
+function getModelsForMode(mode: Model3DMode): Array<Model3DConfig> {
   switch (mode) {
     case 'text-to-3d':
       return TEXT_TO_3D_MODELS

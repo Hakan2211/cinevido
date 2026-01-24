@@ -8,8 +8,8 @@
 
 import {
   ReactCompareSlider,
-  ReactCompareSliderImage,
   ReactCompareSliderHandle,
+  ReactCompareSliderImage,
 } from 'react-compare-slider'
 import { cn } from '@/lib/utils'
 

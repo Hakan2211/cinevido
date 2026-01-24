@@ -13,7 +13,7 @@
  * />
  */
 
-import { AlertTriangle, Trash2, Info } from 'lucide-react'
+import { AlertTriangle, Info, Trash2 } from 'lucide-react'
 import {
   AlertDialog,
   AlertDialogAction,

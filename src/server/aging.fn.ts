@@ -18,7 +18,7 @@ import { uploadFromUrl } from './services/bunny.service'
 // Schemas
 // =============================================================================
 
-const ageGroupValues = AGE_GROUPS.map((g) => g.id) as [string, ...string[]]
+const ageGroupValues = AGE_GROUPS.map((g) => g.id) as [string, ...Array<string>]
 
 const agingSchema = z.object({
   subMode: z.enum(['single', 'multi']),

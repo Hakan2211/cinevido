@@ -2,15 +2,17 @@
 
 import { useState } from 'react'
 import {
+  AlertCircle,
   Box,
   Download,
+  Eye,
   Loader2,
   MoreVertical,
   Trash2,
-  AlertCircle,
-  Eye,
 } from 'lucide-react'
+import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
+import { downloadFile } from '@/lib/download'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -48,6 +50,9 @@ export function Model3DCard({
   className,
 }: Model3DCardProps) {
   const [imageError, setImageError] = useState(false)
+  const [downloadingFormat, setDownloadingFormat] = useState<string | null>(
+    null,
+  )
 
   const modelConfig = get3DModelById(asset.modelId)
   const isProcessing =
@@ -55,14 +60,23 @@ export function Model3DCard({
   const isFailed = asset.status === 'failed'
   const isCompleted = asset.status === 'completed'
 
-  const handleDownload = (url: string, format: string) => {
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `model-${asset.id}.${format}`
-    link.target = '_blank'
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
+  const handleDownload = async (url: string, format: string) => {
+    const filename = `model-${asset.id}.${format}`
+
+    await downloadFile(url, filename, {
+      onStart: () => {
+        setDownloadingFormat(format)
+        toast.info(`Starting download: ${filename}`)
+      },
+      onComplete: () => {
+        setDownloadingFormat(null)
+        toast.success('Download complete!')
+      },
+      onError: (error) => {
+        setDownloadingFormat(null)
+        toast.error(`Download failed: ${error.message}`)
+      },
+    })
   }
 
   const availableFormats = asset.modelUrls
@@ -169,10 +183,17 @@ export function Model3DCard({
                   {availableFormats.map(([format, url]) => (
                     <DropdownMenuItem
                       key={format}
+                      disabled={downloadingFormat === format}
                       onClick={() => handleDownload(url, format)}
                     >
-                      <Download className="h-4 w-4 mr-2" />
-                      Download .{format.toUpperCase()}
+                      {downloadingFormat === format ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <Download className="h-4 w-4 mr-2" />
+                      )}
+                      {downloadingFormat === format
+                        ? `Downloading .${format.toUpperCase()}...`
+                        : `Download .${format.toUpperCase()}`}
                     </DropdownMenuItem>
                   ))}
                 </>

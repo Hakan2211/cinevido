@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useRef } from 'react'
-import { Plus, X, Image as ImageIcon, Upload, Folder } from 'lucide-react'
+import { useRef, useState } from 'react'
+import { Folder, Image as ImageIcon, Plus, Upload, X } from 'lucide-react'
+import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
@@ -11,7 +12,6 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { toast } from 'sonner'
 
 export interface SelectedImage {
   url: string
@@ -20,10 +20,10 @@ export interface SelectedImage {
 }
 
 interface MultiImagePickerProps {
-  images: SelectedImage[]
-  onChange: (images: SelectedImage[]) => void
+  images: Array<SelectedImage>
+  onChange: (images: Array<SelectedImage>) => void
   maxImages: number
-  labels?: string[] // Optional labels like ['Front', 'Back', 'Left', 'Right']
+  labels?: Array<string> // Optional labels like ['Front', 'Back', 'Left', 'Right']
   galleryImages?: Array<{ id: string; url: string; thumbnailUrl?: string }>
   onUpload?: (file: File) => Promise<string> // Returns uploaded URL
   className?: string

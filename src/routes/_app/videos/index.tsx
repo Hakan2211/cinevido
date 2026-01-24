@@ -38,6 +38,7 @@ import {
   X,
   Zap,
 } from 'lucide-react'
+import { toast } from 'sonner'
 import {
   deleteVideoFn,
   generateVideoFn,
@@ -94,6 +95,7 @@ import type {
   SeedvrVideoOutputQuality,
   VideoModelConfig,
 } from '../../../server/services/types'
+import { downloadFile, generateFilename } from '@/lib/download'
 
 export const Route = createFileRoute('/_app/videos/')({
   component: VideosPage,
@@ -197,6 +199,9 @@ function VideosPage() {
     open: boolean
     videoId: string | null
   }>({ open: false, videoId: null })
+
+  // Download state - track which video is downloading
+  const [downloadingId, setDownloadingId] = useState<string | null>(null)
 
   // Pagination
   const limit = 12
@@ -541,11 +546,24 @@ function VideosPage() {
     setKeyframes(keyframes.filter((_, i) => i !== index))
   }
 
-  const handleDownload = (url: string) => {
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `video-${Date.now()}.mp4`
-    link.click()
+  const handleDownload = async (url: string, videoId?: string) => {
+    const filename = generateFilename(url, 'video')
+    const trackingId = videoId || url
+
+    await downloadFile(url, filename, {
+      onStart: () => {
+        setDownloadingId(trackingId)
+        toast.info('Starting download...')
+      },
+      onComplete: () => {
+        setDownloadingId(null)
+        toast.success('Download complete!')
+      },
+      onError: (error) => {
+        setDownloadingId(null)
+        toast.error(`Download failed: ${error.message}`)
+      },
+    })
   }
 
   const handleDelete = (videoId: string) => {
@@ -705,9 +723,10 @@ function VideosPage() {
                   key={video.id}
                   video={video}
                   onSelect={() => setSelectedVideo(video)}
-                  onDownload={() => handleDownload(video.url)}
+                  onDownload={() => handleDownload(video.url, video.id)}
                   onAddToProject={handleAddToProject}
                   onDelete={() => handleDelete(video.id)}
+                  isDownloading={downloadingId === video.id}
                 />
               ))}
             </div>
@@ -1290,11 +1309,20 @@ function VideosPage() {
               {/* Secondary Action: Download */}
               <Button
                 variant="outline"
-                className="w-full rounded-xl border-border/50 hover:bg-primary/10 hover:border-primary/30 hover:text-primary"
-                onClick={() => handleDownload(selectedVideo.url)}
+                className="w-full rounded-xl border-border/50 hover:bg-primary/10 hover:border-primary/30 hover:text-primary disabled:opacity-50"
+                disabled={downloadingId === selectedVideo.id}
+                onClick={() =>
+                  handleDownload(selectedVideo.url, selectedVideo.id)
+                }
               >
-                <Download className="mr-2 h-4 w-4" />
-                Download
+                {downloadingId === selectedVideo.id ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Download className="mr-2 h-4 w-4" />
+                )}
+                {downloadingId === selectedVideo.id
+                  ? 'Downloading...'
+                  : 'Download'}
               </Button>
 
               {/* Delete Button - Separated at Bottom */}
@@ -1335,6 +1363,7 @@ interface VideoCardProps {
   onDownload: () => void
   onAddToProject: () => void
   onDelete: () => void
+  isDownloading?: boolean
 }
 
 function VideoCard({
@@ -1343,6 +1372,7 @@ function VideoCard({
   onDownload,
   onAddToProject,
   onDelete,
+  isDownloading = false,
 }: VideoCardProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
 
@@ -1399,16 +1429,23 @@ function VideoCard({
                   <Button
                     size="icon"
                     variant="secondary"
-                    className="h-9 w-9 rounded-xl bg-white/10 backdrop-blur-md border-white/20 hover:bg-white/20 text-white"
+                    className="h-9 w-9 rounded-xl bg-white/10 backdrop-blur-md border-white/20 hover:bg-white/20 text-white disabled:opacity-50"
+                    disabled={isDownloading}
                     onClick={(e) => {
                       e.stopPropagation()
                       onDownload()
                     }}
                   >
-                    <Download className="h-4 w-4" />
+                    {isDownloading ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Download className="h-4 w-4" />
+                    )}
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>Download</TooltipContent>
+                <TooltipContent>
+                  {isDownloading ? 'Downloading...' : 'Download'}
+                </TooltipContent>
               </Tooltip>
 
               <Tooltip>

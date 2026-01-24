@@ -2,12 +2,13 @@
 
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Loader2, Globe } from 'lucide-react'
+import { Globe, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
+import { MultiImagePicker  } from './MultiImagePicker'
+import type {SelectedImage} from './MultiImagePicker';
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { MultiImagePicker, type SelectedImage } from './MultiImagePicker'
 import { generate3DModelFn } from '@/server/model3d.fn'
 import { IMAGE_TO_WORLD_MODELS } from '@/server/services/types'
 import { listUserImagesFn, uploadUserImageFn } from '@/server/image.fn'
@@ -21,7 +22,7 @@ export function ImageToWorldPanel({ className }: ImageToWorldPanelProps) {
 
   // Form state - Hunyuan World is the only model
   const modelConfig = IMAGE_TO_WORLD_MODELS[0]
-  const [images, setImages] = useState<SelectedImage[]>([])
+  const [images, setImages] = useState<Array<SelectedImage>>([])
   const [labelsFg1, setLabelsFg1] = useState('')
   const [labelsFg2, setLabelsFg2] = useState('')
   const [classes, setClasses] = useState('')

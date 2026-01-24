@@ -1,18 +1,18 @@
 'use client'
 
-import { Suspense, useRef, useMemo } from 'react'
+import { Suspense, useMemo, useRef } from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
 import {
-  OrbitControls,
-  useGLTF,
-  Environment,
   Center,
-  PresentationControls,
   ContactShadows,
+  Environment,
+  OrbitControls,
+  PresentationControls,
+  useGLTF,
 } from '@react-three/drei'
-import { cn } from '@/lib/utils'
-import { Loader2, Box } from 'lucide-react'
+import { Box, Loader2 } from 'lucide-react'
 import type { Group } from 'three'
+import { cn } from '@/lib/utils'
 
 /**
  * Convert Bunny CDN URLs to use our proxy to bypass CORS

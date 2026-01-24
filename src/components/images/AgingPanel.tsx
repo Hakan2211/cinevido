@@ -25,15 +25,16 @@ import {
   UserCircle,
   Users,
 } from 'lucide-react'
+import type {AgeGroup, AgingGender, AgingSubMode} from '@/server/services/types';
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Slider } from '@/components/ui/slider'
 import {
   AGE_GROUPS,
-  AGING_MODELS,
-  type AgeGroup,
-  type AgingGender,
-  type AgingSubMode,
+  AGING_MODELS
+  
+  
+  
 } from '@/server/services/types'
 import { cn } from '@/lib/utils'
 
@@ -129,7 +130,7 @@ export function AgingPanel({
         ? '1 image selected'
         : 'Select an image to transform'
     }
-    const parts: string[] = []
+    const parts: Array<string> = []
     if (motherSelected) parts.push('Mother')
     if (fatherSelected) parts.push('Father')
     if (parts.length === 0) return 'Select parent photos'

@@ -10,9 +10,9 @@ import { z } from 'zod'
 import { prisma } from '../db'
 import { authMiddleware } from './middleware'
 import {
+  cancelJob,
   generate3DModel,
   getJobStatus,
-  cancelJob,
 } from './services/fal.service'
 import { uploadFromUrl } from './services/bunny.service'
 import { get3DModelById } from './services/types'

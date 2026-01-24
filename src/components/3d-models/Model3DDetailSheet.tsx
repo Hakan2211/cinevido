@@ -17,7 +17,9 @@ import {
 import { useState } from 'react'
 import { toast } from 'sonner'
 
+import { Model3DViewer } from './Model3DViewer'
 import { Button } from '@/components/ui/button'
+import { downloadFile } from '@/lib/download'
 import {
   Sheet,
   SheetContent,
@@ -27,7 +29,6 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
-import { Model3DViewer } from './Model3DViewer'
 import { get3DModelFn } from '@/server/model3d.fn'
 import { get3DModelById } from '@/server/services/types'
 
@@ -46,6 +47,9 @@ export function Model3DDetailSheet({
 }: Model3DDetailSheetProps) {
   const [copiedPrompt, setCopiedPrompt] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [downloadingFormat, setDownloadingFormat] = useState<string | null>(
+    null,
+  )
 
   const { data: asset, isLoading } = useQuery({
     queryKey: ['3d-model', assetId],
@@ -63,14 +67,23 @@ export function Model3DDetailSheet({
     setTimeout(() => setCopiedPrompt(false), 2000)
   }
 
-  const handleDownload = (url: string, format: string) => {
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `model-${assetId}.${format}`
-    link.target = '_blank'
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
+  const handleDownload = async (url: string, format: string) => {
+    const filename = `model-${assetId}.${format}`
+
+    await downloadFile(url, filename, {
+      onStart: () => {
+        setDownloadingFormat(format)
+        toast.info(`Starting download: ${filename}`)
+      },
+      onComplete: () => {
+        setDownloadingFormat(null)
+        toast.success('Download complete!')
+      },
+      onError: (error) => {
+        setDownloadingFormat(null)
+        toast.error(`Download failed: ${error.message}`)
+      },
+    })
   }
 
   const handleDelete = () => {
@@ -269,11 +282,18 @@ export function Model3DDetailSheet({
                     <Button
                       key={format}
                       variant="outline"
-                      className="rounded-xl border-border/50 hover:bg-primary/10 hover:border-primary/30 hover:text-primary"
+                      className="rounded-xl border-border/50 hover:bg-primary/10 hover:border-primary/30 hover:text-primary disabled:opacity-50"
+                      disabled={downloadingFormat === format}
                       onClick={() => handleDownload(url as string, format)}
                     >
-                      <Download className="mr-2 h-4 w-4" />.
-                      {format.toUpperCase()}
+                      {downloadingFormat === format ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <Download className="mr-2 h-4 w-4" />
+                      )}
+                      {downloadingFormat === format
+                        ? `Downloading...`
+                        : `.${format.toUpperCase()}`}
                     </Button>
                   ))}
                 </div>
@@ -284,11 +304,18 @@ export function Model3DDetailSheet({
             {asset.worldFileUrl && (
               <Button
                 variant="outline"
-                className="w-full rounded-xl border-border/50 hover:bg-primary/10 hover:border-primary/30 hover:text-primary"
+                className="w-full rounded-xl border-border/50 hover:bg-primary/10 hover:border-primary/30 hover:text-primary disabled:opacity-50"
+                disabled={downloadingFormat === 'world'}
                 onClick={() => handleDownload(asset.worldFileUrl!, 'world')}
               >
-                <ExternalLink className="mr-2 h-4 w-4" />
-                Download World File
+                {downloadingFormat === 'world' ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <ExternalLink className="mr-2 h-4 w-4" />
+                )}
+                {downloadingFormat === 'world'
+                  ? 'Downloading...'
+                  : 'Download World File'}
               </Button>
             )}
 
@@ -296,13 +323,20 @@ export function Model3DDetailSheet({
             {asset.gaussianSplatUrl && (
               <Button
                 variant="outline"
-                className="w-full rounded-xl border-border/50 hover:bg-primary/10 hover:border-primary/30 hover:text-primary"
+                className="w-full rounded-xl border-border/50 hover:bg-primary/10 hover:border-primary/30 hover:text-primary disabled:opacity-50"
+                disabled={downloadingFormat === 'splat.ply'}
                 onClick={() =>
                   handleDownload(asset.gaussianSplatUrl!, 'splat.ply')
                 }
               >
-                <ExternalLink className="mr-2 h-4 w-4" />
-                Download Gaussian Splat
+                {downloadingFormat === 'splat.ply' ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <ExternalLink className="mr-2 h-4 w-4" />
+                )}
+                {downloadingFormat === 'splat.ply'
+                  ? 'Downloading...'
+                  : 'Download Gaussian Splat'}
               </Button>
             )}
 

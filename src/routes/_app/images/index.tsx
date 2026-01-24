@@ -98,6 +98,7 @@ import {
   getEditModelById,
 } from '@/server/services/types'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { downloadFile, generateFilename } from '@/lib/download'
 
 export const Route = createFileRoute('/_app/images/')({
   component: ImagesPage,
@@ -256,6 +257,9 @@ function ImagesPage() {
     imageId: string | null
     onSuccess?: () => void
   }>({ open: false, imageId: null })
+
+  // Download state - track which image is downloading
+  const [downloadingId, setDownloadingId] = useState<string | null>(null)
 
   // Pagination
   const limit = 20
@@ -642,11 +646,24 @@ function ImagesPage() {
     setTimeout(() => setCopiedPrompt(false), 2000)
   }
 
-  const handleDownload = (url: string, filename?: string) => {
-    const link = document.createElement('a')
-    link.href = url
-    link.download = filename || `image-${Date.now()}.png`
-    link.click()
+  const handleDownload = async (url: string, imageId?: string) => {
+    const filename = generateFilename(url, 'image')
+    const trackingId = imageId || url
+
+    await downloadFile(url, filename, {
+      onStart: () => {
+        setDownloadingId(trackingId)
+        toast.info('Starting download...')
+      },
+      onComplete: () => {
+        setDownloadingId(null)
+        toast.success('Download complete!')
+      },
+      onError: (error) => {
+        setDownloadingId(null)
+        toast.error(`Download failed: ${error.message}`)
+      },
+    })
   }
 
   const handleDelete = (imageId: string) => {
@@ -876,6 +893,7 @@ function ImagesPage() {
             onCopyPrompt={handleCopyPrompt}
             onDelete={handleDelete}
             onEdit={handleEditImage}
+            downloadingId={downloadingId}
           />
         ) : mode === 'aging' && agingSubMode === 'multi' ? (
           // Aging Multi Mode: Mother + Father preview slots
@@ -1128,14 +1146,31 @@ function ImagesPage() {
                           <Button
                             variant="outline"
                             className="w-full rounded-xl border-border/50 hover:bg-primary/10 hover:border-primary/30 disabled:opacity-50"
-                            disabled={isMultiImageSelected}
+                            disabled={
+                              isMultiImageSelected ||
+                              !!(
+                                currentActionImage &&
+                                downloadingId === currentActionImage.id
+                              )
+                            }
                             onClick={() =>
                               currentActionImage &&
-                              handleDownload(currentActionImage.url)
+                              handleDownload(
+                                currentActionImage.url,
+                                currentActionImage.id,
+                              )
                             }
                           >
-                            <Download className="mr-2 h-4 w-4" />
-                            Download
+                            {currentActionImage &&
+                            downloadingId === currentActionImage.id ? (
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            ) : (
+                              <Download className="mr-2 h-4 w-4" />
+                            )}
+                            {currentActionImage &&
+                            downloadingId === currentActionImage.id
+                              ? 'Downloading...'
+                              : 'Download'}
                           </Button>
                         </span>
                       </TooltipTrigger>
@@ -1434,6 +1469,7 @@ function ImagesPage() {
                 setSelectedImage(null)
                 textareaRef.current?.focus()
               }}
+              isDownloading={downloadingId === selectedImage.id}
             />
           )}
         </SheetContent>
@@ -1469,11 +1505,12 @@ interface GenerateGalleryProps {
   loadMoreRef: React.RefObject<HTMLDivElement | null>
   numImages: number
   onSelect: (image: GeneratedImage) => void
-  onDownload: (url: string) => void
+  onDownload: (url: string, imageId?: string) => void
   onAnimate: (image: GeneratedImage) => void
   onCopyPrompt: (text: string) => void
   onDelete: (id: string) => void
   onEdit: (image: GeneratedImage) => void
+  downloadingId: string | null
 }
 
 function GenerateGallery({
@@ -1492,6 +1529,7 @@ function GenerateGallery({
   onCopyPrompt,
   onDelete,
   onEdit,
+  downloadingId,
 }: GenerateGalleryProps) {
   if (isLoading && images.length === 0) {
     return (
@@ -1561,11 +1599,12 @@ function GenerateGallery({
             key={image.id}
             image={image}
             onSelect={() => onSelect(image)}
-            onDownload={() => onDownload(image.url)}
+            onDownload={() => onDownload(image.url, image.id)}
             onAnimate={() => onAnimate(image)}
             onCopyPrompt={() => image.prompt && onCopyPrompt(image.prompt)}
             onDelete={() => onDelete(image.id)}
             onEdit={() => onEdit(image)}
+            isDownloading={downloadingId === image.id}
           />
         ))}
       </div>
@@ -1824,11 +1863,12 @@ interface ImageDetailPanelProps {
   image: GeneratedImage
   copiedPrompt: boolean
   onCopyPrompt: (text: string) => void
-  onDownload: (url: string) => void
+  onDownload: (url: string, imageId?: string) => void
   onAnimate: (image: GeneratedImage) => void
   onDelete: (id: string) => void
   onEdit: (image: GeneratedImage) => void
   onUsePrompt: (prompt: string) => void
+  isDownloading?: boolean
 }
 
 function ImageDetailPanel({
@@ -1840,6 +1880,7 @@ function ImageDetailPanel({
   onDelete,
   onEdit,
   onUsePrompt,
+  isDownloading = false,
 }: ImageDetailPanelProps) {
   // Get the source asset ID for before/after comparison
   const sourceAssetId = image.metadata?.sourceAssetId
@@ -1982,11 +2023,16 @@ function ImageDetailPanel({
       <div className="grid grid-cols-2 gap-3">
         <Button
           variant="outline"
-          className="rounded-xl border-border/50 hover:bg-primary/10 hover:border-primary/30 hover:text-primary"
-          onClick={() => onDownload(image.url)}
+          className="rounded-xl border-border/50 hover:bg-primary/10 hover:border-primary/30 hover:text-primary disabled:opacity-50"
+          disabled={isDownloading}
+          onClick={() => onDownload(image.url, image.id)}
         >
-          <Download className="mr-2 h-4 w-4" />
-          Download
+          {isDownloading ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <Download className="mr-2 h-4 w-4" />
+          )}
+          {isDownloading ? 'Downloading...' : 'Download'}
         </Button>
         <Button
           variant="outline"
@@ -2034,6 +2080,7 @@ interface ImageCardProps {
   onCopyPrompt: () => void
   onDelete: () => void
   onEdit: () => void
+  isDownloading?: boolean
 }
 
 function ImageCard({
@@ -2044,6 +2091,7 @@ function ImageCard({
   onCopyPrompt,
   onDelete,
   onEdit,
+  isDownloading = false,
 }: ImageCardProps) {
   return (
     <TooltipProvider delayDuration={300}>
@@ -2068,16 +2116,23 @@ function ImageCard({
                   <Button
                     size="icon"
                     variant="secondary"
-                    className="h-9 w-9 rounded-xl bg-white/10 backdrop-blur-md border-white/20 hover:bg-white/20 text-white"
+                    className="h-9 w-9 rounded-xl bg-white/10 backdrop-blur-md border-white/20 hover:bg-white/20 text-white disabled:opacity-50"
+                    disabled={isDownloading}
                     onClick={(e) => {
                       e.stopPropagation()
                       onDownload()
                     }}
                   >
-                    <Download className="h-4 w-4" />
+                    {isDownloading ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Download className="h-4 w-4" />
+                    )}
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>Download</TooltipContent>
+                <TooltipContent>
+                  {isDownloading ? 'Downloading...' : 'Download'}
+                </TooltipContent>
               </Tooltip>
 
               <Tooltip>
