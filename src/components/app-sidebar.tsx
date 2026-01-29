@@ -29,6 +29,7 @@ import {
   useSidebar,
 } from './ui/sidebar'
 import { Button } from './ui/button'
+import { Logo } from '@/components/common'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -81,9 +82,7 @@ export function AppSidebar({ user }: AppSidebarProps) {
           to="/"
           className="flex items-center gap-3 group-data-[collapsible=icon]:justify-center"
         >
-          <div className="h-8 w-8 shrink-0 rounded-xl bg-gradient-to-br from-primary to-primary/70 shadow-lg shadow-primary/20 flex items-center justify-center text-primary-foreground font-bold text-sm transition-all">
-            D
-          </div>
+          <Logo size={32} className="shrink-0" />
           <span className="text-xl font-bold tracking-tight bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent group-data-[collapsible=icon]:hidden transition-opacity duration-200">
             DirectorAI
           </span>

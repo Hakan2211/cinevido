@@ -1,5 +1,6 @@
 import { Link } from '@tanstack/react-router'
 import { Github, Twitter } from 'lucide-react'
+import { Logo } from '@/components/common'
 
 const footerLinks = {
   product: [
@@ -38,9 +39,7 @@ export function LandingFooter() {
           {/* Brand */}
           <div className="col-span-2 md:col-span-1">
             <Link to="/" className="flex items-center gap-2 mb-4">
-              <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-primary to-primary/70 shadow-md flex items-center justify-center text-primary-foreground font-bold text-sm">
-                D
-              </div>
+              <Logo size={32} />
               <span className="text-xl font-bold">DirectorAI</span>
             </Link>
             <p className="text-sm text-muted-foreground max-w-xs mb-4">

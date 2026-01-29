@@ -2,6 +2,7 @@ import { Link } from '@tanstack/react-router'
 import { motion, useScroll, useTransform } from 'framer-motion'
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
+import { Logo } from '@/components/common'
 import { cn } from '@/lib/utils'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { useUserAccess } from '@/hooks/use-user-access'
@@ -65,9 +66,7 @@ export function LandingHeader() {
         <div className="container mx-auto flex h-16 items-center justify-between px-4 lg:px-8">
           {/* Logo */}
           <Link to="/" className="flex items-center gap-2 group cursor-pointer">
-            <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-primary to-primary/70 shadow-md transition-transform group-hover:scale-105 flex items-center justify-center text-primary-foreground font-bold text-sm">
-              D
-            </div>
+            <Logo size={32} className="transition-transform group-hover:scale-105" />
             <span className="text-xl font-bold">DirectorAI</span>
           </Link>
 
