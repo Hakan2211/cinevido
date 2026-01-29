@@ -70,8 +70,8 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      # Uncomment and configure for your deployment platform:
-      # - name: Trigger Deployment (Coolify example)
-      #   run: |
-      #     curl --fail --request GET '${{ secrets.DEPLOY_WEBHOOK }}' \
-      #          --header 'Authorization: Bearer ${{ secrets.DEPLOY_TOKEN }}'
+      - name: Trigger Deployment (Coolify)
+        if: github.ref == 'refs/heads/main' && secrets.COOLIFY_WEBHOOK != ''
+        run: |
+          curl --fail --request GET '${{ secrets.COOLIFY_WEBHOOK }}' \
+               --header 'Authorization: Bearer ${{ secrets.COOLIFY_TOKEN }}'

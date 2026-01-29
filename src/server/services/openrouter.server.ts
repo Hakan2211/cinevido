@@ -116,7 +116,7 @@ export async function chatCompletion(
       Authorization: `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
       'HTTP-Referer': process.env.BETTER_AUTH_URL || 'http://localhost:3000',
-      'X-Title': 'DirectorAI',
+      'X-Title': 'Cinevido',
     },
     body: JSON.stringify({
       model: modelId,
@@ -165,7 +165,7 @@ export async function* chatCompletionStream(
       Authorization: `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
       'HTTP-Referer': process.env.BETTER_AUTH_URL || 'http://localhost:3000',
-      'X-Title': 'DirectorAI',
+      'X-Title': 'Cinevido',
     },
     body: JSON.stringify({
       model: modelId,

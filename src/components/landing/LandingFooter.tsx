@@ -40,7 +40,7 @@ export function LandingFooter() {
           <div className="col-span-2 md:col-span-1">
             <Link to="/" className="flex items-center gap-2 mb-4">
               <Logo size={32} />
-              <span className="text-xl font-bold">DirectorAI</span>
+              <span className="text-xl font-bold">Cinevido</span>
             </Link>
             <p className="text-sm text-muted-foreground max-w-xs mb-4">
               Your AI creative studio. Generate images, videos, and 3D models
@@ -107,7 +107,7 @@ export function LandingFooter() {
         {/* Bottom */}
         <div className="mt-12 pt-8 border-t flex flex-col md:flex-row items-center justify-between gap-4">
           <p className="text-sm text-muted-foreground">
-            &copy; {new Date().getFullYear()} DirectorAI. All rights reserved.
+            &copy; {new Date().getFullYear()} Cinevido. All rights reserved.
           </p>
           <p className="text-sm text-muted-foreground">
             Built with TanStack Start & fal.ai

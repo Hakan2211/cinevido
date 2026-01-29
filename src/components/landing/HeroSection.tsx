@@ -168,7 +168,7 @@ export function HeroSection() {
                 </div>
                 <div className="flex-1 flex justify-center">
                   <div className="px-4 py-1 rounded-md bg-muted text-xs text-muted-foreground">
-                    app.directorai.com
+                    cinevido.com
                   </div>
                 </div>
               </div>

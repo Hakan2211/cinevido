@@ -31,7 +31,7 @@ export const getPlatformStatusFn = createServerFn({ method: 'GET' })
 
 /**
  * Create Stripe Checkout Session for platform one-time payment ($149)
- * Grants lifetime access to DirectorAI
+ * Grants lifetime access to Cinevido
  */
 export const createPlatformCheckoutFn = createServerFn({ method: 'POST' })
   .middleware([authMiddleware])

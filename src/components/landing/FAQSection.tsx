@@ -10,12 +10,12 @@ const faqs = [
   {
     question: 'What is BYOK (Bring Your Own Key)?',
     answer:
-      'BYOK means you connect your own fal.ai API key to use DirectorAI. This way, you pay fal.ai directly for the AI generations at their rates, and we charge nothing extra. You get full transparency on costs and no platform fees.',
+      'BYOK means you connect your own fal.ai API key to use Cinevido. This way, you pay fal.ai directly for the AI generations at their rates, and we charge nothing extra. You get full transparency on costs and no platform fees.',
   },
   {
     question: 'How do I get a fal.ai API key?',
     answer:
-      'Visit fal.ai and create a free account. Once signed up, navigate to your dashboard to generate an API key. New accounts typically come with free starting credits to try out the platform. Then simply paste your key into DirectorAI settings.',
+      'Visit fal.ai and create a free account. Once signed up, navigate to your dashboard to generate an API key. New accounts typically come with free starting credits to try out the platform. Then simply paste your key into Cinevido settings.',
   },
   {
     question: 'How much does each generation cost?',
@@ -45,7 +45,7 @@ const faqs = [
   {
     question: 'Do you train AI models on my generations?',
     answer:
-      'No. DirectorAI is purely an interface to existing AI models. We never use your prompts or generated content for training. Your creative work remains yours. We simply provide tools to access and use AI models more effectively.',
+      'No. Cinevido is purely an interface to existing AI models. We never use your prompts or generated content for training. Your creative work remains yours. We simply provide tools to access and use AI models more effectively.',
   },
   {
     question: 'Is there a Team or Enterprise option?',

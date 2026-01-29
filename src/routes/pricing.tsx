@@ -126,7 +126,7 @@ function PricingPage() {
             <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
               <Sparkles className="h-5 w-5 text-primary-foreground" />
             </div>
-            <span className="text-xl font-bold">DirectorAI</span>
+            <span className="text-xl font-bold">Cinevido</span>
           </Link>
           <nav className="flex items-center space-x-4">
             {sessionLoading ? (
@@ -163,7 +163,7 @@ function PricingPage() {
               One-Time Payment, Lifetime Access
             </div>
             <h1 className="mb-4 text-4xl font-bold tracking-tight sm:text-5xl lg:text-6xl">
-              Unlock DirectorAI
+              Unlock Cinevido
             </h1>
             <p className="mx-auto max-w-2xl text-lg text-muted-foreground">
               Create stunning AI-generated images, videos, and 3D models. Pay
@@ -267,7 +267,7 @@ function PricingPage() {
                 <h3 className="mb-2 font-semibold">Pay Once</h3>
                 <p className="text-sm text-muted-foreground">
                   Make a one-time payment of $149 to unlock lifetime access to
-                  DirectorAI.
+                  Cinevido.
                 </p>
               </div>
               <div className="text-center">
@@ -301,13 +301,13 @@ function PricingPage() {
           </h2>
           <div className="mx-auto max-w-2xl space-y-6">
             <FAQItem question="What is fal.ai and why do I need it?">
-              fal.ai is a cloud platform that runs AI models. DirectorAI uses
+              fal.ai is a cloud platform that runs AI models. Cinevido uses
               fal.ai to generate images, videos, and 3D models. You bring your
               own fal.ai API key and pay them directly for usage (typically
               $0.01-0.20 per generation).
             </FAQItem>
             <FAQItem question="Is this really a one-time payment?">
-              Yes! You pay $149 once and get lifetime access to DirectorAI. No
+              Yes! You pay $149 once and get lifetime access to Cinevido. No
               subscriptions, no recurring fees. The only ongoing cost is your
               fal.ai usage, which you pay directly to fal.ai.
             </FAQItem>
@@ -322,7 +322,7 @@ function PricingPage() {
               Plus any new models fal.ai adds in the future.
             </FAQItem>
             <FAQItem question="Do I get updates?">
-              Yes! Your $149 payment includes all future updates to DirectorAI.
+              Yes! Your $149 payment includes all future updates to Cinevido.
               New features, UI improvements, and new model integrations are all
               included.
             </FAQItem>
@@ -334,7 +334,7 @@ function PricingPage() {
       <footer className="border-t py-8">
         <div className="container mx-auto flex flex-col items-center justify-between gap-4 px-4 md:flex-row">
           <p className="text-sm text-muted-foreground">
-            © {new Date().getFullYear()} DirectorAI. All rights reserved.
+            © {new Date().getFullYear()} Cinevido. All rights reserved.
           </p>
           <nav className="flex items-center space-x-4">
             <Link

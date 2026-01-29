@@ -95,7 +95,7 @@ export function ShowcaseSection() {
             See what's possible
           </h2>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            Explore creations made with DirectorAI. From stunning images to
+            Explore creations made with Cinevido. From stunning images to
             cinematic videos and detailed 3D models.
           </p>
         </motion.div>

@@ -46,13 +46,13 @@ model User {
   falApiKeyLastFour String?  // Last 4 chars for display (e.g., "...xxxx")
   falApiKeyAddedAt DateTime? // When the key was added/updated
 
-  // DirectorAI: User preferences
+  // Cinevido: User preferences
   preferredLlmModel   String? // e.g., "anthropic/claude-3.5-sonnet"
   preferredImageModel String? // e.g., "flux-pro"
   preferredVideoModel String? // e.g., "kling-1.5"
   preferredVoiceId    String? // ElevenLabs voice ID
 
-  // DirectorAI: Relations
+  // Cinevido: Relations
   projects       Project[]
   projectFolders ProjectFolder[]
   assets         Asset[]
@@ -114,7 +114,7 @@ model Verification {
 }
 
 // ====================================================================================
-// DirectorAI: Project Folders (for organizing projects)
+// Cinevido: Project Folders (for organizing projects)
 // ====================================================================================
 
 model ProjectFolder {
@@ -133,7 +133,7 @@ model ProjectFolder {
 }
 
 // ====================================================================================
-// DirectorAI: Video Projects
+// Cinevido: Video Projects
 // ====================================================================================
 
 model Project {
@@ -177,7 +177,7 @@ model Project {
 }
 
 // ====================================================================================
-// DirectorAI: Generated Assets (Images, Videos, Audio)
+// Cinevido: Generated Assets (Images, Videos, Audio)
 // ====================================================================================
 
 model Asset {
@@ -217,7 +217,7 @@ model Asset {
 }
 
 // ====================================================================================
-// DirectorAI: Generation Job Queue (for async processing)
+// Cinevido: Generation Job Queue (for async processing)
 // ====================================================================================
 
 model GenerationJob {
@@ -301,7 +301,7 @@ model SubscriptionEvent {
 }
 
 // ====================================================================================
-// DirectorAI: Chat History (for AI Director conversations)
+// Cinevido: Chat History (for AI Director conversations)
 // ====================================================================================
 
 model ChatMessage {
@@ -328,7 +328,7 @@ model ChatMessage {
 }
 
 // ====================================================================================
-// DirectorAI: 3D Model Assets
+// Cinevido: 3D Model Assets
 // ====================================================================================
 
 model Model3DAsset {

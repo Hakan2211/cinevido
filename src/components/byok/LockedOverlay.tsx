@@ -83,7 +83,7 @@ export function LockedOverlay({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-primary" />
-            Unlock DirectorAI
+            Unlock Cinevido
           </DialogTitle>
           <DialogDescription>
             Get full access to all AI generation features with a one-time
@@ -106,7 +106,7 @@ export function LockedOverlay({
             <ul className="text-sm text-muted-foreground space-y-1.5">
               <li className="flex items-center gap-2">
                 <div className="h-1.5 w-1.5 rounded-full bg-primary" />
-                Full access to the DirectorAI platform
+                Full access to the Cinevido platform
               </li>
               <li className="flex items-center gap-2">
                 <div className="h-1.5 w-1.5 rounded-full bg-primary" />

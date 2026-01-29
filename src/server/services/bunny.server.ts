@@ -1,7 +1,7 @@
 /**
  * Bunny.net Storage Service
  *
- * Handles file uploads and management for DirectorAI assets.
+ * Handles file uploads and management for Cinevido assets.
  * Supports uploading from URLs (after generation) and direct buffer uploads.
  *
  * Environment variables required:

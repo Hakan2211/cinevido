@@ -176,7 +176,7 @@ export async function createBillingPortalSession(
 
 /**
  * Create a Stripe Checkout Session for platform one-time payment ($149)
- * Grants lifetime access to DirectorAI platform
+ * Grants lifetime access to Cinevido platform
  */
 export async function createPlatformCheckoutSession(
   userId: string,

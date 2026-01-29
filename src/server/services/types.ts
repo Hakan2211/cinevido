@@ -1,5 +1,5 @@
 /**
- * Shared Types for DirectorAI Services
+ * Shared Types for Cinevido Services
  *
  * This file contains type definitions used across multiple services.
  */

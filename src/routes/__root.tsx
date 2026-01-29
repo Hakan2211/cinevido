@@ -40,7 +40,7 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
         content: 'width=device-width, initial-scale=1',
       },
       {
-        title: 'AppStarter - TanStack Start Template',
+        title: 'Cinevido - AI Creative Studio',
       },
     ],
     links: [

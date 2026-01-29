@@ -124,7 +124,7 @@ function ProfilePage() {
                     ? 'Admin account - full access'
                     : platformStatus?.purchaseDate
                       ? `Purchased on ${new Date(platformStatus.purchaseDate).toLocaleDateString()}`
-                      : 'You have full access to DirectorAI'}
+                      : 'You have full access to Cinevido'}
                 </p>
               </div>
             </div>

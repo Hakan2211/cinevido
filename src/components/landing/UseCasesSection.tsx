@@ -88,7 +88,7 @@ export function UseCasesSection() {
             Built for creators of all kinds
           </h2>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            Whether you're a solo creator or a large team, DirectorAI adapts to
+            Whether you're a solo creator or a large team, Cinevido adapts to
             your creative workflow.
           </p>
         </motion.div>

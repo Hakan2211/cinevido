@@ -97,7 +97,7 @@ function PurchaseSuccessPage() {
           </div>
           <CardTitle className="text-2xl">Payment Successful!</CardTitle>
           <CardDescription className="text-base">
-            Welcome to DirectorAI. Your lifetime access is now active.
+            Welcome to Cinevido. Your lifetime access is now active.
           </CardDescription>
         </CardHeader>
 
@@ -106,7 +106,7 @@ function PurchaseSuccessPage() {
           <div className="rounded-lg bg-gradient-to-r from-primary/10 via-primary/5 to-primary/10 p-4 text-center">
             <Sparkles className="h-6 w-6 mx-auto mb-2 text-primary" />
             <p className="text-sm font-medium">
-              You now have lifetime access to all DirectorAI features!
+              You now have lifetime access to all Cinevido features!
             </p>
           </div>
 

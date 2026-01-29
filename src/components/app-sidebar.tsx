@@ -84,7 +84,7 @@ export function AppSidebar({ user }: AppSidebarProps) {
         >
           <Logo size={32} className="shrink-0" />
           <span className="text-xl font-bold tracking-tight bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent group-data-[collapsible=icon]:hidden transition-opacity duration-200">
-            DirectorAI
+            Cinevido
           </span>
         </Link>
       </SidebarHeader>

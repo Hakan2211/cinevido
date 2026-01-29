@@ -67,7 +67,7 @@ export function LandingHeader() {
           {/* Logo */}
           <Link to="/" className="flex items-center gap-2 group cursor-pointer">
             <Logo size={32} className="transition-transform group-hover:scale-105" />
-            <span className="text-xl font-bold">DirectorAI</span>
+            <span className="text-xl font-bold">Cinevido</span>
           </Link>
 
           {/* Navigation */}
