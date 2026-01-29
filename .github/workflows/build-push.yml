@@ -71,7 +71,14 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Trigger Deployment (Coolify)
-        if: github.ref == 'refs/heads/main' && secrets.COOLIFY_WEBHOOK != ''
+        if: github.ref == 'refs/heads/main'
+        env:
+          COOLIFY_WEBHOOK: ${{ secrets.COOLIFY_WEBHOOK }}
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
         run: |
-          curl --fail --request GET '${{ secrets.COOLIFY_WEBHOOK }}' \
-               --header 'Authorization: Bearer ${{ secrets.COOLIFY_TOKEN }}'
+          if [ -n "$COOLIFY_WEBHOOK" ]; then
+            curl --fail --request GET "$COOLIFY_WEBHOOK" \
+                 --header "Authorization: Bearer $COOLIFY_TOKEN"
+          else
+            echo "COOLIFY_WEBHOOK not set, skipping deployment trigger"
+          fi
