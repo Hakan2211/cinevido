@@ -73,8 +73,17 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Trigger Coolify Deployment
-        continue-on-error: true
         run: |
-          curl --request GET '${{ secrets.COOLIFY_WEBHOOK }}' \
-               --header 'Authorization: Bearer ${{ secrets.COOLIFY_TOKEN }}' \
-               -w "\nHTTP Status: %{http_code}\n" || echo "Webhook failed - redeploy manually from Coolify"
+          echo "Calling webhook..."
+          RESPONSE=$(curl -s -w "\n%{http_code}" --request GET '${{ secrets.COOLIFY_WEBHOOK }}' \
+               --header 'Authorization: Bearer ${{ secrets.COOLIFY_TOKEN }}')
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | sed '$d')
+          echo "Response body: $BODY"
+          echo "HTTP Status: $HTTP_CODE"
+          if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
+            echo "Webhook triggered successfully"
+          else
+            echo "Webhook failed with status $HTTP_CODE"
+            exit 1
+          fi
