@@ -10,6 +10,7 @@ let _auth: ReturnType<typeof betterAuth> | null = null
 async function createAuth() {
   const { prisma } = await import('../db.server')
   return betterAuth({
+    baseURL: process.env.BETTER_AUTH_URL || 'http://localhost:3000',
     database: prismaAdapter(prisma, {
       provider: 'sqlite',
     }),
