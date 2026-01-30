@@ -73,7 +73,8 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Trigger Coolify Deployment
+        continue-on-error: true
         run: |
-          curl --fail --request GET '${{ secrets.COOLIFY_WEBHOOK }}' \
+          curl --request GET '${{ secrets.COOLIFY_WEBHOOK }}' \
                --header 'Authorization: Bearer ${{ secrets.COOLIFY_TOKEN }}' \
-               --header 'Host: coolify.bullbearz.com'
+               -w "\nHTTP Status: %{http_code}\n" || echo "Webhook failed - redeploy manually from Coolify"
