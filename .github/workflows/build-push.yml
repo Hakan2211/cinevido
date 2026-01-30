@@ -75,13 +75,14 @@ jobs:
       - name: Resolve Coolify webhook host
         run: |
           HOST="$(echo "${{ secrets.COOLIFY_WEBHOOK }}" | awk -F/ '{print $3}')"
-          if [ -z "$HOST" ]; then
+          HOST_ONLY="${HOST%%:*}"
+          if [ -z "$HOST_ONLY" ]; then
             echo "Could not parse host from COOLIFY_WEBHOOK"
             exit 1
           fi
-          echo "Webhook host: $HOST"
-          if ! getent hosts "$HOST" >/dev/null; then
-            echo "DNS lookup failed for $HOST"
+          echo "Webhook host: $HOST (lookup: $HOST_ONLY)"
+          if ! getent hosts "$HOST_ONLY" >/dev/null; then
+            echo "DNS lookup failed for $HOST_ONLY"
             exit 1
           fi
 
