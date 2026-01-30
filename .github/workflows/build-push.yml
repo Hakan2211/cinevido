@@ -30,10 +30,12 @@ jobs:
 
       - name: Set up swap space
         run: |
-          sudo fallocate -l 8G /swapfile
-          sudo chmod 600 /swapfile
-          sudo mkswap /swapfile
-          sudo swapon /swapfile
+          if [ ! -f /swapfile ]; then
+            sudo fallocate -l 8G /swapfile
+            sudo chmod 600 /swapfile
+            sudo mkswap /swapfile
+          fi
+          sudo swapon /swapfile || true
           free -h
 
       - name: Set up Docker Buildx
