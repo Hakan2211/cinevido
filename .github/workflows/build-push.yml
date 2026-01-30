@@ -80,7 +80,8 @@ jobs:
         run: |
           if [ -n "$COOLIFY_WEBHOOK" ]; then
             curl --fail --request GET "$COOLIFY_WEBHOOK" \
-                 --header "Authorization: Bearer $COOLIFY_TOKEN"
+                 --header "Authorization: Bearer $COOLIFY_TOKEN" \
+                 --resolve "coolify.bullbearz.com:443:46.225.52.167"
           else
             echo "COOLIFY_WEBHOOK not set, skipping deployment trigger"
           fi
