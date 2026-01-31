@@ -6,6 +6,88 @@ import { prismaAdapter } from 'better-auth/adapters/prisma'
 // initialized on first use to ensure prisma is only loaded server-side.
 
 let _auth: ReturnType<typeof betterAuth> | null = null
+let _adminEnsured = false
+
+async function hashPassword(password: string): Promise<string> {
+  const { scrypt, randomBytes } = await import('crypto')
+  const { promisify } = await import('util')
+  const scryptAsync = promisify(scrypt)
+  const salt = randomBytes(16).toString('hex')
+  const derivedKey = (await scryptAsync(password, salt, 64)) as Buffer
+  return `${salt}:${derivedKey.toString('hex')}`
+}
+
+async function ensureAdminUser() {
+  if (_adminEnsured) return
+  _adminEnsured = true
+
+  const adminEmail = process.env.ADMIN_EMAIL
+  const adminPassword = process.env.ADMIN_PASSWORD
+  const adminName = process.env.ADMIN_NAME || 'Admin'
+
+  if (!adminEmail || !adminPassword) return
+
+  const { prisma } = await import('../db.server')
+  const hashedPassword = await hashPassword(adminPassword)
+
+  const existingAdmin = await prisma.user.findUnique({
+    where: { email: adminEmail },
+  })
+
+  if (existingAdmin) {
+    await prisma.user.update({
+      where: { id: existingAdmin.id },
+      data: {
+        role: 'admin',
+        emailVerified: true,
+        ...(existingAdmin.name ? {} : { name: adminName }),
+      },
+    })
+
+    const existingAccount = await prisma.account.findFirst({
+      where: {
+        userId: existingAdmin.id,
+        providerId: 'credential',
+      },
+    })
+
+    if (existingAccount) {
+      await prisma.account.update({
+        where: { id: existingAccount.id },
+        data: { password: hashedPassword },
+      })
+    } else {
+      await prisma.account.create({
+        data: {
+          userId: existingAdmin.id,
+          accountId: existingAdmin.id,
+          providerId: 'credential',
+          password: hashedPassword,
+        },
+      })
+    }
+
+    return
+  }
+
+  const adminUser = await prisma.user.create({
+    data: {
+      email: adminEmail,
+      name: adminName,
+      emailVerified: true,
+      role: 'admin',
+    },
+  })
+
+  await prisma.account.create({
+    data: {
+      userId: adminUser.id,
+      accountId: adminUser.id,
+      providerId: 'credential',
+      password: hashedPassword,
+    },
+  })
+}
 
 async function createAuth() {
   const { prisma } = await import('../db.server')
@@ -70,6 +152,7 @@ async function createAuth() {
  * This ensures prisma is only imported when actually needed on the server
  */
 export async function getAuth() {
+  await ensureAdminUser()
   if (!_auth) {
     _auth = await createAuth()
   }
