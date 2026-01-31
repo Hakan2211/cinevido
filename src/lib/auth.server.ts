@@ -9,8 +9,15 @@ let _auth: ReturnType<typeof betterAuth> | null = null
 
 async function createAuth() {
   const { prisma } = await import('../db.server')
+  const baseURL = process.env.BETTER_AUTH_URL || 'http://localhost:3000'
+  const extraTrustedOrigins = (process.env.BETTER_AUTH_TRUSTED_ORIGINS || '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean)
+  const trustedOrigins = Array.from(new Set([baseURL, ...extraTrustedOrigins]))
+
   return betterAuth({
-    baseURL: process.env.BETTER_AUTH_URL || 'http://localhost:3000',
+    baseURL,
     database: prismaAdapter(prisma, {
       provider: 'sqlite',
     }),
@@ -54,7 +61,7 @@ async function createAuth() {
         },
       },
     },
-    trustedOrigins: [process.env.BETTER_AUTH_URL || 'http://localhost:3000'],
+    trustedOrigins,
   })
 }
 
