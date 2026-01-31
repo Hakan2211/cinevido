@@ -91,12 +91,45 @@ async function ensureAdminUser() {
 
 async function createAuth() {
   const { prisma } = await import('../db.server')
+  const { scrypt, randomBytes, timingSafeEqual } = await import('crypto')
+  const { promisify } = await import('util')
+  const scryptAsync = promisify(scrypt)
   const baseURL = process.env.BETTER_AUTH_URL || 'http://localhost:3000'
   const extraTrustedOrigins = (process.env.BETTER_AUTH_TRUSTED_ORIGINS || '')
     .split(',')
     .map((origin) => origin.trim())
     .filter(Boolean)
   const trustedOrigins = Array.from(new Set([baseURL, ...extraTrustedOrigins]))
+
+  const password = {
+    hash: async (value: string) => {
+      const salt = randomBytes(16).toString('hex')
+      const derivedKey = (await scryptAsync(value, salt, 64)) as Buffer
+      return `${salt}:${derivedKey.toString('hex')}`
+    },
+    verify: async (value: string, hashedValue: string) => {
+      if (!hashedValue) return false
+
+      let salt: string | undefined
+      let hash: string | undefined
+
+      if (hashedValue.includes(':')) {
+        ;[salt, hash] = hashedValue.split(':')
+      } else if (hashedValue.includes('.')) {
+        ;[hash, salt] = hashedValue.split('.')
+      } else {
+        return false
+      }
+
+      if (!salt || !hash) return false
+
+      const derivedKey = (await scryptAsync(value, salt, 64)) as Buffer
+      const storedKey = Buffer.from(hash, 'hex')
+
+      if (storedKey.length !== derivedKey.length) return false
+      return timingSafeEqual(storedKey, derivedKey)
+    },
+  }
 
   return betterAuth({
     baseURL,
@@ -107,6 +140,7 @@ async function createAuth() {
       enabled: true,
       requireEmailVerification: false, // Set to true in production
     },
+    password,
     socialProviders: {
       google: {
         clientId: process.env.GOOGLE_CLIENT_ID || '',
