@@ -30,6 +30,36 @@ async function ensureAdminUser() {
   const { prisma } = await import('../db.server')
   const hashedPassword = await hashPassword(adminPassword)
 
+  const ensureAccount = async (
+    userId: string,
+    providerId: string,
+    accountId: string,
+  ) => {
+    const existingAccount = await prisma.account.findFirst({
+      where: {
+        userId,
+        providerId,
+      },
+    })
+
+    if (existingAccount) {
+      await prisma.account.update({
+        where: { id: existingAccount.id },
+        data: { password: hashedPassword, accountId },
+      })
+      return
+    }
+
+    await prisma.account.create({
+      data: {
+        userId,
+        accountId,
+        providerId,
+        password: hashedPassword,
+      },
+    })
+  }
+
   const existingAdmin = await prisma.user.findUnique({
     where: { email: adminEmail },
   })
@@ -44,28 +74,8 @@ async function ensureAdminUser() {
       },
     })
 
-    const existingAccount = await prisma.account.findFirst({
-      where: {
-        userId: existingAdmin.id,
-        providerId: 'credential',
-      },
-    })
-
-    if (existingAccount) {
-      await prisma.account.update({
-        where: { id: existingAccount.id },
-        data: { password: hashedPassword },
-      })
-    } else {
-      await prisma.account.create({
-        data: {
-          userId: existingAdmin.id,
-          accountId: existingAdmin.id,
-          providerId: 'credential',
-          password: hashedPassword,
-        },
-      })
-    }
+    await ensureAccount(existingAdmin.id, 'email-password', adminEmail)
+    await ensureAccount(existingAdmin.id, 'credential', existingAdmin.id)
 
     return
   }
@@ -79,14 +89,8 @@ async function ensureAdminUser() {
     },
   })
 
-  await prisma.account.create({
-    data: {
-      userId: adminUser.id,
-      accountId: adminUser.id,
-      providerId: 'credential',
-      password: hashedPassword,
-    },
-  })
+  await ensureAccount(adminUser.id, 'email-password', adminEmail)
+  await ensureAccount(adminUser.id, 'credential', adminUser.id)
 }
 
 async function createAuth() {
@@ -107,7 +111,9 @@ async function createAuth() {
       const derivedKey = (await scryptAsync(value, salt, 64)) as Buffer
       return `${salt}:${derivedKey.toString('hex')}`
     },
-    verify: async (value: string, hashedValue: string) => {
+    verify: async (input: { hash: string; password: string }) => {
+      const hashedValue = input.hash
+      const value = input.password
       if (!hashedValue) return false
 
       let salt: string | undefined
@@ -139,8 +145,8 @@ async function createAuth() {
     emailAndPassword: {
       enabled: true,
       requireEmailVerification: false, // Set to true in production
+      password,
     },
-    password,
     socialProviders: {
       google: {
         clientId: process.env.GOOGLE_CLIENT_ID || '',

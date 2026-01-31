@@ -31,6 +31,35 @@ async function main() {
 
     // Hash the password using better-auth
     const hashedPassword = await hashPassword(adminPassword)
+    const ensureAccount = async (
+      userId: string,
+      providerId: string,
+      accountId: string,
+    ) => {
+      const existingAccount = await prisma.account.findFirst({
+        where: {
+          userId,
+          providerId,
+        },
+      })
+
+      if (existingAccount) {
+        await prisma.account.update({
+          where: { id: existingAccount.id },
+          data: { password: hashedPassword, accountId },
+        })
+        return
+      }
+
+      await prisma.account.create({
+        data: {
+          userId,
+          accountId,
+          providerId,
+          password: hashedPassword,
+        },
+      })
+    }
 
     // Check if admin already exists
     const existingAdmin = await prisma.user.findUnique({
@@ -48,28 +77,8 @@ async function main() {
         },
       })
 
-      const existingAccount = await prisma.account.findFirst({
-        where: {
-          userId: existingAdmin.id,
-          providerId: 'credential',
-        },
-      })
-
-      if (existingAccount) {
-        await prisma.account.update({
-          where: { id: existingAccount.id },
-          data: { password: hashedPassword },
-        })
-      } else {
-        await prisma.account.create({
-          data: {
-            userId: existingAdmin.id,
-            accountId: existingAdmin.id,
-            providerId: 'credential',
-            password: hashedPassword,
-          },
-        })
-      }
+      await ensureAccount(existingAdmin.id, 'email-password', adminEmail)
+      await ensureAccount(existingAdmin.id, 'credential', existingAdmin.id)
 
       console.log(`✅ Updated admin user: ${adminEmail}`)
       return
@@ -86,14 +95,8 @@ async function main() {
     })
 
     // Create credential account with hashed password
-    await prisma.account.create({
-      data: {
-        userId: adminUser.id,
-        accountId: adminUser.id,
-        providerId: 'credential',
-        password: hashedPassword,
-      },
-    })
+    await ensureAccount(adminUser.id, 'email-password', adminEmail)
+    await ensureAccount(adminUser.id, 'credential', adminUser.id)
 
     console.log(`✅ Created admin user: ${adminUser.email}`)
     return
