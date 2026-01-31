@@ -113,6 +113,17 @@ const staleAssetReloadScript = `
       window.location.reload();
     }
   });
+
+  // Catch Vite preload errors (stale assets after deploy)
+  window.addEventListener('vite:preloadError', function(e) {
+    if (hasReloaded) return;
+    if (e && typeof e.preventDefault === 'function') {
+      e.preventDefault();
+    }
+    console.log('[Stale Chunk] Reloading due to vite:preloadError');
+    sessionStorage.setItem(reloadKey, 'true');
+    window.location.reload();
+  });
 })();
 `
 

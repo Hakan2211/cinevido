@@ -11,9 +11,60 @@
  * inside handler functions to avoid being loaded in the browser.
  */
 
-import type { Plugin } from 'vite'
+import type { Plugin, ResolvedId } from 'vite'
+import path from 'node:path'
+import { readFile } from 'node:fs/promises'
 
 const VIRTUAL_PREFIX = '\0virtual:server-only:'
+const SERVER_FN_PATTERN = /\b(createServerFn|createMiddleware)\b/
+
+async function moduleUsesCreateServerFn(
+  id: string,
+  importer: string | undefined,
+  resolve: (
+    id: string,
+    importer?: string,
+    options?: { skipSelf?: boolean },
+  ) => Promise<ResolvedId | null>,
+): Promise<boolean> {
+  const resolved = await resolve(id, importer, { skipSelf: true })
+  const resolvedId = resolved?.id ?? id
+
+  if (resolvedId.startsWith('\0') || resolvedId.startsWith(VIRTUAL_PREFIX)) {
+    return false
+  }
+
+  const cleanId = resolvedId.split('?')[0].split('#')[0]
+  let filePath = cleanId
+
+  if (!path.isAbsolute(filePath)) {
+    if (!importer) {
+      return false
+    }
+    filePath = path.resolve(path.dirname(importer), filePath)
+  }
+
+  const candidatePaths = [filePath]
+  if (!path.extname(filePath)) {
+    candidatePaths.push(
+      `${filePath}.ts`,
+      `${filePath}.tsx`,
+      `${filePath}.js`,
+      `${filePath}.jsx`,
+    )
+  }
+
+  for (const candidate of candidatePaths) {
+    try {
+      const contents = await readFile(candidate, 'utf8')
+      return SERVER_FN_PATTERN.test(contents)
+    } catch {
+      // Ignore missing/unreadable candidates and try the next one.
+    }
+  }
+
+  return false
+}
 
 export function serverOnlyPlugin(): Plugin {
   let mode = 'development'
@@ -29,7 +80,7 @@ export function serverOnlyPlugin(): Plugin {
       isBuild = env.command === 'build'
     },
 
-    resolveId(id, _importer, options) {
+    async resolveId(id, importer, options) {
       // Only apply during production builds for the client
       // Skip during dev mode - TanStack Start handles transformation,
       // but server-only deps must use dynamic imports inside handlers
@@ -49,6 +100,16 @@ export function serverOnlyPlugin(): Plugin {
         !id.startsWith(VIRTUAL_PREFIX) &&
         !id.includes('node_modules')
       ) {
+        const usesServerFn = await moduleUsesCreateServerFn(
+          id,
+          importer,
+          this.resolve.bind(this),
+        )
+
+        if (usesServerFn) {
+          return null
+        }
+
         // Return a virtual module ID
         return {
           id: `${VIRTUAL_PREFIX}${id}`,
