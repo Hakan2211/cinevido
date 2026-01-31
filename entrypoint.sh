@@ -47,6 +47,11 @@ if [ ! -f "$SETUP_COMPLETE_FLAG" ]; then
   touch "$SETUP_COMPLETE_FLAG"
 else
   # If the flag file exists, skip the seed
+  # But if admin env vars are set, ensure the admin user exists (idempotent)
+  if [ -n "$ADMIN_EMAIL" ] && [ -n "$ADMIN_PASSWORD" ]; then
+    echo "--> ENTRYPOINT: Ensuring admin user exists..."
+    tsx prisma/seed.ts
+  fi
   echo "--> ENTRYPOINT: Database already seeded. Skipping."
 fi
 

@@ -25,9 +25,12 @@ async function main() {
   const adminPassword = process.env.ADMIN_PASSWORD
   const adminName = process.env.ADMIN_NAME || 'Admin'
 
-  // Production mode: only create admin from env variables
+  // Production mode: ensure admin exists from env variables
   if (adminEmail && adminPassword) {
     console.log('📦 Production seeding mode (using environment variables)')
+
+    // Hash the password using better-auth
+    const hashedPassword = await hashPassword(adminPassword)
 
     // Check if admin already exists
     const existingAdmin = await prisma.user.findUnique({
@@ -35,12 +38,42 @@ async function main() {
     })
 
     if (existingAdmin) {
-      console.log(`⏭️  Admin user already exists: ${adminEmail}`)
+      // Ensure admin role and verified email
+      await prisma.user.update({
+        where: { id: existingAdmin.id },
+        data: {
+          role: 'admin',
+          emailVerified: true,
+          ...(existingAdmin.name ? {} : { name: adminName }),
+        },
+      })
+
+      const existingAccount = await prisma.account.findFirst({
+        where: {
+          userId: existingAdmin.id,
+          providerId: 'credential',
+        },
+      })
+
+      if (existingAccount) {
+        await prisma.account.update({
+          where: { id: existingAccount.id },
+          data: { password: hashedPassword },
+        })
+      } else {
+        await prisma.account.create({
+          data: {
+            userId: existingAdmin.id,
+            accountId: existingAdmin.id,
+            providerId: 'credential',
+            password: hashedPassword,
+          },
+        })
+      }
+
+      console.log(`✅ Updated admin user: ${adminEmail}`)
       return
     }
-
-    // Hash the password using better-auth
-    const hashedPassword = await hashPassword(adminPassword)
 
     // Create admin user
     const adminUser = await prisma.user.create({
