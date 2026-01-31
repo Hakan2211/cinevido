@@ -64,11 +64,64 @@ function RootComponent() {
   return <Outlet />
 }
 
+// Inline script to detect stale assets after deployment and auto-reload
+// Catches both static asset errors (link/script tags) and dynamic import failures (client-side navigation)
+const staleAssetReloadScript = `
+(function() {
+  var reloadKey = '__asset_reload__';
+  var hasReloaded = sessionStorage.getItem(reloadKey);
+
+  // Clear flag on successful page load
+  window.addEventListener('load', function() {
+    sessionStorage.removeItem(reloadKey);
+  });
+
+  // Catch static asset errors (link/script tags)
+  window.addEventListener('error', function(e) {
+    var target = e.target;
+    if (!target) return;
+
+    var isLink = target.tagName === 'LINK';
+    var isScript = target.tagName === 'SCRIPT';
+
+    if ((isLink || isScript) && !hasReloaded) {
+      var src = target.href || target.src || '';
+      if (/[\\\\/]assets[\\\\/].*-[a-zA-Z0-9]{6,}\\.(css|js)/.test(src)) {
+        console.log('[Stale Asset] Reloading due to failed asset:', src);
+        sessionStorage.setItem(reloadKey, 'true');
+        window.location.reload();
+      }
+    }
+  }, true);
+
+  // Catch dynamic import failures (client-side navigation)
+  window.addEventListener('unhandledrejection', function(e) {
+    if (hasReloaded) return;
+
+    var reason = e.reason;
+    var message = (reason && (reason.message || String(reason))) || '';
+
+    // Check for chunk/module load failures
+    if (
+      message.indexOf('Failed to fetch dynamically imported module') !== -1 ||
+      message.indexOf('error loading dynamically imported module') !== -1 ||
+      message.indexOf('Importing a module script failed') !== -1 ||
+      (message.indexOf('Load failed') !== -1 && message.indexOf('.js') !== -1)
+    ) {
+      console.log('[Stale Chunk] Reloading due to failed dynamic import:', message);
+      sessionStorage.setItem(reloadKey, 'true');
+      window.location.reload();
+    }
+  });
+})();
+`
+
 function RootDocument({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className="dark">
       <head>
         <HeadContent />
+        <script dangerouslySetInnerHTML={{ __html: staleAssetReloadScript }} />
       </head>
       <body className="min-h-screen bg-background font-sans antialiased">
         {children}
