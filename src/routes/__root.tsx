@@ -33,16 +33,33 @@ interface MyRouterContext {
 export const Route = createRootRouteWithContext<MyRouterContext>()({
   head: () => ({
     meta: [
+      { charSet: 'utf-8' },
+      { name: 'viewport', content: 'width=device-width, initial-scale=1' },
+      { title: 'Cinevido - AI Creative Studio' },
       {
-        charSet: 'utf-8',
+        name: 'description',
+        content:
+          'AI Creative Studio for images, videos, and 3D models. Transform your ideas into stunning visuals.',
       },
+      // Open Graph
+      { property: 'og:type', content: 'website' },
+      { property: 'og:title', content: 'Cinevido - AI Creative Studio' },
       {
-        name: 'viewport',
-        content: 'width=device-width, initial-scale=1',
+        property: 'og:description',
+        content:
+          'AI Creative Studio for images, videos, and 3D models. Transform your ideas into stunning visuals.',
       },
+      { property: 'og:image', content: '/logo-cinevido.png' },
+      { property: 'og:site_name', content: 'Cinevido' },
+      // Twitter Card
+      { name: 'twitter:card', content: 'summary' },
+      { name: 'twitter:title', content: 'Cinevido - AI Creative Studio' },
       {
-        title: 'Cinevido - AI Creative Studio',
+        name: 'twitter:description',
+        content:
+          'AI Creative Studio for images, videos, and 3D models. Transform your ideas into stunning visuals.',
       },
+      { name: 'twitter:image', content: '/logo-cinevido.png' },
     ],
     links: [
       {
