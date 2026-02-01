@@ -15,7 +15,7 @@ import {
   getJobStatus,
   getVideoModels,
 } from './services/fal.server'
-import { uploadBuffer } from './services/bunny.server'
+import { uploadBuffer, uploadFromUrl } from './services/bunny.server'
 import { getVideoModelById } from './services/types'
 import type { FalVideoResult } from './services/fal.server'
 
@@ -253,6 +253,10 @@ export const getVideoJobStatusFn = createServerFn({ method: 'GET' })
 
       if (videoUrl) {
         const inputData = JSON.parse(job.input)
+        const uploadResult = await uploadFromUrl(videoUrl, {
+          folder: `videos/${context.user.id}`,
+          filename: `generated-${Date.now()}`,
+        })
 
         // Create asset for the generated video
         const asset = await prisma.asset.create({
@@ -260,8 +264,8 @@ export const getVideoJobStatusFn = createServerFn({ method: 'GET' })
             userId: context.user.id,
             projectId: job.projectId,
             type: 'video',
-            storageUrl: videoUrl,
-            filename: `generated-${Date.now()}.mp4`,
+            storageUrl: uploadResult.url,
+            filename: uploadResult.filename,
             prompt: inputData.prompt,
             provider: 'fal',
             model: job.model,
@@ -285,7 +289,7 @@ export const getVideoJobStatusFn = createServerFn({ method: 'GET' })
             status: 'completed',
             progress: 100,
             output: JSON.stringify({
-              url: videoUrl,
+              url: uploadResult.url,
               assetId: asset.id,
               duration: inputData.duration || 5,
             }),
@@ -297,7 +301,7 @@ export const getVideoJobStatusFn = createServerFn({ method: 'GET' })
           status: 'completed' as const,
           progress: 100,
           output: {
-            url: videoUrl,
+            url: uploadResult.url,
             assetId: asset.id,
             duration: inputData.duration || 5,
           },
@@ -551,8 +555,7 @@ export const uploadUserVideoFn = createServerFn({ method: 'POST' })
     const extension = extensionMap[data.contentType] || 'mp4'
     // Sanitize filename: remove extension, replace spaces with dashes, remove special chars, add timestamp
     const rawName = (
-      data.filename?.replace(/\.[^/.]+$/, '') || // Remove any existing extension
-      'upload'
+      data.filename?.replace(/\.[^/.]+$/, '') || 'upload' // Remove any existing extension
     )
       .replace(/\s+/g, '-') // Replace spaces with dashes
       .replace(/[^a-zA-Z0-9._-]/g, '') // Remove special characters

@@ -577,21 +577,16 @@ export const uploadUserImageFn = createServerFn({ method: 'POST' })
     }
     const extension = extensionMap[data.contentType] || 'png'
     const rawName =
-      data.filename?.replace(/\.[^/.]+$/, '') || // Remove any existing extension
-      'upload'
+      data.filename?.replace(/\.[^/.]+$/, '') || 'upload' // Remove any existing extension
     const filename = `${rawName}-${Date.now()}`
     const fullFilename = `${filename}.${extension}`
 
     // Upload to Bunny CDN (use processed buffer which may have been resized)
     console.log('[IMAGE] Uploading to Bunny CDN...')
-    const uploadResult = await uploadBuffer(
-      processedBuffer,
-      data.contentType,
-      {
-        folder: `images/${context.user.id}`,
-        filename: fullFilename,
-      },
-    )
+    const uploadResult = await uploadBuffer(processedBuffer, data.contentType, {
+      folder: `images/${context.user.id}`,
+      filename: fullFilename,
+    })
     console.log('[IMAGE] Upload success:', uploadResult.url)
 
     // Get final dimensions

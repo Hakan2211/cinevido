@@ -108,12 +108,13 @@ export function MobileWorkspace({ project }: MobileWorkspaceProps) {
         type: job.type,
         status: job.status,
         progress: job.progress || 0,
-      }))
+      })),
     )
 
     const pollJob = async (jobId: string) => {
       try {
-        const { getJobStatusFn } = await import('../../../server/generation.server')
+        const { getJobStatusFn } =
+          await import('../../../server/generation.server')
         const status = await getJobStatusFn({ data: { jobId } })
         if (status.status === 'completed') {
           queryClient.invalidateQueries({ queryKey: ['project', project.id] })
@@ -216,7 +217,9 @@ export function MobileWorkspace({ project }: MobileWorkspaceProps) {
             <DropdownMenuContent align="end">
               <DropdownMenuItem>Project Settings</DropdownMenuItem>
               <DropdownMenuItem>Duplicate</DropdownMenuItem>
-              <DropdownMenuItem className="text-destructive">Delete</DropdownMenuItem>
+              <DropdownMenuItem className="text-destructive">
+                Delete
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>

@@ -45,7 +45,7 @@ export function MobileNavTabs({
                 'transition-colors',
                 isActive
                   ? 'text-primary'
-                  : 'text-muted-foreground hover:text-foreground'
+                  : 'text-muted-foreground hover:text-foreground',
               )}
             >
               <div className="relative">

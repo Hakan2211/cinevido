@@ -10,7 +10,15 @@
  */
 
 import { useRef } from 'react'
-import { Clock, ImageIcon, Loader2, Plus, Upload, Video, Wand2 } from 'lucide-react'
+import {
+  Clock,
+  ImageIcon,
+  Loader2,
+  Plus,
+  Upload,
+  Video,
+  Wand2,
+} from 'lucide-react'
 import type { CharacterOrientation } from '@/server/services/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -375,7 +383,9 @@ export function MotionControlPanel({
             characterOrientation === 'video'
               ? modelConfig?.maxDurationVideo || 30
               : modelConfig?.maxDurationImage || 10
-          const availableDurations = allDurations.filter((d) => d <= maxDuration)
+          const availableDurations = allDurations.filter(
+            (d) => d <= maxDuration,
+          )
 
           return (
             <div className="flex items-center gap-2">

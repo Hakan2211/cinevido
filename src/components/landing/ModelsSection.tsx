@@ -1,103 +1,55 @@
 import { motion } from 'framer-motion'
-import { Box, Image, Video, Zap } from 'lucide-react'
+import { Box, Image, Video, Zap, Cpu } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const modelCategories = [
   {
-    title: 'Image Generation',
+    title: 'Image',
     icon: Image,
     color: 'text-violet-500',
     bgColor: 'bg-violet-500/10',
+    borderColor: 'border-violet-500/20',
     models: [
-      {
-        name: 'FLUX Pro',
-        provider: 'Black Forest Labs',
-        description: 'Ultra-realistic images',
-      },
-      {
-        name: 'GPT-4o Image',
-        provider: 'OpenAI',
-        description: 'Creative & versatile',
-      },
-      {
-        name: 'Recraft V3',
-        provider: 'Recraft',
-        description: 'Design-focused generation',
-      },
-      {
-        name: 'ImagineArt',
-        provider: 'Imagine',
-        description: 'Artistic styles',
-      },
-      { name: 'Ideogram', provider: 'Ideogram', description: 'Text in images' },
+      'Flux 2 Pro',
+      'GPT Image 1.5',
+      'Recraft V3',
+      'ImagineArt 1.5',
+      'Seedream 4.5',
+      'Bria 3.2',
+      'Wan 2.6',
     ],
   },
   {
-    title: 'Video Generation',
+    title: 'Video',
     icon: Video,
     color: 'text-blue-500',
     bgColor: 'bg-blue-500/10',
+    borderColor: 'border-blue-500/20',
     models: [
-      {
-        name: 'Kling 1.6',
-        provider: 'Kuaishou',
-        description: 'High-quality video',
-      },
-      {
-        name: 'Pika 2.0',
-        provider: 'Pika Labs',
-        description: 'Creative animations',
-      },
-      { name: 'Wan 2.1', provider: 'Alibaba', description: 'Fast generation' },
-      {
-        name: 'Luma Ray2',
-        provider: 'Luma AI',
-        description: 'Cinematic quality',
-      },
-      { name: 'Veo 2', provider: 'Google', description: 'Realistic motion' },
+      'Kling 2.6 Pro',
+      'Sora 2 Pro',
+      'Veo 3.1',
+      'Wan 2.6',
+      'Seedance 1.5',
+      'Hailuo 2.3',
+      'Pika 2.2',
     ],
   },
   {
-    title: '3D Models',
+    title: '3D',
     icon: Box,
     color: 'text-emerald-500',
     bgColor: 'bg-emerald-500/10',
-    models: [
-      {
-        name: 'Meshy',
-        provider: 'Meshy AI',
-        description: 'Text & image to 3D',
-      },
-      {
-        name: 'Tripo AI',
-        provider: 'Tripo',
-        description: 'Fast 3D generation',
-      },
-      {
-        name: 'Rodin',
-        provider: 'Microsoft',
-        description: 'High-detail models',
-      },
-    ],
+    borderColor: 'border-emerald-500/20',
+    models: ['Hunyuan3D V3', 'Meshy 6', 'Rodin V2', 'Seed3D', 'SAM 3D'],
   },
   {
-    title: 'Upscaling',
+    title: 'Upscale',
     icon: Zap,
     color: 'text-amber-500',
     bgColor: 'bg-amber-500/10',
-    models: [
-      { name: 'SeedVR', provider: 'fal.ai', description: 'AI video upscale' },
-      {
-        name: 'Topaz',
-        provider: 'Topaz Labs',
-        description: 'Professional quality',
-      },
-      {
-        name: 'Bytedance',
-        provider: 'ByteDance',
-        description: 'Fast enhancement',
-      },
-    ],
+    borderColor: 'border-amber-500/20',
+    models: ['SeedVR2', 'Topaz'],
   },
 ]
 
@@ -111,30 +63,37 @@ export function ModelsSection() {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.5 }}
-          className="text-center mb-16"
+          className="text-center mb-12"
         >
+          <span className="inline-flex items-center gap-2 rounded-full border bg-background px-4 py-1.5 text-sm font-medium shadow-sm mb-6">
+            <Cpu className="h-4 w-4 text-primary" />
+            65+ AI Models
+          </span>
           <h2 className="text-3xl md:text-4xl font-bold tracking-tight mb-4">
-            Powered by the best AI models
+            Powered by the Best AI Models
           </h2>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            Access cutting-edge AI from leading providers. We integrate the
-            latest models so you always have the best tools at your fingertips.
+            Access cutting-edge AI from leading providers through your fal.ai
+            API key. New models added regularly.
           </p>
         </motion.div>
 
-        {/* Model Categories Grid */}
-        <div className="grid md:grid-cols-2 gap-8">
-          {modelCategories.map((category, categoryIndex) => (
+        {/* Model Categories Grid - Simplified */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
+          {modelCategories.map((category, index) => (
             <motion.div
               key={category.title}
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
-              transition={{ duration: 0.5, delay: categoryIndex * 0.1 }}
-              className="rounded-2xl border border-border/50 bg-card p-6"
+              transition={{ duration: 0.5, delay: index * 0.1 }}
+              className={cn(
+                'rounded-xl border bg-card p-5 transition-all duration-300 hover:shadow-lg hover:-translate-y-1',
+                category.borderColor,
+              )}
             >
               {/* Category Header */}
-              <div className="flex items-center gap-3 mb-6">
+              <div className="flex items-center gap-3 mb-4">
                 <div
                   className={cn(
                     'h-10 w-10 rounded-lg flex items-center justify-center',
@@ -143,50 +102,23 @@ export function ModelsSection() {
                 >
                   <category.icon className={cn('h-5 w-5', category.color)} />
                 </div>
-                <h3 className="text-xl font-semibold">{category.title}</h3>
+                <h3 className="font-semibold">{category.title}</h3>
               </div>
 
-              {/* Models List */}
-              <div className="space-y-3">
-                {category.models.map((model, modelIndex) => (
-                  <motion.div
-                    key={model.name}
-                    initial={{ opacity: 0, x: -10 }}
-                    whileInView={{ opacity: 1, x: 0 }}
-                    viewport={{ once: true }}
-                    transition={{
-                      duration: 0.3,
-                      delay: categoryIndex * 0.1 + modelIndex * 0.05,
-                    }}
-                    className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors"
+              {/* Models List - Simple badges */}
+              <div className="flex flex-wrap gap-2">
+                {category.models.map((model) => (
+                  <span
+                    key={model}
+                    className="text-xs font-medium bg-muted px-2.5 py-1 rounded-full text-muted-foreground"
                   >
-                    <div>
-                      <p className="font-medium text-sm">{model.name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {model.provider}
-                      </p>
-                    </div>
-                    <span className="text-xs text-muted-foreground bg-background px-2 py-1 rounded-full">
-                      {model.description}
-                    </span>
-                  </motion.div>
+                    {model}
+                  </span>
                 ))}
               </div>
             </motion.div>
           ))}
         </div>
-
-        {/* Bottom note */}
-        <motion.p
-          initial={{ opacity: 0 }}
-          whileInView={{ opacity: 1 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.5, delay: 0.4 }}
-          className="text-center text-sm text-muted-foreground mt-8"
-        >
-          New models added regularly. All models accessed through your fal.ai
-          API key.
-        </motion.p>
       </div>
     </section>
   )

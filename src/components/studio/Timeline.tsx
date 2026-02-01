@@ -13,7 +13,15 @@ import {
   useSortable,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { Film, GripVertical, Magnet, Minus, Music, Plus, Type } from 'lucide-react'
+import {
+  Film,
+  GripVertical,
+  Magnet,
+  Minus,
+  Music,
+  Plus,
+  Type,
+} from 'lucide-react'
 import type { DragEndEvent } from '@dnd-kit/core'
 import type {
   AudioClipProps,
@@ -207,7 +215,9 @@ export function Timeline({
           </span>
           {/* Playing indicator */}
           {isPlaying && (
-            <span className="hidden text-[10px] text-primary md:inline">Playing</span>
+            <span className="hidden text-[10px] text-primary md:inline">
+              Playing
+            </span>
           )}
         </div>
         <div className="flex items-center gap-1 md:gap-2">

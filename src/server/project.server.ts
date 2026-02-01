@@ -405,13 +405,20 @@ export const getManifestFn = createServerFn({ method: 'GET' })
 
 const createFolderSchema = z.object({
   name: z.string().min(1).max(50),
-  color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
+  color: z
+    .string()
+    .regex(/^#[0-9A-Fa-f]{6}$/)
+    .optional(),
 })
 
 const updateFolderSchema = z.object({
   folderId: z.string(),
   name: z.string().min(1).max(50).optional(),
-  color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).nullable().optional(),
+  color: z
+    .string()
+    .regex(/^#[0-9A-Fa-f]{6}$/)
+    .nullable()
+    .optional(),
 })
 
 const folderIdSchema = z.object({

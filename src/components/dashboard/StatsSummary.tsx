@@ -16,9 +16,24 @@ interface StatsSummaryProps {
 
 export function StatsSummary({ counts }: StatsSummaryProps) {
   const stats = [
-    { label: 'Images', count: counts.images, icon: Image, color: 'text-blue-500' },
-    { label: 'Videos', count: counts.videos, icon: Video, color: 'text-purple-500' },
-    { label: '3D Models', count: counts.model3ds, icon: Box, color: 'text-orange-500' },
+    {
+      label: 'Images',
+      count: counts.images,
+      icon: Image,
+      color: 'text-blue-500',
+    },
+    {
+      label: 'Videos',
+      count: counts.videos,
+      icon: Video,
+      color: 'text-purple-500',
+    },
+    {
+      label: '3D Models',
+      count: counts.model3ds,
+      icon: Box,
+      color: 'text-orange-500',
+    },
   ]
 
   const total = counts.images + counts.videos + counts.model3ds

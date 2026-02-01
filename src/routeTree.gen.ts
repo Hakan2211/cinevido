@@ -9,7 +9,9 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as TermsRouteImport } from './routes/terms'
 import { Route as PurchaseSuccessRouteImport } from './routes/purchase-success'
+import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as PricingRouteImport } from './routes/pricing'
 import { Route as AuthRouteImport } from './routes/_auth'
 import { Route as AppRouteImport } from './routes/_app'
@@ -31,9 +33,19 @@ import { Route as ApiStripeWebhookRouteImport } from './routes/api/stripe/webhoo
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as AppProjectsProjectIdRouteImport } from './routes/_app/projects/$projectId'
 
+const TermsRoute = TermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PurchaseSuccessRoute = PurchaseSuccessRouteImport.update({
   id: '/purchase-success',
   path: '/purchase-success',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PricingRoute = PricingRouteImport.update({
@@ -138,7 +150,9 @@ const AppProjectsProjectIdRoute = AppProjectsProjectIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/pricing': typeof PricingRoute
+  '/privacy': typeof PrivacyRoute
   '/purchase-success': typeof PurchaseSuccessRoute
+  '/terms': typeof TermsRoute
   '/3d-models': typeof App3dModelsRoute
   '/admin': typeof AppAdminRoute
   '/dashboard': typeof AppDashboardRoute
@@ -159,7 +173,9 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/pricing': typeof PricingRoute
+  '/privacy': typeof PrivacyRoute
   '/purchase-success': typeof PurchaseSuccessRoute
+  '/terms': typeof TermsRoute
   '/3d-models': typeof App3dModelsRoute
   '/admin': typeof AppAdminRoute
   '/dashboard': typeof AppDashboardRoute
@@ -183,7 +199,9 @@ export interface FileRoutesById {
   '/_app': typeof AppRouteWithChildren
   '/_auth': typeof AuthRouteWithChildren
   '/pricing': typeof PricingRoute
+  '/privacy': typeof PrivacyRoute
   '/purchase-success': typeof PurchaseSuccessRoute
+  '/terms': typeof TermsRoute
   '/_app/3d-models': typeof App3dModelsRoute
   '/_app/admin': typeof AppAdminRoute
   '/_app/dashboard': typeof AppDashboardRoute
@@ -206,7 +224,9 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/pricing'
+    | '/privacy'
     | '/purchase-success'
+    | '/terms'
     | '/3d-models'
     | '/admin'
     | '/dashboard'
@@ -227,7 +247,9 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/pricing'
+    | '/privacy'
     | '/purchase-success'
+    | '/terms'
     | '/3d-models'
     | '/admin'
     | '/dashboard'
@@ -250,7 +272,9 @@ export interface FileRouteTypes {
     | '/_app'
     | '/_auth'
     | '/pricing'
+    | '/privacy'
     | '/purchase-success'
+    | '/terms'
     | '/_app/3d-models'
     | '/_app/admin'
     | '/_app/dashboard'
@@ -274,7 +298,9 @@ export interface RootRouteChildren {
   AppRoute: typeof AppRouteWithChildren
   AuthRoute: typeof AuthRouteWithChildren
   PricingRoute: typeof PricingRoute
+  PrivacyRoute: typeof PrivacyRoute
   PurchaseSuccessRoute: typeof PurchaseSuccessRoute
+  TermsRoute: typeof TermsRoute
   ApiChatRoute: typeof ApiChatRoute
   ApiProxyGlbRoute: typeof ApiProxyGlbRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
@@ -283,11 +309,25 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/terms': {
+      id: '/terms'
+      path: '/terms'
+      fullPath: '/terms'
+      preLoaderRoute: typeof TermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/purchase-success': {
       id: '/purchase-success'
       path: '/purchase-success'
       fullPath: '/purchase-success'
       preLoaderRoute: typeof PurchaseSuccessRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/pricing': {
@@ -478,7 +518,9 @@ const rootRouteChildren: RootRouteChildren = {
   AppRoute: AppRouteWithChildren,
   AuthRoute: AuthRouteWithChildren,
   PricingRoute: PricingRoute,
+  PrivacyRoute: PrivacyRoute,
   PurchaseSuccessRoute: PurchaseSuccessRoute,
+  TermsRoute: TermsRoute,
   ApiChatRoute: ApiChatRoute,
   ApiProxyGlbRoute: ApiProxyGlbRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,

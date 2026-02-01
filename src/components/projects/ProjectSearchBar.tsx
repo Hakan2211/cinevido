@@ -24,7 +24,12 @@ import {
   DropdownMenuTrigger,
 } from '../ui/dropdown-menu'
 
-export type ProjectStatus = 'all' | 'draft' | 'rendering' | 'completed' | 'failed'
+export type ProjectStatus =
+  | 'all'
+  | 'draft'
+  | 'rendering'
+  | 'completed'
+  | 'failed'
 export type SortBy = 'updatedAt' | 'createdAt' | 'name'
 export type SortOrder = 'asc' | 'desc'
 
@@ -75,7 +80,7 @@ export function ProjectSearchBar({
       }, 300)
       return () => clearTimeout(timeoutId)
     },
-    [onQueryChange]
+    [onQueryChange],
   )
 
   const clearSearch = () => {
@@ -109,7 +114,10 @@ export function ProjectSearchBar({
 
       {/* Status Filter - visible on tablet and up */}
       <div className="hidden sm:block">
-        <Select value={status} onValueChange={(v) => onStatusChange(v as ProjectStatus)}>
+        <Select
+          value={status}
+          onValueChange={(v) => onStatusChange(v as ProjectStatus)}
+        >
           <SelectTrigger className="w-[140px]">
             <SelectValue placeholder="Status" />
           </SelectTrigger>
@@ -125,7 +133,10 @@ export function ProjectSearchBar({
 
       {/* Sort Dropdown - visible on tablet and up */}
       <div className="hidden sm:block">
-        <Select value={sortBy} onValueChange={(v) => onSortByChange(v as SortBy)}>
+        <Select
+          value={sortBy}
+          onValueChange={(v) => onSortByChange(v as SortBy)}
+        >
           <SelectTrigger className="w-[150px]">
             <SelectValue placeholder="Sort by" />
           </SelectTrigger>
@@ -184,7 +195,9 @@ export function ProjectSearchBar({
           ))}
           <DropdownMenuSeparator />
           <DropdownMenuItem
-            onClick={() => onSortOrderChange(sortOrder === 'asc' ? 'desc' : 'asc')}
+            onClick={() =>
+              onSortOrderChange(sortOrder === 'asc' ? 'desc' : 'asc')
+            }
           >
             Order: {sortOrder === 'asc' ? 'Ascending ↑' : 'Descending ↓'}
           </DropdownMenuItem>

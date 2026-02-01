@@ -18,12 +18,7 @@ import {
   Trash2,
 } from 'lucide-react'
 import { Button } from '../ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '../ui/dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog'
 import { Input } from '../ui/input'
 import { Label } from '../ui/label'
 import {
@@ -98,7 +93,11 @@ export function FolderSidebar({
 
   // Update folder mutation
   const updateMutation = useMutation({
-    mutationFn: async (input: { folderId: string; name?: string; color?: string | null }) => {
+    mutationFn: async (input: {
+      folderId: string
+      name?: string
+      color?: string | null
+    }) => {
       const { updateFolderFn } = await import('../../server/project.server')
       return updateFolderFn({ data: input } as never)
     },
@@ -241,12 +240,14 @@ export function FolderSidebar({
             'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors',
             selectedFolderId === null
               ? 'bg-primary/10 text-primary'
-              : 'hover:bg-muted'
+              : 'hover:bg-muted',
           )}
         >
           <Folder className="h-4 w-4" />
           <span className="flex-1 text-left">All Projects</span>
-          <span className="text-xs text-muted-foreground">{totalProjectCount}</span>
+          <span className="text-xs text-muted-foreground">
+            {totalProjectCount}
+          </span>
         </button>
 
         {/* No Folder */}
@@ -256,11 +257,13 @@ export function FolderSidebar({
             'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors',
             selectedFolderId === 'none'
               ? 'bg-primary/10 text-primary'
-              : 'hover:bg-muted'
+              : 'hover:bg-muted',
           )}
         >
           <FolderOpen className="h-4 w-4 text-muted-foreground" />
-          <span className="flex-1 text-left text-muted-foreground">No Folder</span>
+          <span className="flex-1 text-left text-muted-foreground">
+            No Folder
+          </span>
         </button>
 
         {/* Folders */}
@@ -279,7 +282,7 @@ export function FolderSidebar({
                   'group flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors',
                   selectedFolderId === folder.id
                     ? 'bg-primary/10 text-primary'
-                    : 'hover:bg-muted'
+                    : 'hover:bg-muted',
                 )}
               >
                 <button
@@ -290,7 +293,9 @@ export function FolderSidebar({
                     className="h-4 w-4"
                     style={{ color: folder.color || undefined }}
                   />
-                  <span className="flex-1 truncate text-left">{folder.name}</span>
+                  <span className="flex-1 truncate text-left">
+                    {folder.name}
+                  </span>
                   <span className="text-xs text-muted-foreground">
                     {folder.projectCount}
                   </span>
@@ -365,7 +370,9 @@ export function FolderSidebar({
                   onClick={() => setFolderColor(null)}
                   className={cn(
                     'h-6 w-6 rounded-full border-2 bg-muted',
-                    folderColor === null ? 'border-primary' : 'border-transparent'
+                    folderColor === null
+                      ? 'border-primary'
+                      : 'border-transparent',
                   )}
                   title="No color"
                 />
@@ -377,7 +384,7 @@ export function FolderSidebar({
                       'h-6 w-6 rounded-full border-2',
                       folderColor === color
                         ? 'border-primary'
-                        : 'border-transparent'
+                        : 'border-transparent',
                     )}
                     style={{ backgroundColor: color }}
                     title={color}

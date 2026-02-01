@@ -276,7 +276,10 @@ export function Workspace({ project }: WorkspaceProps) {
               }
               onSkipForward={() =>
                 setCurrentFrame(
-                  Math.min(project.duration - 1, currentFrame + project.fps * 2)
+                  Math.min(
+                    project.duration - 1,
+                    currentFrame + project.fps * 2,
+                  ),
                 )
               }
             />

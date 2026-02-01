@@ -53,7 +53,7 @@ export function QuickActionsToolbar({
       <div
         className={cn(
           'flex items-center gap-1 rounded-full border bg-background/95 px-2 py-1 shadow-lg backdrop-blur',
-          className
+          className,
         )}
       >
         {/* Undo/Redo */}

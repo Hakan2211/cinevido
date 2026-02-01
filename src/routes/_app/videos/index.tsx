@@ -83,6 +83,7 @@ import { Label } from '../../../components/ui/label'
 import { VideoModeToggle } from '../../../components/videos/VideoModeToggle'
 import { VideoUpscalePanel } from '../../../components/videos/VideoUpscalePanel'
 import { ConfirmDialog } from '../../../components/ui/confirm-dialog'
+import { UploadDropZone } from '../../../components/images/UploadDropZone'
 import type { VideoMode } from '../../../components/videos/VideoModeToggle'
 import type {
   BytedanceVideoTargetFps,
@@ -294,7 +295,11 @@ function VideosPage() {
   })
 
   // Fetch user's images for picker
-  const { data: imagesData, isLoading: imagesLoading } = useQuery({
+  const {
+    data: imagesData,
+    isLoading: imagesLoading,
+    refetch: refetchImages,
+  } = useQuery({
     queryKey: ['images', 'forVideo'],
     queryFn: async () => {
       const { listUserImagesFn } = await import('../../../server/image.server')
@@ -603,6 +608,14 @@ function VideosPage() {
     }
     setImagePickerOpen(false)
     textareaRef.current?.focus()
+  }
+
+  const handleImageUploadComplete = async () => {
+    const result = await refetchImages()
+    const latestImage = result.data?.images?.[0]
+    if (latestImage) {
+      handleImageSelect(latestImage)
+    }
   }
 
   const addKeyframe = () => {
@@ -1225,6 +1238,7 @@ function VideosPage() {
                     : `Select frame ${imagePickerTarget + 1}`}
             </DialogTitle>
           </DialogHeader>
+          <UploadDropZone onUploadComplete={handleImageUploadComplete} />
           {imagesLoading ? (
             <div className="flex h-64 items-center justify-center">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />

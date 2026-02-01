@@ -232,7 +232,5 @@ MIT
 - [Prisma Documentation](https://www.prisma.io/docs)
 - [Stripe Documentation](https://stripe.com/docs)
 - [Shadcn UI Documentation](https://ui.shadcn.com)
+
 # Deployment test 1769773601
-
-
-

@@ -1,16 +1,15 @@
 import { createFileRoute } from '@tanstack/react-router'
 import {
-  CTASection,
+  BeforeAfterSection,
   FAQSection,
-  FeaturesSection,
   HeroSection,
-  HowItWorksSection,
+  ImageShowcaseSection,
   LandingFooter,
   LandingHeader,
   ModelsSection,
   PricingSection,
-  ShowcaseSection,
-  UseCasesSection,
+  ThreeDShowcaseSection,
+  VideoShowcaseSection,
 } from '@/components/landing'
 
 export const Route = createFileRoute('/')({
@@ -23,14 +22,13 @@ function LandingPage() {
       <LandingHeader />
       <main className="flex-1">
         <HeroSection />
-        <FeaturesSection />
-        <ShowcaseSection />
+        <ImageShowcaseSection />
+        <BeforeAfterSection />
+        <VideoShowcaseSection />
+        <ThreeDShowcaseSection />
         <ModelsSection />
-        <UseCasesSection />
-        <HowItWorksSection />
         <PricingSection />
         <FAQSection />
-        <CTASection />
       </main>
       <LandingFooter />
     </div>

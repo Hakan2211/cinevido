@@ -1,11 +1,22 @@
+import { useState, useEffect } from 'react'
 import { Link } from '@tanstack/react-router'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { ArrowRight, Key, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useUserAccess } from '@/hooks/use-user-access'
+import { heroImages } from '@/lib/showcase-assets'
 
 export function HeroSection() {
   const { isLoggedIn, hasPlatformAccess } = useUserAccess()
+  const [currentImageIndex, setCurrentImageIndex] = useState(0)
+
+  // Rotate hero images
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentImageIndex((prev) => (prev + 1) % heroImages.length)
+    }, 4000)
+    return () => clearInterval(interval)
+  }, [])
 
   const scrollToSection = (id: string) => {
     const element = document.getElementById(id)
@@ -48,177 +59,193 @@ export function HeroSection() {
       </div>
 
       <div className="container mx-auto px-4 lg:px-8 relative z-10">
-        <div className="flex flex-col items-center text-center max-w-4xl mx-auto">
-          {/* Badge */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
-            className="mb-6"
-          >
-            <span className="inline-flex items-center gap-2 rounded-full border bg-background px-4 py-1.5 text-sm font-medium shadow-sm">
-              <Key className="h-4 w-4 text-primary" />
-              BYOK - Bring Your Own Key
-            </span>
-          </motion.div>
-
-          {/* Headline */}
-          <motion.h1
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.1 }}
-            className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight mb-6"
-          >
-            AI Images, Videos & 3D.{' '}
-            <span className="bg-gradient-to-r from-primary via-violet-500 to-primary bg-clip-text text-transparent">
-              One Studio.
-            </span>{' '}
-            Your API Key.
-          </motion.h1>
-
-          {/* Subheadline */}
-          <motion.p
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.2 }}
-            className="text-lg md:text-xl text-muted-foreground mb-10 max-w-2xl"
-          >
-            Create stunning visuals with cutting-edge AI models like FLUX,
-            Kling, and Meshy. No subscription fees - just connect your fal.ai
-            key and start creating.
-          </motion.p>
-
-          {/* CTA Buttons */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.3 }}
-            className="flex flex-col sm:flex-row gap-4"
-          >
-            {hasPlatformAccess ? (
-              <Link to="/dashboard">
-                <Button size="lg" className="min-w-[200px] group">
-                  Go to Dashboard
-                  <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
-                </Button>
-              </Link>
-            ) : isLoggedIn ? (
-              <Link to="/pricing" search={{ auto_checkout: 'true' }}>
-                <Button size="lg" className="min-w-[200px] group">
-                  Buy Now for €149
-                  <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
-                </Button>
-              </Link>
-            ) : (
-              <Link to="/signup" search={{ redirect: 'checkout' }}>
-                <Button size="lg" className="min-w-[200px] group">
-                  Buy Now for €149
-                  <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
-                </Button>
-              </Link>
-            )}
-            <Button
-              variant="outline"
-              size="lg"
-              className="min-w-[180px]"
-              onClick={() => scrollToSection('showcase')}
+        <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
+          {/* Left: Content */}
+          <div className="text-center lg:text-left">
+            {/* Badge */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5 }}
+              className="mb-6"
             >
-              See What's Possible
-            </Button>
-          </motion.div>
+              <span className="inline-flex items-center gap-2 rounded-full border bg-background px-4 py-1.5 text-sm font-medium shadow-sm">
+                <Key className="h-4 w-4 text-primary" />
+                BYOK - Bring Your Own Key
+              </span>
+            </motion.div>
 
-          {/* Stats */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.4 }}
-            className="mt-16 grid grid-cols-2 md:grid-cols-4 gap-8 border-t pt-8"
-          >
-            {[
-              { value: '10+', label: 'AI Models' },
-              { value: '3', label: 'Creation Modes' },
-              { value: '$149', label: 'One-Time Payment' },
-              { value: 'Lifetime', label: 'Access' },
-            ].map((stat) => (
-              <div key={stat.label} className="text-center">
-                <div className="text-2xl md:text-3xl font-bold text-primary">
-                  {stat.value}
+            {/* Headline */}
+            <motion.h1
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.1 }}
+              className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight mb-6"
+            >
+              Create Stunning AI{' '}
+              <span className="bg-gradient-to-r from-orange-500 via-amber-500 to-orange-600 bg-clip-text text-transparent">
+                Art, Videos & 3D
+              </span>
+            </motion.h1>
+
+            {/* Subheadline */}
+            <motion.p
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.2 }}
+              className="text-lg md:text-xl text-muted-foreground mb-8 max-w-xl mx-auto lg:mx-0"
+            >
+              One platform for FLUX, Kling, Meshy and 10+ AI models. Connect
+              your fal.ai key — pay only for what you use. No subscriptions.
+            </motion.p>
+
+            {/* CTA Buttons */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.3 }}
+              className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start"
+            >
+              {hasPlatformAccess ? (
+                <Link to="/dashboard">
+                  <Button size="lg" className="min-w-[200px] group">
+                    Go to Dashboard
+                    <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
+                  </Button>
+                </Link>
+              ) : isLoggedIn ? (
+                <Link to="/pricing" search={{ auto_checkout: 'true' }}>
+                  <Button size="lg" className="min-w-[200px] group">
+                    Buy Now for €149
+                    <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
+                  </Button>
+                </Link>
+              ) : (
+                <Link to="/signup" search={{ redirect: 'checkout' }}>
+                  <Button size="lg" className="min-w-[200px] group">
+                    Buy Now for €149
+                    <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
+                  </Button>
+                </Link>
+              )}
+              <Button
+                variant="outline"
+                size="lg"
+                className="min-w-[180px]"
+                onClick={() => scrollToSection('images')}
+              >
+                <Sparkles className="mr-2 h-4 w-4" />
+                See Examples
+              </Button>
+            </motion.div>
+
+            {/* How it works - simplified */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.4 }}
+              className="mt-12 flex flex-wrap justify-center lg:justify-start gap-6"
+            >
+              {[
+                { step: '1', label: 'Connect fal.ai key' },
+                { step: '2', label: 'Create content' },
+                { step: '3', label: 'Download & use' },
+              ].map((item, index) => (
+                <div key={item.step} className="flex items-center gap-2">
+                  <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-primary-foreground text-sm font-semibold">
+                    {item.step}
+                  </div>
+                  <span className="text-sm text-muted-foreground">
+                    {item.label}
+                  </span>
+                  {index < 2 && (
+                    <ArrowRight className="h-4 w-4 text-muted-foreground/50 hidden sm:block" />
+                  )}
                 </div>
-                <div className="text-sm text-muted-foreground">
-                  {stat.label}
+              ))}
+            </motion.div>
+          </div>
+
+          {/* Right: Hero Image Showcase */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.7, delay: 0.3 }}
+            className="relative"
+          >
+            <div className="relative rounded-2xl border bg-gradient-to-b from-muted/50 to-muted/20 p-2 shadow-2xl overflow-hidden">
+              {/* Image container */}
+              <div className="aspect-[4/3] rounded-xl overflow-hidden relative">
+                <AnimatePresence mode="wait">
+                  <motion.img
+                    key={currentImageIndex}
+                    src={heroImages[currentImageIndex]}
+                    alt="AI Generated Art"
+                    className="absolute inset-0 w-full h-full object-cover"
+                    initial={{ opacity: 0, scale: 1.1 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    transition={{ duration: 0.7 }}
+                  />
+                </AnimatePresence>
+
+                {/* Overlay gradient */}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
+
+                {/* Badge */}
+                <div className="absolute top-4 left-4">
+                  <span className="inline-flex items-center gap-2 rounded-full bg-black/60 backdrop-blur-sm px-3 py-1.5 text-xs font-medium text-white">
+                    <Sparkles className="h-3 w-3" />
+                    AI Generated
+                  </span>
                 </div>
               </div>
-            ))}
-          </motion.div>
 
-          {/* Hero Visual Preview */}
-          <motion.div
-            initial={{ opacity: 0, y: 40 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.7, delay: 0.5 }}
-            className="mt-16 w-full max-w-5xl"
-          >
-            <div className="relative rounded-2xl border bg-gradient-to-b from-muted/50 to-muted/20 p-2 shadow-2xl">
-              {/* Browser chrome */}
-              <div className="flex items-center gap-2 px-4 py-3 border-b bg-background/50 rounded-t-xl">
-                <div className="flex gap-1.5">
-                  <div className="w-3 h-3 rounded-full bg-red-500/80" />
-                  <div className="w-3 h-3 rounded-full bg-yellow-500/80" />
-                  <div className="w-3 h-3 rounded-full bg-green-500/80" />
-                </div>
-                <div className="flex-1 flex justify-center">
-                  <div className="px-4 py-1 rounded-md bg-muted text-xs text-muted-foreground">
-                    cinevido.com
-                  </div>
-                </div>
-              </div>
-              {/* Preview content */}
-              <div className="aspect-[16/9] rounded-b-xl bg-gradient-to-br from-background via-muted/50 to-background overflow-hidden">
-                <div className="h-full flex items-center justify-center">
-                  <div className="grid grid-cols-3 gap-4 p-8 w-full max-w-3xl">
-                    {/* Image preview */}
-                    <motion.div
-                      animate={{ y: [0, -8, 0] }}
-                      transition={{
-                        duration: 3,
-                        repeat: Infinity,
-                        ease: 'easeInOut',
-                      }}
-                      className="aspect-square rounded-xl bg-gradient-to-br from-violet-500/20 to-purple-500/20 border border-violet-500/30 flex items-center justify-center"
-                    >
-                      <Sparkles className="h-8 w-8 text-violet-500/60" />
-                    </motion.div>
-                    {/* Video preview */}
-                    <motion.div
-                      animate={{ y: [0, -8, 0] }}
-                      transition={{
-                        duration: 3,
-                        repeat: Infinity,
-                        ease: 'easeInOut',
-                        delay: 0.5,
-                      }}
-                      className="aspect-square rounded-xl bg-gradient-to-br from-blue-500/20 to-cyan-500/20 border border-blue-500/30 flex items-center justify-center"
-                    >
-                      <div className="w-0 h-0 border-l-[16px] border-l-blue-500/60 border-t-[10px] border-t-transparent border-b-[10px] border-b-transparent ml-1" />
-                    </motion.div>
-                    {/* 3D preview */}
-                    <motion.div
-                      animate={{ y: [0, -8, 0], rotateY: [0, 180, 360] }}
-                      transition={{
-                        duration: 6,
-                        repeat: Infinity,
-                        ease: 'easeInOut',
-                        delay: 1,
-                      }}
-                      className="aspect-square rounded-xl bg-gradient-to-br from-emerald-500/20 to-teal-500/20 border border-emerald-500/30 flex items-center justify-center"
-                      style={{ perspective: 1000 }}
-                    >
-                      <div className="w-10 h-10 bg-gradient-to-br from-emerald-500/40 to-teal-500/40 rounded-lg transform rotate-45" />
-                    </motion.div>
-                  </div>
-                </div>
+              {/* Image indicators */}
+              <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-2">
+                {heroImages.map((_, index) => (
+                  <button
+                    key={index}
+                    onClick={() => setCurrentImageIndex(index)}
+                    className={`h-2 rounded-full transition-all duration-300 ${
+                      index === currentImageIndex
+                        ? 'w-6 bg-white'
+                        : 'w-2 bg-white/50 hover:bg-white/70'
+                    }`}
+                  />
+                ))}
               </div>
             </div>
+
+            {/* Stats overlay */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.6 }}
+              className="absolute -bottom-6 left-1/2 -translate-x-1/2 w-[90%] md:w-auto"
+            >
+              <div className="flex items-center justify-center gap-6 rounded-xl border bg-background/90 backdrop-blur-sm px-6 py-4 shadow-lg">
+                {[
+                  { value: '10+', label: 'AI Models' },
+                  { value: '€149', label: 'One-Time' },
+                  { value: 'Lifetime', label: 'Access' },
+                ].map((stat, index) => (
+                  <div key={stat.label} className="flex items-center gap-4">
+                    <div className="text-center">
+                      <div className="text-lg md:text-xl font-bold text-primary">
+                        {stat.value}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {stat.label}
+                      </div>
+                    </div>
+                    {index < 2 && (
+                      <div className="h-8 w-px bg-border hidden md:block" />
+                    )}
+                  </div>
+                ))}
+              </div>
+            </motion.div>
           </motion.div>
         </div>
       </div>

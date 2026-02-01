@@ -44,7 +44,11 @@ import {
   FolderSidebar,
   BulkActionsBar,
 } from '../../../components/projects'
-import type { ProjectStatus, SortBy, SortOrder } from '../../../components/projects'
+import type {
+  ProjectStatus,
+  SortBy,
+  SortOrder,
+} from '../../../components/projects'
 import { cn } from '@/lib/utils'
 
 // Search params schema
@@ -60,7 +64,9 @@ export const Route = createFileRoute('/_app/projects/')({
   component: ProjectsPage,
   validateSearch: (search: Record<string, unknown>): ProjectsSearch => ({
     q: typeof search.q === 'string' ? search.q : undefined,
-    status: ['all', 'draft', 'rendering', 'completed', 'failed'].includes(search.status as string)
+    status: ['all', 'draft', 'rendering', 'completed', 'failed'].includes(
+      search.status as string,
+    )
       ? (search.status as ProjectStatus)
       : undefined,
     folder: typeof search.folder === 'string' ? search.folder : undefined,
@@ -93,7 +99,9 @@ function ProjectsPage() {
     open: boolean
     projectId: string | null
   }>({ open: false, projectId: null })
-  const [selectedProjects, setSelectedProjects] = useState<Set<string>>(new Set())
+  const [selectedProjects, setSelectedProjects] = useState<Set<string>>(
+    new Set(),
+  )
   const [isBulkMode, setIsBulkMode] = useState(false)
   const [folderCollapsed, setFolderCollapsed] = useState(false)
   const [mobileFolderOpen, setMobileFolderOpen] = useState(false)
@@ -114,19 +122,28 @@ function ProjectsPage() {
         replace: true,
       })
     },
-    [navigate, search]
+    [navigate, search],
   )
 
   // Fetch projects with search/filter
   const { data, isLoading, error } = useQuery({
-    queryKey: ['projects', searchQuery, statusFilter, selectedFolder, sortBy, sortOrder],
+    queryKey: [
+      'projects',
+      searchQuery,
+      statusFilter,
+      selectedFolder,
+      sortBy,
+      sortOrder,
+    ],
     queryFn: async () => {
-      const { searchProjectsFn } = await import('../../../server/project.server')
+      const { searchProjectsFn } =
+        await import('../../../server/project.server')
       return searchProjectsFn({
         data: {
           query: searchQuery || undefined,
           status: statusFilter === 'all' ? undefined : statusFilter,
-          folderId: selectedFolder === 'none' ? null : selectedFolder || undefined,
+          folderId:
+            selectedFolder === 'none' ? null : selectedFolder || undefined,
           sortBy,
           sortOrder,
           limit: 50,
@@ -269,7 +286,9 @@ function ProjectsPage() {
         <Button
           variant="outline"
           className="mt-4"
-          onClick={() => queryClient.invalidateQueries({ queryKey: ['projects'] })}
+          onClick={() =>
+            queryClient.invalidateQueries({ queryKey: ['projects'] })
+          }
         >
           Retry
         </Button>
@@ -379,7 +398,10 @@ function ProjectsPage() {
                     </div>
                     <div className="space-y-2">
                       <Label>Aspect Ratio</Label>
-                      <Select value={aspectRatio} onValueChange={setAspectRatio}>
+                      <Select
+                        value={aspectRatio}
+                        onValueChange={setAspectRatio}
+                      >
                         <SelectTrigger>
                           <SelectValue />
                         </SelectTrigger>
@@ -395,9 +417,13 @@ function ProjectsPage() {
                     <Button
                       className="w-full"
                       onClick={handleCreateProject}
-                      disabled={!newProjectName.trim() || createMutation.isPending}
+                      disabled={
+                        !newProjectName.trim() || createMutation.isPending
+                      }
                     >
-                      {createMutation.isPending ? 'Creating...' : 'Create Project'}
+                      {createMutation.isPending
+                        ? 'Creating...'
+                        : 'Create Project'}
                     </Button>
                   </div>
                 </DialogContent>
@@ -460,7 +486,7 @@ function ProjectsPage() {
                       className={cn(
                         'overflow-hidden transition-all',
                         'hover:shadow-lg',
-                        isSelected && 'ring-2 ring-primary'
+                        isSelected && 'ring-2 ring-primary',
                       )}
                     >
                       {/* Thumbnail */}
@@ -500,7 +526,7 @@ function ProjectsPage() {
                               project.status === 'failed' &&
                                 'bg-red-500/90 text-white',
                               project.status === 'draft' &&
-                                'bg-gray-500/90 text-white'
+                                'bg-gray-500/90 text-white',
                             )}
                           >
                             {project.status}
@@ -510,7 +536,9 @@ function ProjectsPage() {
                         {/* Selection checkbox / Hover overlay */}
                         {isBulkMode ? (
                           <button
-                            onClick={(e) => toggleProjectSelection(project.id, e)}
+                            onClick={(e) =>
+                              toggleProjectSelection(project.id, e)
+                            }
                             className="absolute inset-0 flex items-center justify-center bg-black/30"
                           >
                             {isSelected ? (

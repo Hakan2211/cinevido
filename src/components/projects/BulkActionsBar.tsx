@@ -9,12 +9,7 @@ import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { FolderInput, Trash2, X } from 'lucide-react'
 import { Button } from '../ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '../ui/dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog'
 import { ConfirmDialog } from '../ui/confirm-dialog'
 import { cn } from '@/lib/utils'
 
@@ -55,7 +50,8 @@ export function BulkActionsBar({
   // Bulk delete mutation
   const deleteMutation = useMutation({
     mutationFn: async (projectIds: string[]) => {
-      const { bulkDeleteProjectsFn } = await import('../../server/project.server')
+      const { bulkDeleteProjectsFn } =
+        await import('../../server/project.server')
       return bulkDeleteProjectsFn({ data: { projectIds } } as never)
     },
     onSuccess: () => {
@@ -69,7 +65,13 @@ export function BulkActionsBar({
 
   // Bulk move mutation
   const moveMutation = useMutation({
-    mutationFn: async ({ projectIds, folderId }: { projectIds: string[]; folderId: string | null }) => {
+    mutationFn: async ({
+      projectIds,
+      folderId,
+    }: {
+      projectIds: string[]
+      folderId: string | null
+    }) => {
       const { bulkMoveProjectsFn } = await import('../../server/project.server')
       return bulkMoveProjectsFn({ data: { projectIds, folderId } } as never)
     },
@@ -104,13 +106,11 @@ export function BulkActionsBar({
         className={cn(
           'fixed bottom-6 left-1/2 z-50 -translate-x-1/2',
           'flex items-center gap-3 rounded-full border bg-background px-4 py-2 shadow-lg',
-          'animate-in fade-in slide-in-from-bottom-4'
+          'animate-in fade-in slide-in-from-bottom-4',
         )}
       >
         {/* Selection Count */}
-        <span className="text-sm font-medium">
-          {selectedCount} selected
-        </span>
+        <span className="text-sm font-medium">{selectedCount} selected</span>
 
         {/* Divider */}
         <div className="h-4 w-px bg-border" />
