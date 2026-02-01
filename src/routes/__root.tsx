@@ -8,6 +8,7 @@ import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools'
 import { TanStackDevtools } from '@tanstack/react-devtools'
 import { Toaster } from 'sonner'
 import TanStackQueryDevtools from '../integrations/tanstack-query/devtools'
+import { AudioProvider } from '@/contexts/AudioContext'
 
 import appCss from '../styles.css?url'
 
@@ -135,7 +136,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <script dangerouslySetInnerHTML={{ __html: staleAssetReloadScript }} />
       </head>
       <body className="min-h-screen bg-background font-sans antialiased">
-        {children}
+        <AudioProvider>{children}</AudioProvider>
         <Toaster position="bottom-right" richColors />
         <TanStackDevtools
           config={{

@@ -3,6 +3,7 @@ import { motion, useScroll, useTransform } from 'framer-motion'
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Logo } from '@/components/common'
+import { AudioToggle } from '@/components/audio'
 import { MobileNav } from './MobileNav'
 import { cn } from '@/lib/utils'
 import { useIsMobile } from '@/hooks/use-mobile'
@@ -94,8 +95,13 @@ export function LandingHeader() {
             ))}
           </nav>
 
-          {/* Auth Buttons + Mobile Menu */}
+          {/* Audio Toggle + Auth Buttons + Mobile Menu */}
           <div className="flex items-center gap-3">
+            {/* Audio toggle - desktop */}
+            <div className="hidden md:block">
+              <AudioToggle variant={isScrolled ? 'dark' : 'light'} />
+            </div>
+
             {/* Desktop auth buttons */}
             <div className="hidden md:flex items-center gap-3">
               {isLoggedIn ? (

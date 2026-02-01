@@ -9,6 +9,7 @@ import {
   SheetTrigger,
 } from '@/components/ui/sheet'
 import { Logo } from '@/components/common'
+import { AudioToggle } from '@/components/audio'
 import { useUserAccess } from '@/hooks/use-user-access'
 import { useState } from 'react'
 
@@ -36,9 +37,12 @@ export function MobileNav({ navItems, onNavClick }: MobileNavProps) {
       </SheetTrigger>
       <SheetContent side="right" className="w-[300px] sm:w-[350px]">
         <SheetHeader className="border-b pb-4">
-          <SheetTitle className="flex items-center gap-2">
-            <Logo size={28} />
-            <span className="text-lg font-bold">Cinevido</span>
+          <SheetTitle className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Logo size={28} />
+              <span className="text-lg font-bold">Cinevido</span>
+            </div>
+            <AudioToggle variant="dark" />
           </SheetTitle>
         </SheetHeader>
 
