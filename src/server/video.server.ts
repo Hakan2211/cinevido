@@ -554,9 +554,7 @@ export const uploadUserVideoFn = createServerFn({ method: 'POST' })
     }
     const extension = extensionMap[data.contentType] || 'mp4'
     // Sanitize filename: remove extension, replace spaces with dashes, remove special chars, add timestamp
-    const rawName = (
-      data.filename?.replace(/\.[^/.]+$/, '') || 'upload' // Remove any existing extension
-    )
+    const rawName = (data.filename?.replace(/\.[^/.]+$/, '') || 'upload') // Remove any existing extension
       .replace(/\s+/g, '-') // Replace spaces with dashes
       .replace(/[^a-zA-Z0-9._-]/g, '') // Remove special characters
     const filename = `${rawName}-${Date.now()}`

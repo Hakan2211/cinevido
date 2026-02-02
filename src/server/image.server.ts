@@ -576,8 +576,7 @@ export const uploadUserImageFn = createServerFn({ method: 'POST' })
       'image/gif': 'gif',
     }
     const extension = extensionMap[data.contentType] || 'png'
-    const rawName =
-      data.filename?.replace(/\.[^/.]+$/, '') || 'upload' // Remove any existing extension
+    const rawName = data.filename?.replace(/\.[^/.]+$/, '') || 'upload' // Remove any existing extension
     const filename = `${rawName}-${Date.now()}`
     const fullFilename = `${filename}.${extension}`
 

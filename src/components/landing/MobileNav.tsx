@@ -37,7 +37,7 @@ export function MobileNav({ navItems, onNavClick }: MobileNavProps) {
       </SheetTrigger>
       <SheetContent side="right" className="w-[300px] sm:w-[350px]">
         <SheetHeader className="border-b pb-4">
-          <SheetTitle className="flex items-center justify-between">
+          <SheetTitle className="flex items-center justify-between pr-12">
             <div className="flex items-center gap-2">
               <Logo size={28} />
               <span className="text-lg font-bold">Cinevido</span>

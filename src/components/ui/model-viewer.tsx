@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 // Type augmentation for model-viewer custom element
@@ -49,15 +50,44 @@ export function ModelViewer({
   className,
 }: ModelViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null)
+  const modelRef = useRef<HTMLElement>(null)
+  const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
     // Dynamically import model-viewer only on client side
     import('@google/model-viewer')
   }, [])
 
+  useEffect(() => {
+    const modelViewer = modelRef.current
+    if (!modelViewer) return
+
+    const handleLoad = () => setIsLoading(false)
+    const handleError = () => setIsLoading(false) // Hide spinner on error too
+
+    modelViewer.addEventListener('load', handleLoad)
+    modelViewer.addEventListener('error', handleError)
+
+    return () => {
+      modelViewer.removeEventListener('load', handleLoad)
+      modelViewer.removeEventListener('error', handleError)
+    }
+  }, [])
+
   return (
     <div ref={containerRef} className={cn('relative w-full', className)}>
+      {/* Loading indicator */}
+      {isLoading && (
+        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <span className="mt-3 text-sm text-muted-foreground">
+            Loading 3D model...
+          </span>
+        </div>
+      )}
+
       <model-viewer
+        ref={modelRef as React.RefObject<HTMLElement>}
         src={src}
         alt={alt}
         poster={poster}

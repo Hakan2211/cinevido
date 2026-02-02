@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { Play, Pause, Video, Volume2, VolumeX } from 'lucide-react'
 import { showcaseVideos } from '@/lib/showcase-assets'
@@ -85,6 +85,12 @@ function VideoCard({ video }: VideoCardProps) {
   const [isPlaying, setIsPlaying] = useState(false)
   const [isMuted, setIsMuted] = useState(true)
   const [isHovered, setIsHovered] = useState(false)
+  const [isTouchDevice, setIsTouchDevice] = useState(false)
+
+  useEffect(() => {
+    // Detect touch device on mount
+    setIsTouchDevice('ontouchstart' in window || navigator.maxTouchPoints > 0)
+  }, [])
 
   const togglePlay = () => {
     if (videoRef.current) {
@@ -106,6 +112,8 @@ function VideoCard({ video }: VideoCardProps) {
   }
 
   const handleMouseEnter = () => {
+    // Skip hover behavior on touch devices
+    if (isTouchDevice) return
     setIsHovered(true)
     if (videoRef.current && !isPlaying) {
       videoRef.current.play()
@@ -114,6 +122,8 @@ function VideoCard({ video }: VideoCardProps) {
   }
 
   const handleMouseLeave = () => {
+    // Skip hover behavior on touch devices
+    if (isTouchDevice) return
     setIsHovered(false)
     // Pause video when mouse leaves
     if (videoRef.current) {
@@ -153,7 +163,10 @@ function VideoCard({ video }: VideoCardProps) {
       <div
         className={cn(
           'absolute inset-0 flex items-center justify-center transition-opacity duration-300',
-          isPlaying && !isHovered ? 'opacity-0' : 'opacity-100',
+          // Hide controls only when playing AND not hovered AND not a touch device
+          isPlaying && !isHovered && !isTouchDevice
+            ? 'opacity-0'
+            : 'opacity-100',
         )}
       >
         <div className="flex h-14 w-14 items-center justify-center rounded-full bg-white/20 backdrop-blur-sm transition-transform hover:scale-110">
