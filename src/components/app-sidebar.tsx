@@ -204,23 +204,43 @@ export function AppSidebar({ user }: AppSidebarProps) {
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  asChild
-                  isActive={isActive('/projects')}
-                  tooltip="Projects"
-                  size="lg"
-                  className="data-[active=true]:bg-primary/5 data-[active=true]:text-primary group-data-[collapsible=icon]:justify-center"
-                  onClick={handleNavClick}
-                >
-                  <Link to="/projects">
+              {/* Projects - Admin only for now */}
+              {userRole === 'admin' ? (
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={isActive('/projects')}
+                    tooltip="Projects"
+                    size="lg"
+                    className="data-[active=true]:bg-primary/5 data-[active=true]:text-primary group-data-[collapsible=icon]:justify-center"
+                    onClick={handleNavClick}
+                  >
+                    <Link to="/projects">
+                      <FolderKanban className="h-5! w-5!" />
+                      <span className="text-base font-medium group-data-[collapsible=icon]:hidden">
+                        Projects
+                      </span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ) : (
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    tooltip="Projects - Coming Soon"
+                    size="lg"
+                    className="opacity-60 cursor-not-allowed group-data-[collapsible=icon]:justify-center"
+                    disabled
+                  >
                     <FolderKanban className="h-5! w-5!" />
                     <span className="text-base font-medium group-data-[collapsible=icon]:hidden">
                       Projects
                     </span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
+                    <span className="ml-auto text-[10px] font-semibold uppercase tracking-wider bg-primary/10 text-primary px-1.5 py-0.5 rounded group-data-[collapsible=icon]:hidden">
+                      Soon
+                    </span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

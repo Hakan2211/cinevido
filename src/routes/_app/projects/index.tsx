@@ -5,7 +5,12 @@
  * Responsive grid layout with mobile-first design.
  */
 
-import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
+import {
+  Link,
+  createFileRoute,
+  redirect,
+  useNavigate,
+} from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState, useCallback } from 'react'
 import {
@@ -61,6 +66,12 @@ interface ProjectsSearch {
 }
 
 export const Route = createFileRoute('/_app/projects/')({
+  beforeLoad: ({ context }) => {
+    // Only admins can access projects for now (feature in development)
+    if (context.user?.role !== 'admin') {
+      throw redirect({ to: '/dashboard' })
+    }
+  },
   component: ProjectsPage,
   validateSearch: (search: Record<string, unknown>): ProjectsSearch => ({
     q: typeof search.q === 'string' ? search.q : undefined,
