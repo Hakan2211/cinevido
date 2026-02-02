@@ -1,4 +1,9 @@
-import { Outlet, createFileRoute, redirect } from '@tanstack/react-router'
+import {
+  Outlet,
+  createFileRoute,
+  redirect,
+  useMatches,
+} from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { useSession } from '../lib/auth-client'
 
@@ -75,10 +80,16 @@ export const Route = createFileRoute('/_app')({
 function AppLayout() {
   const routeContext = Route.useRouteContext()
   const { data: session } = useSession()
+  const matches = useMatches()
 
   // User from session takes precedence, fallback to route context
   const sessionUser = session?.user as AppUser | undefined
   const user = sessionUser ?? routeContext.user
+
+  // Detect if we're on a studio/project workspace route (needs full-bleed layout)
+  const isStudioRoute = matches.some((match) =>
+    match.routeId.includes('/projects/$projectId'),
+  )
 
   // Fetch BYOK status client-side only (avoids server import leak)
   const { data: currentByokStatus } = useQuery({
@@ -112,7 +123,13 @@ function AppLayout() {
           </header>
 
           {/* Page Content */}
-          <main className="flex-1 overflow-auto bg-muted/5 p-6 md:p-8">
+          <main
+            className={
+              isStudioRoute
+                ? 'flex-1 min-w-0 w-full max-w-full overflow-hidden' // Studio: no padding, no scroll, full-bleed
+                : 'flex-1 overflow-auto bg-muted/5 p-6 md:p-8' // Normal pages
+            }
+          >
             <Outlet />
           </main>
         </div>

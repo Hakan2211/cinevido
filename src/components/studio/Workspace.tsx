@@ -204,7 +204,7 @@ export function Workspace({ project }: WorkspaceProps) {
   }
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] flex-col overflow-hidden bg-background">
+    <div className="flex h-full w-full max-w-full flex-col overflow-hidden bg-background">
       {/* Header */}
       <header className="flex h-12 items-center justify-between border-b px-4">
         <div className="flex items-center gap-4">
@@ -233,11 +233,11 @@ export function Workspace({ project }: WorkspaceProps) {
       </header>
 
       {/* Main content area */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex min-w-0 flex-1 w-full max-w-full overflow-hidden">
         {/* Left Panel - Chat */}
         <aside
-          className={`border-r bg-muted/30 transition-all ${
-            leftPanelCollapsed ? 'w-12' : 'w-80'
+          className={`border-r bg-muted/30 transition-all overflow-hidden ${
+            leftPanelCollapsed ? 'w-12 shrink-0' : 'flex-[0_1_280px] min-w-48'
           }`}
         >
           <ChatPanel
@@ -250,7 +250,7 @@ export function Workspace({ project }: WorkspaceProps) {
         </aside>
 
         {/* Center - Preview + Timeline */}
-        <main className="relative flex flex-1 flex-col overflow-hidden">
+        <main className="relative flex flex-1 flex-col overflow-hidden min-w-0">
           {/* Video Preview */}
           <div className="flex-1 overflow-hidden p-4">
             <VideoPreview
@@ -303,8 +303,8 @@ export function Workspace({ project }: WorkspaceProps) {
 
         {/* Right Panel - Assets */}
         <aside
-          className={`border-l bg-muted/30 transition-all ${
-            rightPanelCollapsed ? 'w-12' : 'w-80'
+          className={`border-l bg-muted/30 transition-all overflow-hidden ${
+            rightPanelCollapsed ? 'w-12 shrink-0' : 'flex-[0_1_280px] min-w-48'
           }`}
         >
           <AssetPanel

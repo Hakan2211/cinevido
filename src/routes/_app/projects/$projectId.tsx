@@ -7,9 +7,11 @@
  * - Right: Asset Library + Generate panel
  */
 
+import { useEffect, useRef } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { Workspace } from '../../../components/studio/Workspace'
+import { useSidebar } from '../../../components/ui/sidebar'
 
 // NOTE: Server functions are dynamically imported in queryFn
 // to prevent Prisma and other server-only code from being bundled into the client.
@@ -21,6 +23,24 @@ export const Route = createFileRoute('/_app/projects/$projectId')({
 
 function ProjectWorkspacePage() {
   const { projectId } = Route.useParams()
+  const { setOpen, open } = useSidebar()
+  const wasOpenRef = useRef(open)
+
+  // Auto-collapse sidebar on mount, restore on unmount
+  useEffect(() => {
+    // Save current state on mount
+    wasOpenRef.current = open
+    // Collapse sidebar for more workspace space
+    setOpen(false)
+
+    return () => {
+      // Restore previous state when leaving the page
+      if (wasOpenRef.current) {
+        setOpen(true)
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // Only run on mount/unmount
 
   // Fetch project data
   const {
@@ -37,7 +57,7 @@ function ProjectWorkspacePage() {
 
   if (isLoading) {
     return (
-      <div className="flex h-[calc(100vh-8rem)] items-center justify-center">
+      <div className="flex h-full items-center justify-center">
         <div className="text-center">
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent mx-auto" />
           <p className="mt-4 text-muted-foreground">Loading project...</p>
@@ -48,7 +68,7 @@ function ProjectWorkspacePage() {
 
   if (error || !project) {
     return (
-      <div className="flex h-[calc(100vh-8rem)] items-center justify-center">
+      <div className="flex h-full items-center justify-center">
         <div className="text-center">
           <p className="text-destructive">Failed to load project</p>
           <p className="mt-2 text-sm text-muted-foreground">
