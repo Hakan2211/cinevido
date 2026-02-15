@@ -19,6 +19,7 @@ import {
 } from './services/video-upscale.server'
 import { getVideoUpscaleModelById } from './services/types'
 import { uploadFromUrl } from './services/bunny.server'
+import { getUserStorageConfig } from './storage-config.server'
 
 // =============================================================================
 // Schemas
@@ -250,15 +251,20 @@ export const getVideoUpscaleJobStatusFn = createServerFn({ method: 'GET' })
       if (falTempUrl) {
         const filename = `video-upscale-${Date.now()}.mp4`
 
-        // Upload the upscaled video from FAL's temporary URL to Bunny CDN
+        // Upload the upscaled video from FAL's temporary URL to Bunny CDN (user's storage or platform default)
         let permanentUrl = falTempUrl
 
         console.log('[VIDEO_UPSCALE_FN] Uploading to Bunny CDN...')
+        const storageConfig = await getUserStorageConfig(context.user.id)
         try {
-          const uploadResult = await uploadFromUrl(falTempUrl, {
-            folder: `videos/${context.user.id}`,
-            filename,
-          })
+          const uploadResult = await uploadFromUrl(
+            falTempUrl,
+            {
+              folder: `videos/${context.user.id}`,
+              filename,
+            },
+            storageConfig ?? undefined,
+          )
           permanentUrl = uploadResult.url
           console.log('[VIDEO_UPSCALE_FN] Bunny upload success:', permanentUrl)
         } catch (uploadError) {

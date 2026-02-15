@@ -17,6 +17,7 @@ import {
 } from './services/fal.server'
 import sharp from 'sharp'
 import { uploadBuffer, uploadFromUrl } from './services/bunny.server'
+import { getUserStorageConfig } from './storage-config.server'
 import { IMAGE_MODELS, getModelById } from './services/types'
 import type { FalImageResult } from './services/fal.server'
 
@@ -260,6 +261,9 @@ export const getImageJobStatusFn = createServerFn({ method: 'GET' })
           height: number
         }> = []
 
+        // Get user's storage config (if configured, uploads go to their Bunny zone)
+        const storageConfig = await getUserStorageConfig(context.user.id)
+
         // Process each image in the result
         for (let i = 0; i < allImages.length; i++) {
           const imageData = allImages[i]
@@ -270,15 +274,19 @@ export const getImageJobStatusFn = createServerFn({ method: 'GET' })
             falTempUrl.slice(0, 80) + '...',
           )
 
-          // Upload to Bunny CDN
+          // Upload to Bunny CDN (user's storage or platform default)
           const filename = `generated-${Date.now()}-${i}`
           let permanentUrl = falTempUrl
 
           try {
-            const uploadResult = await uploadFromUrl(falTempUrl, {
-              folder: `images/${context.user.id}`,
-              filename,
-            })
+            const uploadResult = await uploadFromUrl(
+              falTempUrl,
+              {
+                folder: `images/${context.user.id}`,
+                filename,
+              },
+              storageConfig ?? undefined,
+            )
             permanentUrl = uploadResult.url
             console.log(`[IMAGE] Bunny upload ${i + 1} success:`, permanentUrl)
           } catch (uploadError) {
@@ -580,12 +588,18 @@ export const uploadUserImageFn = createServerFn({ method: 'POST' })
     const filename = `${rawName}-${Date.now()}`
     const fullFilename = `${filename}.${extension}`
 
-    // Upload to Bunny CDN (use processed buffer which may have been resized)
+    // Upload to Bunny CDN (user's storage or platform default)
     console.log('[IMAGE] Uploading to Bunny CDN...')
-    const uploadResult = await uploadBuffer(processedBuffer, data.contentType, {
-      folder: `images/${context.user.id}`,
-      filename: fullFilename,
-    })
+    const storageConfig = await getUserStorageConfig(context.user.id)
+    const uploadResult = await uploadBuffer(
+      processedBuffer,
+      data.contentType,
+      {
+        folder: `images/${context.user.id}`,
+        filename: fullFilename,
+      },
+      storageConfig ?? undefined,
+    )
     console.log('[IMAGE] Upload success:', uploadResult.url)
 
     // Get final dimensions

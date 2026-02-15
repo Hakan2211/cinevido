@@ -46,6 +46,13 @@ model User {
   falApiKeyLastFour String?  // Last 4 chars for display (e.g., "...xxxx")
   falApiKeyAddedAt DateTime? // When the key was added/updated
 
+  // User's Bunny.net storage config (encrypted API key) - BYOK Storage
+  bunnyStorageZone    String?   // Storage zone name (e.g., "my-zone")
+  bunnyApiKey         String?   // Encrypted API key (AES-256-GCM)
+  bunnyApiKeyLastFour String?   // Last 4 chars for display (e.g., "...xxxx")
+  bunnyCdnUrl         String?   // CDN pull zone URL (e.g., "https://my-zone.b-cdn.net")
+  bunnyStorageAddedAt DateTime? // When the storage config was added/updated
+
   // Cinevido: User preferences
   preferredLlmModel   String? // e.g., "anthropic/claude-3.5-sonnet"
   preferredImageModel String? // e.g., "flux-pro"

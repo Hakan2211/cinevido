@@ -12,6 +12,7 @@ import { authMiddleware } from './middleware.server'
 import { getUserFalApiKey } from './byok.server'
 import { cancelJob, generate3DModel, getJobStatus } from './services/fal.server'
 import { uploadFromUrl } from './services/bunny.server'
+import { getUserStorageConfig } from './storage-config.server'
 import { get3DModelById } from './services/types'
 import type { Fal3DModelResult } from './services/fal.server'
 
@@ -342,14 +343,21 @@ export const get3DModelStatusFn = createServerFn({ method: 'POST' })
         worldFileUrl = result.world_file.url
       }
 
+      // Get user's storage config (if configured, uploads go to their Bunny zone)
+      const storageConfig = await getUserStorageConfig(context.user.id)
+
       // Upload GLB to Bunny CDN for permanent storage
       let permanentGlbUrl = modelGlbUrl
       if (modelGlbUrl) {
         try {
-          const uploadResult = await uploadFromUrl(modelGlbUrl, {
-            folder: `3d-models/${context.user.id}`,
-            filename: `model-${asset.id}.glb`,
-          })
+          const uploadResult = await uploadFromUrl(
+            modelGlbUrl,
+            {
+              folder: `3d-models/${context.user.id}`,
+              filename: `model-${asset.id}.glb`,
+            },
+            storageConfig ?? undefined,
+          )
           permanentGlbUrl = uploadResult.url
           modelUrls.glb = uploadResult.url
           console.log('[3D] Uploaded GLB to Bunny:', permanentGlbUrl)
@@ -363,10 +371,14 @@ export const get3DModelStatusFn = createServerFn({ method: 'POST' })
       let permanentThumbnailUrl = thumbnailUrl
       if (thumbnailUrl) {
         try {
-          const uploadResult = await uploadFromUrl(thumbnailUrl, {
-            folder: `3d-models/${context.user.id}`,
-            filename: `thumbnail-${asset.id}.png`,
-          })
+          const uploadResult = await uploadFromUrl(
+            thumbnailUrl,
+            {
+              folder: `3d-models/${context.user.id}`,
+              filename: `thumbnail-${asset.id}.png`,
+            },
+            storageConfig ?? undefined,
+          )
           permanentThumbnailUrl = uploadResult.url
           console.log(
             '[3D] Uploaded thumbnail to Bunny:',

@@ -11,6 +11,7 @@ import {
   generateSpeech,
   generateVideo,
 } from '../services/index.server'
+import { getUserStorageConfig } from '../storage-config.server'
 import { TOOL_NAMES } from './tools.server'
 import type {
   AudioClip,
@@ -342,10 +343,15 @@ export async function executeGenerateVoiceover(
 
     // Generate speech via Fal.ai (synchronous - TTS is fast)
     // The service handles re-uploading to Bunny.net for permanent storage
-    const result = await generateSpeech({
-      text: args.text,
-      voice,
-    })
+    const storageConfig = await getUserStorageConfig(context.userId)
+    const result = await generateSpeech(
+      {
+        text: args.text,
+        voice,
+      },
+      undefined, // userApiKey (uses service default)
+      storageConfig,
+    )
 
     // Create asset record
     const asset = await prisma.asset.create({

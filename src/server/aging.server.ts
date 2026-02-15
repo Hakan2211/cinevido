@@ -14,6 +14,7 @@ import { getUserFalApiKey } from './byok.server'
 import { generateAging, getJobStatus } from './services/fal.server'
 import { AGE_GROUPS, AGING_MODELS, getAgingModelByType } from './services/types'
 import { uploadFromUrl } from './services/bunny.server'
+import { getUserStorageConfig } from './storage-config.server'
 
 // =============================================================================
 // Schemas
@@ -282,6 +283,9 @@ export const getAgingJobStatusFn = createServerFn({ method: 'GET' })
           height: number
         }> = []
 
+        // Get user's storage config once before the loop
+        const storageConfig = await getUserStorageConfig(context.user.id)
+
         // Upload each generated image to Bunny CDN and create assets
         for (let i = 0; i < images.length; i++) {
           const img = images[i]
@@ -293,10 +297,14 @@ export const getAgingJobStatusFn = createServerFn({ method: 'GET' })
             `[AGING_FN] Uploading image ${i + 1}/${images.length} to Bunny CDN...`,
           )
           try {
-            const uploadResult = await uploadFromUrl(img.url, {
-              folder: `images/${context.user.id}`,
-              filename,
-            })
+            const uploadResult = await uploadFromUrl(
+              img.url,
+              {
+                folder: `images/${context.user.id}`,
+                filename,
+              },
+              storageConfig ?? undefined,
+            )
             permanentUrl = uploadResult.url
             console.log('[AGING_FN] Bunny upload success:', permanentUrl)
           } catch (uploadError) {

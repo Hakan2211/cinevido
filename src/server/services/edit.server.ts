@@ -439,6 +439,9 @@ function buildEditPayload(input: EditInput, modelId: string) {
   } else if (modelId.includes('seedream')) {
     // Seedream 4.5: multi-image, uses image_urls array
     payload.image_urls = input.imageUrls
+  } else if (modelId.includes('grok-imagine-image/edit')) {
+    // Grok Imagine Edit: single image, uses image_url
+    payload.image_url = input.imageUrls[0]
   } else {
     // Default: try image_urls for multi, image_url for single
     if (input.imageUrls.length === 1) {

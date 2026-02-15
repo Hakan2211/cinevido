@@ -127,6 +127,16 @@ export const IMAGE_MODELS: Array<ModelConfig> = [
     description: 'Alibaba - High quality, good value',
     // Disabled: max_images causes downstream service errors on fal.ai
   },
+
+  // === xAI (Grok Imagine) ===
+  {
+    id: 'xai/grok-imagine-image',
+    name: 'Grok Imagine',
+    provider: 'fal',
+    description: 'xAI - Highly aesthetic images with prompt enhancement',
+    supportsNumImages: true,
+    maxNumImages: 4,
+  },
 ]
 
 // =============================================================================
@@ -212,6 +222,14 @@ export const EDIT_MODELS: Array<EditModelConfig> = [
     provider: 'fal',
     maxImages: 10,
     description: 'Multi-source composition',
+  },
+  // === xAI (Grok Imagine) ===
+  {
+    id: 'xai/grok-imagine-image/edit',
+    name: 'Grok Imagine',
+    provider: 'fal',
+    maxImages: 1,
+    description: 'xAI - Precise editing with prompt enhancement',
   },
 ]
 
@@ -377,6 +395,90 @@ export const VIDEO_MODELS: Array<VideoModelConfig> = [
     description: 'Top-tier image-to-video with native audio',
     capabilities: ['image-to-video'],
     durations: [5, 10],
+    supportsAudio: true,
+    supportsEndFrame: true,
+    fieldMappings: {
+      imageUrl: 'start_image_url',
+      endImageUrl: 'end_image_url',
+    },
+  },
+
+  // =============================================================================
+  // Kling 3.0 (O3) - Next-gen with extended durations (3-15s)
+  // =============================================================================
+  {
+    id: 'fal-ai/kling-video/o3/pro/text-to-video',
+    name: 'Kling 3.0 Pro',
+    provider: 'fal',
+    description: 'Kling 3.0 Pro text-to-video with 1080p and audio',
+    capabilities: ['text-to-video'],
+    durations: [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+    aspectRatios: ['16:9', '9:16', '1:1'],
+    supportsAudio: true,
+  },
+  {
+    id: 'fal-ai/kling-video/o3/standard/text-to-video',
+    name: 'Kling 3.0 Standard',
+    provider: 'fal',
+    description: 'Kling 3.0 Standard text-to-video - Affordable',
+    capabilities: ['text-to-video'],
+    durations: [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+    aspectRatios: ['16:9', '9:16', '1:1'],
+    supportsAudio: true,
+  },
+  {
+    id: 'fal-ai/kling-video/o3/pro/image-to-video',
+    name: 'Kling 3.0 Pro',
+    provider: 'fal',
+    description: 'Kling 3.0 Pro image-to-video with keyframes',
+    capabilities: ['image-to-video', 'keyframes'],
+    durations: [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+    aspectRatios: ['16:9', '9:16', '1:1'],
+    supportsAudio: true,
+    supportsEndFrame: true,
+    fieldMappings: {
+      imageUrl: 'image_url',
+      endImageUrl: 'end_image_url',
+    },
+  },
+  {
+    id: 'fal-ai/kling-video/o3/standard/image-to-video',
+    name: 'Kling 3.0 Standard',
+    provider: 'fal',
+    description: 'Kling 3.0 Standard image-to-video with keyframes',
+    capabilities: ['image-to-video', 'keyframes'],
+    durations: [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+    aspectRatios: ['16:9', '9:16', '1:1'],
+    supportsAudio: true,
+    supportsEndFrame: true,
+    fieldMappings: {
+      imageUrl: 'image_url',
+      endImageUrl: 'end_image_url',
+    },
+  },
+  {
+    id: 'fal-ai/kling-video/o3/pro/reference-to-video',
+    name: 'Kling 3.0 Pro Ref',
+    provider: 'fal',
+    description: 'Kling 3.0 Pro reference-to-video with keyframes',
+    capabilities: ['image-to-video', 'keyframes'],
+    durations: [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+    aspectRatios: ['16:9', '9:16', '1:1'],
+    supportsAudio: true,
+    supportsEndFrame: true,
+    fieldMappings: {
+      imageUrl: 'start_image_url',
+      endImageUrl: 'end_image_url',
+    },
+  },
+  {
+    id: 'fal-ai/kling-video/o3/standard/reference-to-video',
+    name: 'Kling 3.0 Standard Ref',
+    provider: 'fal',
+    description: 'Kling 3.0 Standard reference-to-video with keyframes',
+    capabilities: ['image-to-video', 'keyframes'],
+    durations: [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+    aspectRatios: ['16:9', '9:16', '1:1'],
     supportsAudio: true,
     supportsEndFrame: true,
     fieldMappings: {
@@ -598,6 +700,35 @@ export const VIDEO_MODELS: Array<VideoModelConfig> = [
     description: 'MiniMax Hailuo Standard I2V',
     capabilities: ['image-to-video'],
     durations: [5],
+    fieldMappings: {
+      imageUrl: 'image_url',
+    },
+  },
+
+  // =============================================================================
+  // xAI Grok Imagine Video - Text-to-video and image-to-video with audio
+  // =============================================================================
+  {
+    id: 'xai/grok-imagine-video/text-to-video',
+    name: 'Grok Imagine Video',
+    provider: 'fal',
+    description: 'xAI Grok - Videos with audio from text',
+    capabilities: ['text-to-video'],
+    durations: [6],
+    aspectRatios: ['16:9', '4:3', '3:2', '1:1', '2:3', '3:4', '9:16'],
+    resolutions: ['480p', '720p'],
+    supportsAudio: true,
+  },
+  {
+    id: 'xai/grok-imagine-video/image-to-video',
+    name: 'Grok Imagine Video',
+    provider: 'fal',
+    description: 'xAI Grok - Videos with audio from images',
+    capabilities: ['image-to-video'],
+    durations: [6],
+    aspectRatios: ['auto', '16:9', '4:3', '3:2', '1:1', '2:3', '3:4', '9:16'],
+    resolutions: ['480p', '720p'],
+    supportsAudio: true,
     fieldMappings: {
       imageUrl: 'image_url',
     },

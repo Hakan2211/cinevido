@@ -16,6 +16,7 @@ import {
   getVideoModels,
 } from './services/fal.server'
 import { uploadBuffer, uploadFromUrl } from './services/bunny.server'
+import { getUserStorageConfig } from './storage-config.server'
 import { getVideoModelById } from './services/types'
 import type { FalVideoResult } from './services/fal.server'
 
@@ -253,10 +254,15 @@ export const getVideoJobStatusFn = createServerFn({ method: 'GET' })
 
       if (videoUrl) {
         const inputData = JSON.parse(job.input)
-        const uploadResult = await uploadFromUrl(videoUrl, {
-          folder: `videos/${context.user.id}`,
-          filename: `generated-${Date.now()}`,
-        })
+        const storageConfig = await getUserStorageConfig(context.user.id)
+        const uploadResult = await uploadFromUrl(
+          videoUrl,
+          {
+            folder: `videos/${context.user.id}`,
+            filename: `generated-${Date.now()}`,
+          },
+          storageConfig ?? undefined,
+        )
 
         // Create asset for the generated video
         const asset = await prisma.asset.create({
@@ -560,12 +566,18 @@ export const uploadUserVideoFn = createServerFn({ method: 'POST' })
     const filename = `${rawName}-${Date.now()}`
     const fullFilename = `${filename}.${extension}`
 
-    // Upload to Bunny CDN
+    // Upload to Bunny CDN (user's storage or platform default)
     console.log('[VIDEO] Uploading to Bunny CDN...')
-    const uploadResult = await uploadBuffer(buffer, data.contentType, {
-      folder: `videos/${context.user.id}`,
-      filename: fullFilename,
-    })
+    const storageConfig = await getUserStorageConfig(context.user.id)
+    const uploadResult = await uploadBuffer(
+      buffer,
+      data.contentType,
+      {
+        folder: `videos/${context.user.id}`,
+        filename: fullFilename,
+      },
+      storageConfig ?? undefined,
+    )
     console.log('[VIDEO] Upload success:', uploadResult.url)
 
     // Create metadata

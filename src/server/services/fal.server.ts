@@ -910,6 +910,18 @@ function buildImagePayload(input: ImageGenerationInput, modelId: string) {
     payload.image_size = { width, height }
     if (input.numImages) payload.num_images = input.numImages
   }
+  // === Grok Imagine - uses aspect_ratio string ===
+  else if (modelId.includes('grok-imagine-image')) {
+    const aspectMap: Record<string, string> = {
+      '1024x1024': '1:1',
+      '1024x576': '16:9',
+      '576x1024': '9:16',
+      '1024x768': '4:3',
+      '768x1024': '3:4',
+    }
+    payload.aspect_ratio = aspectMap[`${width}x${height}`] || '1:1'
+    if (input.numImages) payload.num_images = input.numImages
+  }
   // === Default / Standard models ===
   else {
     payload.image_size = { width, height }
@@ -1013,6 +1025,23 @@ function buildVideoPayload(
     }
   }
 
+  // --- Kling 3.0 (O3) ---
+  // Kling O3 API expects duration as a STRING ("5") not a number
+  else if (modelId.includes('kling-video/o3')) {
+    payload.duration = String(input.duration || 5)
+    // Aspect ratio (for text-to-video)
+    if (input.aspectRatio) {
+      payload.aspect_ratio = input.aspectRatio
+    }
+    // Audio generation
+    if (input.generateAudio !== undefined) {
+      payload.generate_audio = input.generateAudio
+    } else {
+      payload.generate_audio = true // default on
+    }
+    // Note: O3 does not support negative_prompt
+  }
+
   // --- Sora 2 ---
   // Sora API expects duration as a NUMBER (4, 8, 12)
   else if (modelId.includes('sora-2')) {
@@ -1082,6 +1111,18 @@ function buildVideoPayload(
   // Hailuo has fixed duration, uses prompt_optimizer
   else if (modelId.includes('minimax/hailuo')) {
     payload.prompt_optimizer = true
+  }
+
+  // --- Grok Imagine Video ---
+  // Grok API expects duration as a NUMBER (6), supports aspect_ratio and resolution
+  else if (modelId.includes('grok-imagine-video')) {
+    payload.duration = input.duration || 6
+    if (input.aspectRatio) {
+      payload.aspect_ratio = input.aspectRatio
+    }
+    if (input.resolution) {
+      payload.resolution = input.resolution
+    }
   }
 
   // --- Pika ---

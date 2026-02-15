@@ -42,6 +42,14 @@ export interface UploadOptions {
   filename?: string // Custom filename (auto-generated if not provided)
 }
 
+/** Per-user Bunny.net configuration (overrides platform defaults) */
+export interface BunnyConfig {
+  storageZone: string
+  apiKey: string
+  hostname: string
+  cdnUrl: string
+}
+
 // =============================================================================
 // Main Service Functions
 // =============================================================================
@@ -53,11 +61,13 @@ export interface UploadOptions {
 export async function uploadFromUrl(
   sourceUrl: string,
   options: UploadOptions = {},
+  userConfig?: BunnyConfig,
 ): Promise<UploadResult> {
   console.log('[BUNNY] uploadFromUrl called:', {
     sourceUrl: sourceUrl.slice(0, 80) + '...',
     folder: options.folder,
     filename: options.filename,
+    usingUserConfig: !!userConfig,
   })
 
   if (MOCK_BUNNY) {
@@ -65,7 +75,7 @@ export async function uploadFromUrl(
     return mockUpload(options)
   }
 
-  const config = getConfig()
+  const config = userConfig || getConfig()
   console.log('[BUNNY] Config:', {
     storageZone: config.storageZone,
     hostname: config.hostname,
@@ -159,12 +169,13 @@ export async function uploadBuffer(
   buffer: Buffer | ArrayBuffer | Uint8Array,
   contentType: string,
   options: UploadOptions = {},
+  userConfig?: BunnyConfig,
 ): Promise<UploadResult> {
   if (MOCK_BUNNY) {
     return mockUpload(options)
   }
 
-  const config = getConfig()
+  const config = userConfig || getConfig()
   if (!config.apiKey || !config.storageZone) {
     throw new Error('Bunny.net configuration missing')
   }
@@ -214,12 +225,15 @@ export async function uploadBuffer(
 /**
  * Delete a file from Bunny storage
  */
-export async function deleteFile(storagePath: string): Promise<boolean> {
+export async function deleteFile(
+  storagePath: string,
+  userConfig?: BunnyConfig,
+): Promise<boolean> {
   if (MOCK_BUNNY) {
     return true
   }
 
-  const config = getConfig()
+  const config = userConfig || getConfig()
   if (!config.apiKey || !config.storageZone) {
     throw new Error('Bunny.net configuration missing')
   }

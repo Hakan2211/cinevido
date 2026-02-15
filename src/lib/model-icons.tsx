@@ -86,6 +86,12 @@ export const PROVIDER_COLORS = {
     text: 'text-lime-400',
     gradient: 'from-lime-500 to-green-500',
   },
+  xai: {
+    bg: 'bg-neutral-500/20',
+    border: 'border-neutral-500/30',
+    text: 'text-neutral-300',
+    gradient: 'from-neutral-400 to-slate-500',
+  },
   default: {
     bg: 'bg-slate-500/20',
     border: 'border-slate-500/30',
@@ -139,6 +145,9 @@ export function getProviderFromModelId(modelId: string): ProviderKey {
   if (lowerModelId.includes('pika')) {
     return 'pika'
   }
+  if (lowerModelId.includes('xai') || lowerModelId.includes('grok')) {
+    return 'xai'
+  }
 
   return 'default'
 }
@@ -158,6 +167,7 @@ export const PROVIDER_NAMES: Record<ProviderKey, string> = {
   kling: 'Kuaishou',
   minimax: 'MiniMax',
   pika: 'Pika',
+  xai: 'xAI',
   default: 'AI',
 }
 
@@ -247,6 +257,18 @@ function FilmIcon({ className }: IconProps) {
   )
 }
 
+function XaiIcon({ className }: IconProps) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className={cn('size-4', className)}
+      fill="currentColor"
+    >
+      <path d="M2 3l8.5 9L2 21h2l7.5-8L19 21h3l-8.5-9L22 3h-2l-7.5 8L5 3H2z" />
+    </svg>
+  )
+}
+
 // Icon registry
 const PROVIDER_ICONS: Record<ProviderKey, React.FC<IconProps>> = {
   google: GoogleIcon,
@@ -262,6 +284,7 @@ const PROVIDER_ICONS: Record<ProviderKey, React.FC<IconProps>> = {
   kling: FilmIcon,
   minimax: FilmIcon,
   pika: FilmIcon,
+  xai: XaiIcon,
   default: SparkleIcon,
 }
 

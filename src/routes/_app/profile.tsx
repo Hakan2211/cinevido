@@ -7,6 +7,7 @@ import {
   AlertCircle,
   CheckCircle2,
   ExternalLink,
+  HardDrive,
   Key,
   Loader2,
   Shield,
@@ -214,6 +215,9 @@ function ProfilePage() {
 
       {/* fal.ai Connection (BYOK) */}
       <FalApiKeySection />
+
+      {/* Bunny.net Storage Configuration */}
+      <BunnyStorageSection />
     </div>
   )
 }
@@ -524,6 +528,364 @@ function FalApiKeySection() {
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <Shield className="h-3 w-3" />
             <span>Your key is encrypted and stored securely</span>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// =============================================================================
+// Bunny.net Storage Configuration Section
+// =============================================================================
+
+function BunnyStorageSection() {
+  const queryClient = useQueryClient()
+  const [storageZone, setStorageZone] = useState('')
+  const [apiKey, setApiKey] = useState('')
+  const [cdnUrl, setCdnUrl] = useState('')
+  const [isUpdating, setIsUpdating] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [successMessage, setSuccessMessage] = useState<string | null>(null)
+
+  // Get storage config status
+  const { data: storageStatus, isLoading: statusLoading } = useQuery({
+    queryKey: ['storage-config-status'],
+    queryFn: async () => {
+      const { getStorageConfigStatusFn } =
+        await import('../../server/storage-config.server')
+      return getStorageConfigStatusFn()
+    },
+  })
+
+  // Test connection mutation
+  const testMutation = useMutation({
+    mutationFn: async () => {
+      const { testStorageConnectionFn } =
+        await import('../../server/storage-config.server')
+      return testStorageConnectionFn()
+    },
+    onSuccess: (data) => {
+      if (data.connected) {
+        setSuccessMessage('Storage connection successful!')
+        setTimeout(() => setSuccessMessage(null), 3000)
+      } else {
+        setError('Connection failed. Please check your credentials.')
+      }
+    },
+    onError: (err: Error) => {
+      setError(err.message)
+    },
+  })
+
+  // Save storage config mutation
+  const saveMutation = useMutation({
+    mutationFn: async (input: {
+      storageZone: string
+      apiKey: string
+      cdnUrl: string
+    }) => {
+      const { saveStorageConfigFn } =
+        await import('../../server/storage-config.server')
+      return saveStorageConfigFn({ data: input })
+    },
+    onSuccess: () => {
+      setStorageZone('')
+      setApiKey('')
+      setCdnUrl('')
+      setIsUpdating(false)
+      setSuccessMessage('Storage configuration saved!')
+      setTimeout(() => setSuccessMessage(null), 3000)
+      void queryClient.invalidateQueries({
+        queryKey: ['storage-config-status'],
+      })
+    },
+    onError: (err: Error) => {
+      setError(err.message)
+    },
+  })
+
+  // Remove storage config mutation
+  const removeMutation = useMutation({
+    mutationFn: async () => {
+      const { removeStorageConfigFn } =
+        await import('../../server/storage-config.server')
+      return removeStorageConfigFn()
+    },
+    onSuccess: () => {
+      setSuccessMessage('Storage configuration removed')
+      setTimeout(() => setSuccessMessage(null), 3000)
+      void queryClient.invalidateQueries({
+        queryKey: ['storage-config-status'],
+      })
+    },
+    onError: (err: Error) => {
+      setError(err.message)
+    },
+  })
+
+  const handleSave = () => {
+    if (!storageZone.trim() || !apiKey.trim() || !cdnUrl.trim()) {
+      setError('All fields are required')
+      return
+    }
+    // Basic CDN URL validation
+    if (!cdnUrl.startsWith('https://')) {
+      setError('CDN URL must start with https://')
+      return
+    }
+    if (cdnUrl.endsWith('/')) {
+      setError('CDN URL should not end with a trailing slash')
+      return
+    }
+    setError(null)
+    saveMutation.mutate({ storageZone, apiKey, cdnUrl })
+  }
+
+  if (statusLoading) {
+    return (
+      <div className="max-w-2xl rounded-lg border bg-card p-6">
+        <div className="flex items-center gap-2">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          <span className="text-muted-foreground">Loading...</span>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="max-w-2xl rounded-lg border bg-card p-6">
+      <h2 className="mb-4 text-xl font-semibold flex items-center gap-2">
+        <HardDrive className="h-5 w-5" />
+        Storage Configuration
+      </h2>
+      <p className="text-sm text-muted-foreground mb-4">
+        Connect your own Bunny.net storage to store generated assets in your
+        account. Without this, assets are stored on the platform's storage.
+      </p>
+
+      {/* Success/Error messages */}
+      {successMessage && (
+        <div className="mb-4 rounded-md bg-green-500/10 p-3 text-sm text-green-600 flex items-center gap-2">
+          <CheckCircle2 className="h-4 w-4" />
+          {successMessage}
+        </div>
+      )}
+
+      {error && (
+        <div className="mb-4 rounded-md bg-destructive/10 p-3 text-sm text-destructive flex items-center gap-2">
+          <AlertCircle className="h-4 w-4" />
+          {error}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="ml-auto h-auto p-1"
+            onClick={() => setError(null)}
+          >
+            &times;
+          </Button>
+        </div>
+      )}
+
+      {storageStatus?.hasStorageConfig && !isUpdating ? (
+        // Connected state
+        <div className="space-y-4">
+          <div className="rounded-lg bg-muted/50 p-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-500/10">
+                <CheckCircle2 className="h-5 w-5 text-green-600" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="font-medium">Connected</p>
+                <p className="text-sm text-muted-foreground">
+                  Zone:{' '}
+                  <span className="font-mono">{storageStatus.storageZone}</span>
+                </p>
+                <p className="text-sm text-muted-foreground truncate">
+                  CDN: <span className="font-mono">{storageStatus.cdnUrl}</span>
+                </p>
+                <p className="text-sm text-muted-foreground font-mono">
+                  API Key: {storageStatus.apiKeyLastFour}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => testMutation.mutate()}
+              disabled={testMutation.isPending}
+            >
+              {testMutation.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Zap className="mr-2 h-4 w-4" />
+              )}
+              Test Connection
+            </Button>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsUpdating(true)}
+            >
+              <HardDrive className="mr-2 h-4 w-4" />
+              Update
+            </Button>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                window.open('https://dash.bunny.net/storage', '_blank')
+              }
+            >
+              <ExternalLink className="mr-2 h-4 w-4" />
+              Bunny Dashboard
+            </Button>
+
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-destructive"
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Remove
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Remove Storage Config?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This will remove your Bunny.net storage configuration. New
+                    assets will be stored on the platform's default storage.
+                    Existing assets on your storage will remain accessible.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={() => removeMutation.mutate()}
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  >
+                    Remove
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
+        </div>
+      ) : (
+        // Setup/update form
+        <div className="space-y-4">
+          {!storageStatus?.hasStorageConfig && (
+            <div className="rounded-lg border border-blue-500/30 bg-blue-50/50 dark:bg-blue-950/20 p-4 mb-4">
+              <p className="text-sm text-blue-700 dark:text-blue-300">
+                To use your own storage, create a storage zone and pull zone on{' '}
+                <a
+                  href="https://dash.bunny.net/storage"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline font-medium"
+                >
+                  Bunny.net
+                </a>
+                . You'll need the storage zone name, API key, and CDN URL.
+              </p>
+            </div>
+          )}
+
+          <div className="space-y-2">
+            <Label htmlFor="storage-zone">Storage Zone Name</Label>
+            <Input
+              id="storage-zone"
+              type="text"
+              placeholder="my-storage-zone"
+              value={storageZone}
+              onChange={(e) => {
+                setStorageZone(e.target.value)
+                setError(null)
+              }}
+              className="font-mono"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="bunny-api-key">Storage API Key</Label>
+            <Input
+              id="bunny-api-key"
+              type="password"
+              placeholder="xxxxxxxx-xxxx-xxxx-xxxxxxxxxxxx-xxxx-xxxx"
+              value={apiKey}
+              onChange={(e) => {
+                setApiKey(e.target.value)
+                setError(null)
+              }}
+              className="font-mono"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="cdn-url">CDN URL</Label>
+            <Input
+              id="cdn-url"
+              type="url"
+              placeholder="https://my-zone.b-cdn.net"
+              value={cdnUrl}
+              onChange={(e) => {
+                setCdnUrl(e.target.value)
+                setError(null)
+              }}
+              className="font-mono"
+            />
+            <p className="text-xs text-muted-foreground">
+              The pull zone URL without trailing slash
+            </p>
+          </div>
+
+          <div className="flex gap-2">
+            <Button
+              onClick={handleSave}
+              disabled={
+                !storageZone.trim() ||
+                !apiKey.trim() ||
+                !cdnUrl.trim() ||
+                saveMutation.isPending
+              }
+            >
+              {saveMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Validating & Saving...
+                </>
+              ) : (
+                'Save Storage Config'
+              )}
+            </Button>
+
+            {isUpdating && (
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setIsUpdating(false)
+                  setStorageZone('')
+                  setApiKey('')
+                  setCdnUrl('')
+                  setError(null)
+                }}
+              >
+                Cancel
+              </Button>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <Shield className="h-3 w-3" />
+            <span>Your API key is encrypted and stored securely</span>
           </div>
         </div>
       )}

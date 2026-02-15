@@ -24,6 +24,7 @@ import {
   getModelById,
 } from './services/types'
 import { uploadFromUrl } from './services/bunny.server'
+import { getUserStorageConfig } from './storage-config.server'
 
 // =============================================================================
 // Schemas
@@ -363,15 +364,20 @@ export const getEditJobStatusFn = createServerFn({ method: 'GET' })
         // inputData already parsed above
         const filename = `${inputData.editType}-${Date.now()}.png`
 
-        // Upload the edited image from FAL's temporary URL to Bunny CDN
+        // Upload the edited image from FAL's temporary URL to Bunny CDN (user's storage or platform default)
         let permanentUrl = falTempUrl
 
         console.log('[EDIT_FN] Uploading to Bunny CDN...')
+        const storageConfig = await getUserStorageConfig(context.user.id)
         try {
-          const uploadResult = await uploadFromUrl(falTempUrl, {
-            folder: `images/${context.user.id}`,
-            filename,
-          })
+          const uploadResult = await uploadFromUrl(
+            falTempUrl,
+            {
+              folder: `images/${context.user.id}`,
+              filename,
+            },
+            storageConfig ?? undefined,
+          )
           permanentUrl = uploadResult.url
           console.log('[EDIT_FN] Bunny upload success:', permanentUrl)
         } catch (uploadError) {

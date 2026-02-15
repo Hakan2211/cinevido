@@ -10,6 +10,7 @@
  */
 
 import { uploadFromUrl } from './bunny.server'
+import type { BunnyConfig } from './bunny.server'
 import { AUDIO_MODELS, getModelById } from './types'
 
 const MOCK_TTS = process.env.MOCK_GENERATION === 'true'
@@ -109,10 +110,12 @@ export const DEFAULT_VOICES: Array<Voice> = [
  *
  * @param input - Speech generation parameters
  * @param userApiKey - Optional user's fal.ai API key (for BYOK)
+ * @param storageConfig - Optional user Bunny.net config (for BYOK storage)
  */
 export async function generateSpeech(
   input: SpeechGenerationInput,
   userApiKey?: string,
+  storageConfig?: BunnyConfig | null,
 ): Promise<SpeechResult> {
   if (MOCK_TTS) {
     return mockGenerateSpeech(input)
@@ -169,11 +172,15 @@ export async function generateSpeech(
       ? wordTimestamps[wordTimestamps.length - 1].end
       : estimateDuration(input.text)
 
-  // Re-upload to Bunny.net for permanent storage
-  const upload = await uploadFromUrl(result.audio.url, {
-    folder: 'audio',
-    filename: `tts-${Date.now()}.mp3`,
-  })
+  // Re-upload to Bunny.net for permanent storage (user's storage or platform default)
+  const upload = await uploadFromUrl(
+    result.audio.url,
+    {
+      folder: 'audio',
+      filename: `tts-${Date.now()}.mp3`,
+    },
+    storageConfig ?? undefined,
+  )
 
   return {
     audioUrl: upload.url,

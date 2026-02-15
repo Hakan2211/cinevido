@@ -57,6 +57,7 @@ export {
   isBunnyConfigured,
   type UploadResult,
   type UploadOptions,
+  type BunnyConfig,
 } from './bunny.server'
 
 // =============================================================================

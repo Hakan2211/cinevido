@@ -43,6 +43,11 @@ export type UserMinAggregateOutputType = {
   falApiKey: string | null
   falApiKeyLastFour: string | null
   falApiKeyAddedAt: Date | null
+  bunnyStorageZone: string | null
+  bunnyApiKey: string | null
+  bunnyApiKeyLastFour: string | null
+  bunnyCdnUrl: string | null
+  bunnyStorageAddedAt: Date | null
   preferredLlmModel: string | null
   preferredImageModel: string | null
   preferredVideoModel: string | null
@@ -70,6 +75,11 @@ export type UserMaxAggregateOutputType = {
   falApiKey: string | null
   falApiKeyLastFour: string | null
   falApiKeyAddedAt: Date | null
+  bunnyStorageZone: string | null
+  bunnyApiKey: string | null
+  bunnyApiKeyLastFour: string | null
+  bunnyCdnUrl: string | null
+  bunnyStorageAddedAt: Date | null
   preferredLlmModel: string | null
   preferredImageModel: string | null
   preferredVideoModel: string | null
@@ -97,6 +107,11 @@ export type UserCountAggregateOutputType = {
   falApiKey: number
   falApiKeyLastFour: number
   falApiKeyAddedAt: number
+  bunnyStorageZone: number
+  bunnyApiKey: number
+  bunnyApiKeyLastFour: number
+  bunnyCdnUrl: number
+  bunnyStorageAddedAt: number
   preferredLlmModel: number
   preferredImageModel: number
   preferredVideoModel: number
@@ -126,6 +141,11 @@ export type UserMinAggregateInputType = {
   falApiKey?: true
   falApiKeyLastFour?: true
   falApiKeyAddedAt?: true
+  bunnyStorageZone?: true
+  bunnyApiKey?: true
+  bunnyApiKeyLastFour?: true
+  bunnyCdnUrl?: true
+  bunnyStorageAddedAt?: true
   preferredLlmModel?: true
   preferredImageModel?: true
   preferredVideoModel?: true
@@ -153,6 +173,11 @@ export type UserMaxAggregateInputType = {
   falApiKey?: true
   falApiKeyLastFour?: true
   falApiKeyAddedAt?: true
+  bunnyStorageZone?: true
+  bunnyApiKey?: true
+  bunnyApiKeyLastFour?: true
+  bunnyCdnUrl?: true
+  bunnyStorageAddedAt?: true
   preferredLlmModel?: true
   preferredImageModel?: true
   preferredVideoModel?: true
@@ -180,6 +205,11 @@ export type UserCountAggregateInputType = {
   falApiKey?: true
   falApiKeyLastFour?: true
   falApiKeyAddedAt?: true
+  bunnyStorageZone?: true
+  bunnyApiKey?: true
+  bunnyApiKeyLastFour?: true
+  bunnyCdnUrl?: true
+  bunnyStorageAddedAt?: true
   preferredLlmModel?: true
   preferredImageModel?: true
   preferredVideoModel?: true
@@ -280,6 +310,11 @@ export type UserGroupByOutputType = {
   falApiKey: string | null
   falApiKeyLastFour: string | null
   falApiKeyAddedAt: Date | null
+  bunnyStorageZone: string | null
+  bunnyApiKey: string | null
+  bunnyApiKeyLastFour: string | null
+  bunnyCdnUrl: string | null
+  bunnyStorageAddedAt: Date | null
   preferredLlmModel: string | null
   preferredImageModel: string | null
   preferredVideoModel: string | null
@@ -328,6 +363,11 @@ export type UserWhereInput = {
   falApiKey?: Prisma.StringNullableFilter<"User"> | string | null
   falApiKeyLastFour?: Prisma.StringNullableFilter<"User"> | string | null
   falApiKeyAddedAt?: Prisma.DateTimeNullableFilter<"User"> | Date | string | null
+  bunnyStorageZone?: Prisma.StringNullableFilter<"User"> | string | null
+  bunnyApiKey?: Prisma.StringNullableFilter<"User"> | string | null
+  bunnyApiKeyLastFour?: Prisma.StringNullableFilter<"User"> | string | null
+  bunnyCdnUrl?: Prisma.StringNullableFilter<"User"> | string | null
+  bunnyStorageAddedAt?: Prisma.DateTimeNullableFilter<"User"> | Date | string | null
   preferredLlmModel?: Prisma.StringNullableFilter<"User"> | string | null
   preferredImageModel?: Prisma.StringNullableFilter<"User"> | string | null
   preferredVideoModel?: Prisma.StringNullableFilter<"User"> | string | null
@@ -363,6 +403,11 @@ export type UserOrderByWithRelationInput = {
   falApiKey?: Prisma.SortOrderInput | Prisma.SortOrder
   falApiKeyLastFour?: Prisma.SortOrderInput | Prisma.SortOrder
   falApiKeyAddedAt?: Prisma.SortOrderInput | Prisma.SortOrder
+  bunnyStorageZone?: Prisma.SortOrderInput | Prisma.SortOrder
+  bunnyApiKey?: Prisma.SortOrderInput | Prisma.SortOrder
+  bunnyApiKeyLastFour?: Prisma.SortOrderInput | Prisma.SortOrder
+  bunnyCdnUrl?: Prisma.SortOrderInput | Prisma.SortOrder
+  bunnyStorageAddedAt?: Prisma.SortOrderInput | Prisma.SortOrder
   preferredLlmModel?: Prisma.SortOrderInput | Prisma.SortOrder
   preferredImageModel?: Prisma.SortOrderInput | Prisma.SortOrder
   preferredVideoModel?: Prisma.SortOrderInput | Prisma.SortOrder
@@ -401,6 +446,11 @@ export type UserWhereUniqueInput = Prisma.AtLeast<{
   falApiKey?: Prisma.StringNullableFilter<"User"> | string | null
   falApiKeyLastFour?: Prisma.StringNullableFilter<"User"> | string | null
   falApiKeyAddedAt?: Prisma.DateTimeNullableFilter<"User"> | Date | string | null
+  bunnyStorageZone?: Prisma.StringNullableFilter<"User"> | string | null
+  bunnyApiKey?: Prisma.StringNullableFilter<"User"> | string | null
+  bunnyApiKeyLastFour?: Prisma.StringNullableFilter<"User"> | string | null
+  bunnyCdnUrl?: Prisma.StringNullableFilter<"User"> | string | null
+  bunnyStorageAddedAt?: Prisma.DateTimeNullableFilter<"User"> | Date | string | null
   preferredLlmModel?: Prisma.StringNullableFilter<"User"> | string | null
   preferredImageModel?: Prisma.StringNullableFilter<"User"> | string | null
   preferredVideoModel?: Prisma.StringNullableFilter<"User"> | string | null
@@ -436,6 +486,11 @@ export type UserOrderByWithAggregationInput = {
   falApiKey?: Prisma.SortOrderInput | Prisma.SortOrder
   falApiKeyLastFour?: Prisma.SortOrderInput | Prisma.SortOrder
   falApiKeyAddedAt?: Prisma.SortOrderInput | Prisma.SortOrder
+  bunnyStorageZone?: Prisma.SortOrderInput | Prisma.SortOrder
+  bunnyApiKey?: Prisma.SortOrderInput | Prisma.SortOrder
+  bunnyApiKeyLastFour?: Prisma.SortOrderInput | Prisma.SortOrder
+  bunnyCdnUrl?: Prisma.SortOrderInput | Prisma.SortOrder
+  bunnyStorageAddedAt?: Prisma.SortOrderInput | Prisma.SortOrder
   preferredLlmModel?: Prisma.SortOrderInput | Prisma.SortOrder
   preferredImageModel?: Prisma.SortOrderInput | Prisma.SortOrder
   preferredVideoModel?: Prisma.SortOrderInput | Prisma.SortOrder
@@ -469,6 +524,11 @@ export type UserScalarWhereWithAggregatesInput = {
   falApiKey?: Prisma.StringNullableWithAggregatesFilter<"User"> | string | null
   falApiKeyLastFour?: Prisma.StringNullableWithAggregatesFilter<"User"> | string | null
   falApiKeyAddedAt?: Prisma.DateTimeNullableWithAggregatesFilter<"User"> | Date | string | null
+  bunnyStorageZone?: Prisma.StringNullableWithAggregatesFilter<"User"> | string | null
+  bunnyApiKey?: Prisma.StringNullableWithAggregatesFilter<"User"> | string | null
+  bunnyApiKeyLastFour?: Prisma.StringNullableWithAggregatesFilter<"User"> | string | null
+  bunnyCdnUrl?: Prisma.StringNullableWithAggregatesFilter<"User"> | string | null
+  bunnyStorageAddedAt?: Prisma.DateTimeNullableWithAggregatesFilter<"User"> | Date | string | null
   preferredLlmModel?: Prisma.StringNullableWithAggregatesFilter<"User"> | string | null
   preferredImageModel?: Prisma.StringNullableWithAggregatesFilter<"User"> | string | null
   preferredVideoModel?: Prisma.StringNullableWithAggregatesFilter<"User"> | string | null
@@ -496,6 +556,11 @@ export type UserCreateInput = {
   falApiKey?: string | null
   falApiKeyLastFour?: string | null
   falApiKeyAddedAt?: Date | string | null
+  bunnyStorageZone?: string | null
+  bunnyApiKey?: string | null
+  bunnyApiKeyLastFour?: string | null
+  bunnyCdnUrl?: string | null
+  bunnyStorageAddedAt?: Date | string | null
   preferredLlmModel?: string | null
   preferredImageModel?: string | null
   preferredVideoModel?: string | null
@@ -531,6 +596,11 @@ export type UserUncheckedCreateInput = {
   falApiKey?: string | null
   falApiKeyLastFour?: string | null
   falApiKeyAddedAt?: Date | string | null
+  bunnyStorageZone?: string | null
+  bunnyApiKey?: string | null
+  bunnyApiKeyLastFour?: string | null
+  bunnyCdnUrl?: string | null
+  bunnyStorageAddedAt?: Date | string | null
   preferredLlmModel?: string | null
   preferredImageModel?: string | null
   preferredVideoModel?: string | null
@@ -566,6 +636,11 @@ export type UserUpdateInput = {
   falApiKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   falApiKeyLastFour?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   falApiKeyAddedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  bunnyStorageZone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bunnyApiKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bunnyApiKeyLastFour?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bunnyCdnUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bunnyStorageAddedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   preferredLlmModel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   preferredImageModel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   preferredVideoModel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -601,6 +676,11 @@ export type UserUncheckedUpdateInput = {
   falApiKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   falApiKeyLastFour?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   falApiKeyAddedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  bunnyStorageZone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bunnyApiKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bunnyApiKeyLastFour?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bunnyCdnUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bunnyStorageAddedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   preferredLlmModel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   preferredImageModel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   preferredVideoModel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -636,6 +716,11 @@ export type UserCreateManyInput = {
   falApiKey?: string | null
   falApiKeyLastFour?: string | null
   falApiKeyAddedAt?: Date | string | null
+  bunnyStorageZone?: string | null
+  bunnyApiKey?: string | null
+  bunnyApiKeyLastFour?: string | null
+  bunnyCdnUrl?: string | null
+  bunnyStorageAddedAt?: Date | string | null
   preferredLlmModel?: string | null
   preferredImageModel?: string | null
   preferredVideoModel?: string | null
@@ -663,6 +748,11 @@ export type UserUpdateManyMutationInput = {
   falApiKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   falApiKeyLastFour?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   falApiKeyAddedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  bunnyStorageZone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bunnyApiKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bunnyApiKeyLastFour?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bunnyCdnUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bunnyStorageAddedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   preferredLlmModel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   preferredImageModel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   preferredVideoModel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -690,6 +780,11 @@ export type UserUncheckedUpdateManyInput = {
   falApiKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   falApiKeyLastFour?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   falApiKeyAddedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  bunnyStorageZone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bunnyApiKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bunnyApiKeyLastFour?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bunnyCdnUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bunnyStorageAddedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   preferredLlmModel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   preferredImageModel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   preferredVideoModel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -717,6 +812,11 @@ export type UserCountOrderByAggregateInput = {
   falApiKey?: Prisma.SortOrder
   falApiKeyLastFour?: Prisma.SortOrder
   falApiKeyAddedAt?: Prisma.SortOrder
+  bunnyStorageZone?: Prisma.SortOrder
+  bunnyApiKey?: Prisma.SortOrder
+  bunnyApiKeyLastFour?: Prisma.SortOrder
+  bunnyCdnUrl?: Prisma.SortOrder
+  bunnyStorageAddedAt?: Prisma.SortOrder
   preferredLlmModel?: Prisma.SortOrder
   preferredImageModel?: Prisma.SortOrder
   preferredVideoModel?: Prisma.SortOrder
@@ -744,6 +844,11 @@ export type UserMaxOrderByAggregateInput = {
   falApiKey?: Prisma.SortOrder
   falApiKeyLastFour?: Prisma.SortOrder
   falApiKeyAddedAt?: Prisma.SortOrder
+  bunnyStorageZone?: Prisma.SortOrder
+  bunnyApiKey?: Prisma.SortOrder
+  bunnyApiKeyLastFour?: Prisma.SortOrder
+  bunnyCdnUrl?: Prisma.SortOrder
+  bunnyStorageAddedAt?: Prisma.SortOrder
   preferredLlmModel?: Prisma.SortOrder
   preferredImageModel?: Prisma.SortOrder
   preferredVideoModel?: Prisma.SortOrder
@@ -771,6 +876,11 @@ export type UserMinOrderByAggregateInput = {
   falApiKey?: Prisma.SortOrder
   falApiKeyLastFour?: Prisma.SortOrder
   falApiKeyAddedAt?: Prisma.SortOrder
+  bunnyStorageZone?: Prisma.SortOrder
+  bunnyApiKey?: Prisma.SortOrder
+  bunnyApiKeyLastFour?: Prisma.SortOrder
+  bunnyCdnUrl?: Prisma.SortOrder
+  bunnyStorageAddedAt?: Prisma.SortOrder
   preferredLlmModel?: Prisma.SortOrder
   preferredImageModel?: Prisma.SortOrder
   preferredVideoModel?: Prisma.SortOrder
@@ -935,6 +1045,11 @@ export type UserCreateWithoutSessionsInput = {
   falApiKey?: string | null
   falApiKeyLastFour?: string | null
   falApiKeyAddedAt?: Date | string | null
+  bunnyStorageZone?: string | null
+  bunnyApiKey?: string | null
+  bunnyApiKeyLastFour?: string | null
+  bunnyCdnUrl?: string | null
+  bunnyStorageAddedAt?: Date | string | null
   preferredLlmModel?: string | null
   preferredImageModel?: string | null
   preferredVideoModel?: string | null
@@ -969,6 +1084,11 @@ export type UserUncheckedCreateWithoutSessionsInput = {
   falApiKey?: string | null
   falApiKeyLastFour?: string | null
   falApiKeyAddedAt?: Date | string | null
+  bunnyStorageZone?: string | null
+  bunnyApiKey?: string | null
+  bunnyApiKeyLastFour?: string | null
+  bunnyCdnUrl?: string | null
+  bunnyStorageAddedAt?: Date | string | null
   preferredLlmModel?: string | null
   preferredImageModel?: string | null
   preferredVideoModel?: string | null
@@ -1019,6 +1139,11 @@ export type UserUpdateWithoutSessionsInput = {
   falApiKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   falApiKeyLastFour?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   falApiKeyAddedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  bunnyStorageZone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bunnyApiKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bunnyApiKeyLastFour?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bunnyCdnUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bunnyStorageAddedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   preferredLlmModel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   preferredImageModel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   preferredVideoModel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -1053,6 +1178,11 @@ export type UserUncheckedUpdateWithoutSessionsInput = {
   falApiKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   falApiKeyLastFour?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   falApiKeyAddedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  bunnyStorageZone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bunnyApiKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bunnyApiKeyLastFour?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bunnyCdnUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bunnyStorageAddedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   preferredLlmModel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   preferredImageModel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   preferredVideoModel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -1087,6 +1217,11 @@ export type UserCreateWithoutAccountsInput = {
   falApiKey?: string | null
   falApiKeyLastFour?: string | null
   falApiKeyAddedAt?: Date | string | null
+  bunnyStorageZone?: string | null
+  bunnyApiKey?: string | null
+  bunnyApiKeyLastFour?: string | null
+  bunnyCdnUrl?: string | null
+  bunnyStorageAddedAt?: Date | string | null
   preferredLlmModel?: string | null
   preferredImageModel?: string | null
   preferredVideoModel?: string | null
@@ -1121,6 +1256,11 @@ export type UserUncheckedCreateWithoutAccountsInput = {
   falApiKey?: string | null
   falApiKeyLastFour?: string | null
   falApiKeyAddedAt?: Date | string | null
+  bunnyStorageZone?: string | null
+  bunnyApiKey?: string | null
+  bunnyApiKeyLastFour?: string | null
+  bunnyCdnUrl?: string | null
+  bunnyStorageAddedAt?: Date | string | null
   preferredLlmModel?: string | null
   preferredImageModel?: string | null
   preferredVideoModel?: string | null
@@ -1171,6 +1311,11 @@ export type UserUpdateWithoutAccountsInput = {
   falApiKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   falApiKeyLastFour?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   falApiKeyAddedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  bunnyStorageZone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bunnyApiKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bunnyApiKeyLastFour?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bunnyCdnUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bunnyStorageAddedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   preferredLlmModel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   preferredImageModel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   preferredVideoModel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -1205,6 +1350,11 @@ export type UserUncheckedUpdateWithoutAccountsInput = {
   falApiKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   falApiKeyLastFour?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   falApiKeyAddedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  bunnyStorageZone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bunnyApiKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bunnyApiKeyLastFour?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bunnyCdnUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bunnyStorageAddedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   preferredLlmModel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   preferredImageModel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   preferredVideoModel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -1239,6 +1389,11 @@ export type UserCreateWithoutProjectFoldersInput = {
   falApiKey?: string | null
   falApiKeyLastFour?: string | null
   falApiKeyAddedAt?: Date | string | null
+  bunnyStorageZone?: string | null
+  bunnyApiKey?: string | null
+  bunnyApiKeyLastFour?: string | null
+  bunnyCdnUrl?: string | null
+  bunnyStorageAddedAt?: Date | string | null
   preferredLlmModel?: string | null
   preferredImageModel?: string | null
   preferredVideoModel?: string | null
@@ -1273,6 +1428,11 @@ export type UserUncheckedCreateWithoutProjectFoldersInput = {
   falApiKey?: string | null
   falApiKeyLastFour?: string | null
   falApiKeyAddedAt?: Date | string | null
+  bunnyStorageZone?: string | null
+  bunnyApiKey?: string | null
+  bunnyApiKeyLastFour?: string | null
+  bunnyCdnUrl?: string | null
+  bunnyStorageAddedAt?: Date | string | null
   preferredLlmModel?: string | null
   preferredImageModel?: string | null
   preferredVideoModel?: string | null
@@ -1323,6 +1483,11 @@ export type UserUpdateWithoutProjectFoldersInput = {
   falApiKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   falApiKeyLastFour?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   falApiKeyAddedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  bunnyStorageZone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bunnyApiKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bunnyApiKeyLastFour?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bunnyCdnUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bunnyStorageAddedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   preferredLlmModel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   preferredImageModel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   preferredVideoModel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -1357,6 +1522,11 @@ export type UserUncheckedUpdateWithoutProjectFoldersInput = {
   falApiKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   falApiKeyLastFour?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   falApiKeyAddedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  bunnyStorageZone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bunnyApiKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bunnyApiKeyLastFour?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bunnyCdnUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bunnyStorageAddedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   preferredLlmModel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   preferredImageModel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   preferredVideoModel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -1391,6 +1561,11 @@ export type UserCreateWithoutProjectsInput = {
   falApiKey?: string | null
   falApiKeyLastFour?: string | null
   falApiKeyAddedAt?: Date | string | null
+  bunnyStorageZone?: string | null
+  bunnyApiKey?: string | null
+  bunnyApiKeyLastFour?: string | null
+  bunnyCdnUrl?: string | null
+  bunnyStorageAddedAt?: Date | string | null
   preferredLlmModel?: string | null
   preferredImageModel?: string | null
   preferredVideoModel?: string | null
@@ -1425,6 +1600,11 @@ export type UserUncheckedCreateWithoutProjectsInput = {
   falApiKey?: string | null
   falApiKeyLastFour?: string | null
   falApiKeyAddedAt?: Date | string | null
+  bunnyStorageZone?: string | null
+  bunnyApiKey?: string | null
+  bunnyApiKeyLastFour?: string | null
+  bunnyCdnUrl?: string | null
+  bunnyStorageAddedAt?: Date | string | null
   preferredLlmModel?: string | null
   preferredImageModel?: string | null
   preferredVideoModel?: string | null
@@ -1475,6 +1655,11 @@ export type UserUpdateWithoutProjectsInput = {
   falApiKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   falApiKeyLastFour?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   falApiKeyAddedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  bunnyStorageZone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bunnyApiKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bunnyApiKeyLastFour?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bunnyCdnUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bunnyStorageAddedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   preferredLlmModel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   preferredImageModel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   preferredVideoModel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -1509,6 +1694,11 @@ export type UserUncheckedUpdateWithoutProjectsInput = {
   falApiKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   falApiKeyLastFour?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   falApiKeyAddedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  bunnyStorageZone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bunnyApiKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bunnyApiKeyLastFour?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bunnyCdnUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bunnyStorageAddedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   preferredLlmModel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   preferredImageModel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   preferredVideoModel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -1543,6 +1733,11 @@ export type UserCreateWithoutAssetsInput = {
   falApiKey?: string | null
   falApiKeyLastFour?: string | null
   falApiKeyAddedAt?: Date | string | null
+  bunnyStorageZone?: string | null
+  bunnyApiKey?: string | null
+  bunnyApiKeyLastFour?: string | null
+  bunnyCdnUrl?: string | null
+  bunnyStorageAddedAt?: Date | string | null
   preferredLlmModel?: string | null
   preferredImageModel?: string | null
   preferredVideoModel?: string | null
@@ -1577,6 +1772,11 @@ export type UserUncheckedCreateWithoutAssetsInput = {
   falApiKey?: string | null
   falApiKeyLastFour?: string | null
   falApiKeyAddedAt?: Date | string | null
+  bunnyStorageZone?: string | null
+  bunnyApiKey?: string | null
+  bunnyApiKeyLastFour?: string | null
+  bunnyCdnUrl?: string | null
+  bunnyStorageAddedAt?: Date | string | null
   preferredLlmModel?: string | null
   preferredImageModel?: string | null
   preferredVideoModel?: string | null
@@ -1627,6 +1827,11 @@ export type UserUpdateWithoutAssetsInput = {
   falApiKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   falApiKeyLastFour?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   falApiKeyAddedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  bunnyStorageZone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bunnyApiKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bunnyApiKeyLastFour?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bunnyCdnUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bunnyStorageAddedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   preferredLlmModel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   preferredImageModel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   preferredVideoModel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -1661,6 +1866,11 @@ export type UserUncheckedUpdateWithoutAssetsInput = {
   falApiKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   falApiKeyLastFour?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   falApiKeyAddedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  bunnyStorageZone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bunnyApiKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bunnyApiKeyLastFour?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bunnyCdnUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bunnyStorageAddedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   preferredLlmModel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   preferredImageModel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   preferredVideoModel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -1695,6 +1905,11 @@ export type UserCreateWithoutGenerationJobsInput = {
   falApiKey?: string | null
   falApiKeyLastFour?: string | null
   falApiKeyAddedAt?: Date | string | null
+  bunnyStorageZone?: string | null
+  bunnyApiKey?: string | null
+  bunnyApiKeyLastFour?: string | null
+  bunnyCdnUrl?: string | null
+  bunnyStorageAddedAt?: Date | string | null
   preferredLlmModel?: string | null
   preferredImageModel?: string | null
   preferredVideoModel?: string | null
@@ -1729,6 +1944,11 @@ export type UserUncheckedCreateWithoutGenerationJobsInput = {
   falApiKey?: string | null
   falApiKeyLastFour?: string | null
   falApiKeyAddedAt?: Date | string | null
+  bunnyStorageZone?: string | null
+  bunnyApiKey?: string | null
+  bunnyApiKeyLastFour?: string | null
+  bunnyCdnUrl?: string | null
+  bunnyStorageAddedAt?: Date | string | null
   preferredLlmModel?: string | null
   preferredImageModel?: string | null
   preferredVideoModel?: string | null
@@ -1779,6 +1999,11 @@ export type UserUpdateWithoutGenerationJobsInput = {
   falApiKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   falApiKeyLastFour?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   falApiKeyAddedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  bunnyStorageZone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bunnyApiKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bunnyApiKeyLastFour?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bunnyCdnUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bunnyStorageAddedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   preferredLlmModel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   preferredImageModel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   preferredVideoModel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -1813,6 +2038,11 @@ export type UserUncheckedUpdateWithoutGenerationJobsInput = {
   falApiKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   falApiKeyLastFour?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   falApiKeyAddedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  bunnyStorageZone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bunnyApiKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bunnyApiKeyLastFour?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bunnyCdnUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bunnyStorageAddedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   preferredLlmModel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   preferredImageModel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   preferredVideoModel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -1847,6 +2077,11 @@ export type UserCreateWithoutSubscriptionEventsInput = {
   falApiKey?: string | null
   falApiKeyLastFour?: string | null
   falApiKeyAddedAt?: Date | string | null
+  bunnyStorageZone?: string | null
+  bunnyApiKey?: string | null
+  bunnyApiKeyLastFour?: string | null
+  bunnyCdnUrl?: string | null
+  bunnyStorageAddedAt?: Date | string | null
   preferredLlmModel?: string | null
   preferredImageModel?: string | null
   preferredVideoModel?: string | null
@@ -1881,6 +2116,11 @@ export type UserUncheckedCreateWithoutSubscriptionEventsInput = {
   falApiKey?: string | null
   falApiKeyLastFour?: string | null
   falApiKeyAddedAt?: Date | string | null
+  bunnyStorageZone?: string | null
+  bunnyApiKey?: string | null
+  bunnyApiKeyLastFour?: string | null
+  bunnyCdnUrl?: string | null
+  bunnyStorageAddedAt?: Date | string | null
   preferredLlmModel?: string | null
   preferredImageModel?: string | null
   preferredVideoModel?: string | null
@@ -1931,6 +2171,11 @@ export type UserUpdateWithoutSubscriptionEventsInput = {
   falApiKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   falApiKeyLastFour?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   falApiKeyAddedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  bunnyStorageZone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bunnyApiKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bunnyApiKeyLastFour?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bunnyCdnUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bunnyStorageAddedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   preferredLlmModel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   preferredImageModel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   preferredVideoModel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -1965,6 +2210,11 @@ export type UserUncheckedUpdateWithoutSubscriptionEventsInput = {
   falApiKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   falApiKeyLastFour?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   falApiKeyAddedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  bunnyStorageZone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bunnyApiKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bunnyApiKeyLastFour?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bunnyCdnUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bunnyStorageAddedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   preferredLlmModel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   preferredImageModel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   preferredVideoModel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -1999,6 +2249,11 @@ export type UserCreateWithoutModel3DAssetsInput = {
   falApiKey?: string | null
   falApiKeyLastFour?: string | null
   falApiKeyAddedAt?: Date | string | null
+  bunnyStorageZone?: string | null
+  bunnyApiKey?: string | null
+  bunnyApiKeyLastFour?: string | null
+  bunnyCdnUrl?: string | null
+  bunnyStorageAddedAt?: Date | string | null
   preferredLlmModel?: string | null
   preferredImageModel?: string | null
   preferredVideoModel?: string | null
@@ -2033,6 +2288,11 @@ export type UserUncheckedCreateWithoutModel3DAssetsInput = {
   falApiKey?: string | null
   falApiKeyLastFour?: string | null
   falApiKeyAddedAt?: Date | string | null
+  bunnyStorageZone?: string | null
+  bunnyApiKey?: string | null
+  bunnyApiKeyLastFour?: string | null
+  bunnyCdnUrl?: string | null
+  bunnyStorageAddedAt?: Date | string | null
   preferredLlmModel?: string | null
   preferredImageModel?: string | null
   preferredVideoModel?: string | null
@@ -2083,6 +2343,11 @@ export type UserUpdateWithoutModel3DAssetsInput = {
   falApiKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   falApiKeyLastFour?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   falApiKeyAddedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  bunnyStorageZone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bunnyApiKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bunnyApiKeyLastFour?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bunnyCdnUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bunnyStorageAddedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   preferredLlmModel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   preferredImageModel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   preferredVideoModel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -2117,6 +2382,11 @@ export type UserUncheckedUpdateWithoutModel3DAssetsInput = {
   falApiKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   falApiKeyLastFour?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   falApiKeyAddedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  bunnyStorageZone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bunnyApiKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bunnyApiKeyLastFour?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bunnyCdnUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  bunnyStorageAddedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   preferredLlmModel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   preferredImageModel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   preferredVideoModel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -2245,6 +2515,11 @@ export type UserSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = r
   falApiKey?: boolean
   falApiKeyLastFour?: boolean
   falApiKeyAddedAt?: boolean
+  bunnyStorageZone?: boolean
+  bunnyApiKey?: boolean
+  bunnyApiKeyLastFour?: boolean
+  bunnyCdnUrl?: boolean
+  bunnyStorageAddedAt?: boolean
   preferredLlmModel?: boolean
   preferredImageModel?: boolean
   preferredVideoModel?: boolean
@@ -2281,6 +2556,11 @@ export type UserSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Extensio
   falApiKey?: boolean
   falApiKeyLastFour?: boolean
   falApiKeyAddedAt?: boolean
+  bunnyStorageZone?: boolean
+  bunnyApiKey?: boolean
+  bunnyApiKeyLastFour?: boolean
+  bunnyCdnUrl?: boolean
+  bunnyStorageAddedAt?: boolean
   preferredLlmModel?: boolean
   preferredImageModel?: boolean
   preferredVideoModel?: boolean
@@ -2308,6 +2588,11 @@ export type UserSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensio
   falApiKey?: boolean
   falApiKeyLastFour?: boolean
   falApiKeyAddedAt?: boolean
+  bunnyStorageZone?: boolean
+  bunnyApiKey?: boolean
+  bunnyApiKeyLastFour?: boolean
+  bunnyCdnUrl?: boolean
+  bunnyStorageAddedAt?: boolean
   preferredLlmModel?: boolean
   preferredImageModel?: boolean
   preferredVideoModel?: boolean
@@ -2335,6 +2620,11 @@ export type UserSelectScalar = {
   falApiKey?: boolean
   falApiKeyLastFour?: boolean
   falApiKeyAddedAt?: boolean
+  bunnyStorageZone?: boolean
+  bunnyApiKey?: boolean
+  bunnyApiKeyLastFour?: boolean
+  bunnyCdnUrl?: boolean
+  bunnyStorageAddedAt?: boolean
   preferredLlmModel?: boolean
   preferredImageModel?: boolean
   preferredVideoModel?: boolean
@@ -2343,7 +2633,7 @@ export type UserSelectScalar = {
   updatedAt?: boolean
 }
 
-export type UserOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "email" | "name" | "image" | "emailVerified" | "role" | "stripeCustomerId" | "subscriptionStatus" | "subscriptionTier" | "subscriptionPeriodEnd" | "cancelAtPeriodEnd" | "onboardingComplete" | "hasPlatformAccess" | "platformPurchaseDate" | "platformStripePaymentId" | "falApiKey" | "falApiKeyLastFour" | "falApiKeyAddedAt" | "preferredLlmModel" | "preferredImageModel" | "preferredVideoModel" | "preferredVoiceId" | "createdAt" | "updatedAt", ExtArgs["result"]["user"]>
+export type UserOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "email" | "name" | "image" | "emailVerified" | "role" | "stripeCustomerId" | "subscriptionStatus" | "subscriptionTier" | "subscriptionPeriodEnd" | "cancelAtPeriodEnd" | "onboardingComplete" | "hasPlatformAccess" | "platformPurchaseDate" | "platformStripePaymentId" | "falApiKey" | "falApiKeyLastFour" | "falApiKeyAddedAt" | "bunnyStorageZone" | "bunnyApiKey" | "bunnyApiKeyLastFour" | "bunnyCdnUrl" | "bunnyStorageAddedAt" | "preferredLlmModel" | "preferredImageModel" | "preferredVideoModel" | "preferredVoiceId" | "createdAt" | "updatedAt", ExtArgs["result"]["user"]>
 export type UserInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   accounts?: boolean | Prisma.User$accountsArgs<ExtArgs>
   sessions?: boolean | Prisma.User$sessionsArgs<ExtArgs>
@@ -2389,6 +2679,11 @@ export type $UserPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs =
     falApiKey: string | null
     falApiKeyLastFour: string | null
     falApiKeyAddedAt: Date | null
+    bunnyStorageZone: string | null
+    bunnyApiKey: string | null
+    bunnyApiKeyLastFour: string | null
+    bunnyCdnUrl: string | null
+    bunnyStorageAddedAt: Date | null
     preferredLlmModel: string | null
     preferredImageModel: string | null
     preferredVideoModel: string | null
@@ -2844,6 +3139,11 @@ export interface UserFieldRefs {
   readonly falApiKey: Prisma.FieldRef<"User", 'String'>
   readonly falApiKeyLastFour: Prisma.FieldRef<"User", 'String'>
   readonly falApiKeyAddedAt: Prisma.FieldRef<"User", 'DateTime'>
+  readonly bunnyStorageZone: Prisma.FieldRef<"User", 'String'>
+  readonly bunnyApiKey: Prisma.FieldRef<"User", 'String'>
+  readonly bunnyApiKeyLastFour: Prisma.FieldRef<"User", 'String'>
+  readonly bunnyCdnUrl: Prisma.FieldRef<"User", 'String'>
+  readonly bunnyStorageAddedAt: Prisma.FieldRef<"User", 'DateTime'>
   readonly preferredLlmModel: Prisma.FieldRef<"User", 'String'>
   readonly preferredImageModel: Prisma.FieldRef<"User", 'String'>
   readonly preferredVideoModel: Prisma.FieldRef<"User", 'String'>

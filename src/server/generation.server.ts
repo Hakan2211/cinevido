@@ -19,6 +19,7 @@ import {
   getFalJobStatus,
   uploadFromUrl,
 } from './services/index.server'
+import { getUserStorageConfig } from './storage-config.server'
 
 // =============================================================================
 // Schemas
@@ -217,11 +218,16 @@ export const createAudioJobFn = createServerFn({ method: 'POST' })
     try {
       // Generate audio via Fal.ai (synchronous - TTS is fast)
       // The service handles re-uploading to Bunny.net for permanent storage
-      const result = await generateSpeech({
-        text: data.text,
-        voice,
-        model: modelId,
-      })
+      const storageConfig = await getUserStorageConfig(context.user.id)
+      const result = await generateSpeech(
+        {
+          text: data.text,
+          voice,
+          model: modelId,
+        },
+        undefined, // userApiKey (uses service default)
+        storageConfig,
+      )
 
       // Create asset record
       const asset = await prisma.asset.create({
