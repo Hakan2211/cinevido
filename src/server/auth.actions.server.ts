@@ -5,6 +5,22 @@ import { z } from 'zod'
 // NOTE: Server-only dependencies (prisma, auth) are dynamically imported
 // inside handlers to prevent them from being bundled into the client during dev mode.
 
+/**
+ * Derive the request origin from forwarded headers (set by the reverse proxy)
+ * or fall back to BETTER_AUTH_URL / localhost for development.
+ */
+function getOriginFromRequest(request: Request): string {
+  const forwardedProto = request.headers.get('x-forwarded-proto')
+  const forwardedHost = request.headers.get('x-forwarded-host')
+  const host = request.headers.get('host')
+  const authority = forwardedHost || host
+  if (authority) {
+    const proto = forwardedProto || 'http'
+    return `${proto}://${authority}`
+  }
+  return process.env.BETTER_AUTH_URL || 'http://localhost:3000'
+}
+
 async function getAuthInstance() {
   const { getAuth } = await import('../lib/auth.server')
   return getAuth()
@@ -74,17 +90,15 @@ export const signInAction = createServerFn({ method: 'POST' })
       const request = getRequest()
 
       // Create a fake request to pass to Better-Auth
-      const fakeRequest = new Request(
-        'http://localhost:3000/api/auth/sign-in/email',
-        {
-          method: 'POST',
-          headers: request.headers,
-          body: JSON.stringify({
-            email: data.email,
-            password: data.password,
-          }),
-        },
-      )
+      const origin = getOriginFromRequest(request)
+      const fakeRequest = new Request(`${origin}/api/auth/sign-in/email`, {
+        method: 'POST',
+        headers: request.headers,
+        body: JSON.stringify({
+          email: data.email,
+          password: data.password,
+        }),
+      })
 
       const auth = await getAuthInstance()
       const response = await auth.handler(fakeRequest)
@@ -141,13 +155,11 @@ export const signOutAction = createServerFn({ method: 'POST' }).handler(
       const request = getRequest()
 
       // Create a fake request for sign out
-      const fakeRequest = new Request(
-        'http://localhost:3000/api/auth/sign-out',
-        {
-          method: 'POST',
-          headers: request.headers,
-        },
-      )
+      const origin = getOriginFromRequest(request)
+      const fakeRequest = new Request(`${origin}/api/auth/sign-out`, {
+        method: 'POST',
+        headers: request.headers,
+      })
 
       const auth = await getAuthInstance()
       const response = await auth.handler(fakeRequest)

@@ -17,6 +17,7 @@ import { Route as AuthRouteImport } from './routes/_auth'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiProxyGlbRouteImport } from './routes/api/proxy-glb'
+import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as ApiChatRouteImport } from './routes/api/chat'
 import { Route as AuthSignupRouteImport } from './routes/_auth/signup'
 import { Route as AuthLoginRouteImport } from './routes/_auth/login'
@@ -69,6 +70,11 @@ const IndexRoute = IndexRouteImport.update({
 const ApiProxyGlbRoute = ApiProxyGlbRouteImport.update({
   id: '/api/proxy-glb',
   path: '/api/proxy-glb',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiHealthRoute = ApiHealthRouteImport.update({
+  id: '/api/health',
+  path: '/api/health',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiChatRoute = ApiChatRouteImport.update({
@@ -161,6 +167,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof AuthLoginRoute
   '/signup': typeof AuthSignupRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/health': typeof ApiHealthRoute
   '/api/proxy-glb': typeof ApiProxyGlbRoute
   '/projects/$projectId': typeof AppProjectsProjectIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
@@ -184,6 +191,7 @@ export interface FileRoutesByTo {
   '/login': typeof AuthLoginRoute
   '/signup': typeof AuthSignupRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/health': typeof ApiHealthRoute
   '/api/proxy-glb': typeof ApiProxyGlbRoute
   '/projects/$projectId': typeof AppProjectsProjectIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
@@ -210,6 +218,7 @@ export interface FileRoutesById {
   '/_auth/login': typeof AuthLoginRoute
   '/_auth/signup': typeof AuthSignupRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/health': typeof ApiHealthRoute
   '/api/proxy-glb': typeof ApiProxyGlbRoute
   '/_app/projects/$projectId': typeof AppProjectsProjectIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
@@ -235,6 +244,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/signup'
     | '/api/chat'
+    | '/api/health'
     | '/api/proxy-glb'
     | '/projects/$projectId'
     | '/api/auth/$'
@@ -258,6 +268,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/signup'
     | '/api/chat'
+    | '/api/health'
     | '/api/proxy-glb'
     | '/projects/$projectId'
     | '/api/auth/$'
@@ -283,6 +294,7 @@ export interface FileRouteTypes {
     | '/_auth/login'
     | '/_auth/signup'
     | '/api/chat'
+    | '/api/health'
     | '/api/proxy-glb'
     | '/_app/projects/$projectId'
     | '/api/auth/$'
@@ -302,6 +314,7 @@ export interface RootRouteChildren {
   PurchaseSuccessRoute: typeof PurchaseSuccessRoute
   TermsRoute: typeof TermsRoute
   ApiChatRoute: typeof ApiChatRoute
+  ApiHealthRoute: typeof ApiHealthRoute
   ApiProxyGlbRoute: typeof ApiProxyGlbRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiStripeWebhookRoute: typeof ApiStripeWebhookRoute
@@ -363,6 +376,13 @@ declare module '@tanstack/react-router' {
       path: '/api/proxy-glb'
       fullPath: '/api/proxy-glb'
       preLoaderRoute: typeof ApiProxyGlbRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/health': {
+      id: '/api/health'
+      path: '/api/health'
+      fullPath: '/api/health'
+      preLoaderRoute: typeof ApiHealthRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/chat': {
@@ -522,6 +542,7 @@ const rootRouteChildren: RootRouteChildren = {
   PurchaseSuccessRoute: PurchaseSuccessRoute,
   TermsRoute: TermsRoute,
   ApiChatRoute: ApiChatRoute,
+  ApiHealthRoute: ApiHealthRoute,
   ApiProxyGlbRoute: ApiProxyGlbRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiStripeWebhookRoute: ApiStripeWebhookRoute,

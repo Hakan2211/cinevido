@@ -69,9 +69,9 @@ ENV DATABASE_URL=file:/app/prisma/data/prod.db
 
 EXPOSE 3000
 
-# Health check endpoint
+# Health check endpoint (lightweight /api/health avoids full SSR pipeline)
 HEALTHCHECK --interval=30s --timeout=15s --start-period=60s --retries=5 \
-  CMD curl -f http://localhost:3000 || exit 1
+  CMD curl -f http://localhost:3000/api/health || exit 1
 
 # Use entrypoint for migrations/seeding, then start the app
 ENTRYPOINT ["./entrypoint.sh"]
