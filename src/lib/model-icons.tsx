@@ -92,6 +92,12 @@ export const PROVIDER_COLORS = {
     text: 'text-neutral-300',
     gradient: 'from-neutral-400 to-slate-500',
   },
+  lightricks: {
+    bg: 'bg-fuchsia-500/20',
+    border: 'border-fuchsia-500/30',
+    text: 'text-fuchsia-400',
+    gradient: 'from-fuchsia-500 to-pink-500',
+  },
   default: {
     bg: 'bg-slate-500/20',
     border: 'border-slate-500/30',
@@ -148,6 +154,9 @@ export function getProviderFromModelId(modelId: string): ProviderKey {
   if (lowerModelId.includes('xai') || lowerModelId.includes('grok')) {
     return 'xai'
   }
+  if (lowerModelId.includes('ltx') || lowerModelId.includes('lightricks')) {
+    return 'lightricks'
+  }
 
   return 'default'
 }
@@ -168,6 +177,7 @@ export const PROVIDER_NAMES: Record<ProviderKey, string> = {
   minimax: 'MiniMax',
   pika: 'Pika',
   xai: 'xAI',
+  lightricks: 'Lightricks',
   default: 'AI',
 }
 
@@ -285,6 +295,7 @@ const PROVIDER_ICONS: Record<ProviderKey, React.FC<IconProps>> = {
   minimax: FilmIcon,
   pika: FilmIcon,
   xai: XaiIcon,
+  lightricks: FilmIcon,
   default: SparkleIcon,
 }
 

@@ -40,10 +40,10 @@ export const IMAGE_MODELS: Array<ModelConfig> = [
     maxNumImages: 4,
   },
   {
-    id: 'fal-ai/nano-banana',
-    name: 'Nano Banana',
+    id: 'fal-ai/nano-banana-2',
+    name: 'Nano Banana 2',
     provider: 'fal',
-    description: 'Google Gemini 2.5 Flash - Fast and affordable',
+    description: 'Google Gemini 3.1 Flash - Fast, high quality',
     supportsNumImages: true,
     maxNumImages: 4,
   },
@@ -196,11 +196,11 @@ export const EDIT_MODELS: Array<EditModelConfig> = [
     description: 'Best quality, multi-image composition',
   },
   {
-    id: 'fal-ai/nano-banana/edit',
-    name: 'Nano Banana',
+    id: 'fal-ai/nano-banana-2/edit',
+    name: 'Nano Banana 2',
     provider: 'fal',
     maxImages: 10,
-    description: 'Good quality, affordable',
+    description: 'Google Gemini 3.1 Flash - Fast, high quality editing',
   },
   {
     id: 'fal-ai/flux-2/edit',
@@ -376,34 +376,6 @@ export interface VideoModelConfig extends ModelConfig {
 
 export const VIDEO_MODELS: Array<VideoModelConfig> = [
   // =============================================================================
-  // Kling 2.6 Pro - Premium tier with audio
-  // =============================================================================
-  {
-    id: 'fal-ai/kling-video/v2.6/pro/text-to-video',
-    name: 'Kling 2.6 Pro',
-    provider: 'fal',
-    description: 'Top-tier text-to-video with native audio',
-    capabilities: ['text-to-video'],
-    durations: [5, 10],
-    aspectRatios: ['16:9', '9:16', '1:1'],
-    supportsAudio: true,
-  },
-  {
-    id: 'fal-ai/kling-video/v2.6/pro/image-to-video',
-    name: 'Kling 2.6 Pro',
-    provider: 'fal',
-    description: 'Top-tier image-to-video with native audio',
-    capabilities: ['image-to-video'],
-    durations: [5, 10],
-    supportsAudio: true,
-    supportsEndFrame: true,
-    fieldMappings: {
-      imageUrl: 'start_image_url',
-      endImageUrl: 'end_image_url',
-    },
-  },
-
-  // =============================================================================
   // Kling 3.0 (O3) - Next-gen with extended durations (3-15s)
   // =============================================================================
   {
@@ -476,6 +448,61 @@ export const VIDEO_MODELS: Array<VideoModelConfig> = [
     name: 'Kling 3.0 Standard Ref',
     provider: 'fal',
     description: 'Kling 3.0 Standard reference-to-video with keyframes',
+    capabilities: ['image-to-video', 'keyframes'],
+    durations: [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+    aspectRatios: ['16:9', '9:16', '1:1'],
+    supportsAudio: true,
+    supportsEndFrame: true,
+    fieldMappings: {
+      imageUrl: 'start_image_url',
+      endImageUrl: 'end_image_url',
+    },
+  },
+
+  // =============================================================================
+  // Kling v3 - Latest generation with extended durations (3-15s)
+  // Uses start_image_url (not image_url like o3)
+  // =============================================================================
+  {
+    id: 'fal-ai/kling-video/v3/pro/text-to-video',
+    name: 'Kling v3 Pro',
+    provider: 'fal',
+    description: 'Kling v3 Pro text-to-video with 1080p and audio',
+    capabilities: ['text-to-video'],
+    durations: [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+    aspectRatios: ['16:9', '9:16', '1:1'],
+    supportsAudio: true,
+  },
+  {
+    id: 'fal-ai/kling-video/v3/standard/text-to-video',
+    name: 'Kling v3 Standard',
+    provider: 'fal',
+    description: 'Kling v3 Standard text-to-video - Affordable',
+    capabilities: ['text-to-video'],
+    durations: [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+    aspectRatios: ['16:9', '9:16', '1:1'],
+    supportsAudio: true,
+  },
+  {
+    id: 'fal-ai/kling-video/v3/pro/image-to-video',
+    name: 'Kling v3 Pro',
+    provider: 'fal',
+    description: 'Kling v3 Pro image-to-video with keyframes',
+    capabilities: ['image-to-video', 'keyframes'],
+    durations: [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+    aspectRatios: ['16:9', '9:16', '1:1'],
+    supportsAudio: true,
+    supportsEndFrame: true,
+    fieldMappings: {
+      imageUrl: 'start_image_url',
+      endImageUrl: 'end_image_url',
+    },
+  },
+  {
+    id: 'fal-ai/kling-video/v3/standard/image-to-video',
+    name: 'Kling v3 Standard',
+    provider: 'fal',
+    description: 'Kling v3 Standard image-to-video with keyframes',
     capabilities: ['image-to-video', 'keyframes'],
     durations: [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
     aspectRatios: ['16:9', '9:16', '1:1'],
@@ -735,6 +762,64 @@ export const VIDEO_MODELS: Array<VideoModelConfig> = [
   },
 
   // =============================================================================
+  // LTX 2.3 - Lightricks (text-to-video and image-to-video, pro + fast)
+  // =============================================================================
+  {
+    id: 'fal-ai/ltx-2.3/text-to-video',
+    name: 'LTX 2.3',
+    provider: 'fal',
+    description: 'Lightricks LTX 2.3 text-to-video with audio',
+    capabilities: ['text-to-video'],
+    durations: [6, 8, 10],
+    aspectRatios: ['16:9', '9:16'],
+    resolutions: ['1080p', '1440p', '2160p'],
+    supportsAudio: true,
+  },
+  {
+    id: 'fal-ai/ltx-2.3/text-to-video/fast',
+    name: 'LTX 2.3 Fast',
+    provider: 'fal',
+    description: 'Lightricks LTX 2.3 Fast - Longer durations up to 20s',
+    capabilities: ['text-to-video'],
+    durations: [6, 8, 10, 12, 14, 16, 18, 20],
+    aspectRatios: ['16:9', '9:16'],
+    resolutions: ['1080p', '1440p', '2160p'],
+    supportsAudio: true,
+  },
+  {
+    id: 'fal-ai/ltx-2.3/image-to-video',
+    name: 'LTX 2.3',
+    provider: 'fal',
+    description: 'Lightricks LTX 2.3 image-to-video with audio',
+    capabilities: ['image-to-video'],
+    durations: [6, 8, 10],
+    aspectRatios: ['auto', '16:9', '9:16'],
+    resolutions: ['1080p', '1440p', '2160p'],
+    supportsAudio: true,
+    supportsEndFrame: true,
+    fieldMappings: {
+      imageUrl: 'image_url',
+      endImageUrl: 'end_image_url',
+    },
+  },
+  {
+    id: 'fal-ai/ltx-2.3/image-to-video/fast',
+    name: 'LTX 2.3 Fast',
+    provider: 'fal',
+    description: 'Lightricks LTX 2.3 Fast image-to-video - Longer durations',
+    capabilities: ['image-to-video'],
+    durations: [6, 8, 10, 12, 14, 16, 18, 20],
+    aspectRatios: ['auto', '16:9', '9:16'],
+    resolutions: ['1080p', '1440p', '2160p'],
+    supportsAudio: true,
+    supportsEndFrame: true,
+    fieldMappings: {
+      imageUrl: 'image_url',
+      endImageUrl: 'end_image_url',
+    },
+  },
+
+  // =============================================================================
   // Pika 2.2 - Keyframes specialist
   // =============================================================================
   {
@@ -934,11 +1019,9 @@ export function getModelById(
 }
 
 export function getDefaultImageModel(): ModelConfig {
-  // Return ImagineArt 1.5 as the default
+  // Return Nano Banana 2 as the default
   return (
-    IMAGE_MODELS.find(
-      (m) => m.id === 'imagineart/imagineart-1.5-preview/text-to-image',
-    ) || IMAGE_MODELS[0]
+    IMAGE_MODELS.find((m) => m.id === 'fal-ai/nano-banana-2') || IMAGE_MODELS[0]
   )
 }
 
@@ -967,7 +1050,11 @@ export function getDefaultAudioModel(): ModelConfig {
 }
 
 export function getDefaultEditModel(): EditModelConfig {
-  return EDIT_MODELS[0]
+  // Return Nano Banana 2 Edit as the default
+  return (
+    EDIT_MODELS.find((m) => m.id === 'fal-ai/nano-banana-2/edit') ||
+    EDIT_MODELS[0]
+  )
 }
 
 export function getEditModelById(modelId: string): EditModelConfig | undefined {
@@ -1354,24 +1441,23 @@ export interface MotionControlModelConfig extends ModelConfig {
 
 export const MOTION_CONTROL_MODELS: Array<MotionControlModelConfig> = [
   {
-    id: 'fal-ai/kling-video/v2.6/pro/motion-control',
-    name: 'Kling Pro',
+    id: 'fal-ai/kling-video/v3/pro/motion-control',
+    name: 'Kling v3 Pro',
     provider: 'fal',
-    description:
-      'Professional quality motion transfer - best for complex movements',
+    description: 'Professional quality motion transfer with facial consistency',
     quality: 'pro',
-    endpoint: 'fal-ai/kling-video/v2.6/pro/motion-control',
+    endpoint: 'fal-ai/kling-video/v3/pro/motion-control',
     maxDurationVideo: 30,
     maxDurationImage: 10,
     durations: [5, 10, 15, 20, 30],
   },
   {
-    id: 'fal-ai/kling-video/v2.6/standard/motion-control',
-    name: 'Kling Standard',
+    id: 'fal-ai/kling-video/v3/standard/motion-control',
+    name: 'Kling v3 Standard',
     provider: 'fal',
-    description: 'Cost-effective motion transfer',
+    description: 'Cost-effective motion transfer with facial consistency',
     quality: 'standard',
-    endpoint: 'fal-ai/kling-video/v2.6/standard/motion-control',
+    endpoint: 'fal-ai/kling-video/v3/standard/motion-control',
     maxDurationVideo: 30,
     maxDurationImage: 10,
     durations: [5, 10, 15, 20, 30],

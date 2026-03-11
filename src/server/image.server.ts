@@ -75,8 +75,7 @@ export const generateImageFn = createServerFn({ method: 'POST' })
       userId: context.user.id,
     })
 
-    const modelId =
-      data.model || 'imagineart/imagineart-1.5-preview/text-to-image'
+    const modelId = data.model || 'fal-ai/nano-banana-2'
     const modelConfig = getModelById(modelId, IMAGE_MODELS)
 
     if (!modelConfig) {

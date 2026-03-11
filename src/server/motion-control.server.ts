@@ -71,7 +71,7 @@ export const generateMotionControlFn = createServerFn({ method: 'POST' })
   .middleware([authMiddleware])
   .inputValidator(generateMotionControlSchema)
   .handler(async ({ data, context }) => {
-    const modelId = data.model || 'fal-ai/kling-video/v2.6/pro/motion-control'
+    const modelId = data.model || 'fal-ai/kling-video/v3/pro/motion-control'
     const modelConfig = getMotionControlModelById(modelId)
 
     if (!modelConfig) {

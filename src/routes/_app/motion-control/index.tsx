@@ -111,9 +111,7 @@ function MotionControlPage() {
 
   // Generation settings
   const [prompt, setPrompt] = useState('')
-  const [model, setModel] = useState(
-    'fal-ai/kling-video/v2.6/pro/motion-control',
-  )
+  const [model, setModel] = useState('fal-ai/kling-video/v3/pro/motion-control')
   const [characterOrientation, setCharacterOrientation] =
     useState<CharacterOrientation>('video')
   const [duration, setDuration] = useState(5)

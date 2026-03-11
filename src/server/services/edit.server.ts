@@ -110,7 +110,7 @@ export async function editImage(
   input: EditInput,
   userApiKey?: string,
 ): Promise<EditJob> {
-  const modelId = input.model || 'fal-ai/flux-pro/kontext'
+  const modelId = input.model || 'fal-ai/nano-banana-2/edit'
   const modelConfig = getEditModelById(modelId)
 
   console.log('[EDIT] editImage called:', {

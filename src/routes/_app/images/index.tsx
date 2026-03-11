@@ -160,9 +160,7 @@ function ImagesPage() {
 
   // Generate form state
   const [prompt, setPrompt] = useState('')
-  const [model, setModel] = useState(
-    'imagineart/imagineart-1.5-preview/text-to-image',
-  )
+  const [model, setModel] = useState('fal-ai/nano-banana-2')
   const [aspectRatio, setAspectRatio] = useState('1:1')
   const [showNegativePrompt, setShowNegativePrompt] = useState(false)
   const [negativePrompt, setNegativePrompt] = useState('')
@@ -175,7 +173,7 @@ function ImagesPage() {
 
   // Edit mode state (prompt-based, no masks!)
   const [editPrompt, setEditPrompt] = useState('')
-  const [editModel, setEditModel] = useState('fal-ai/flux-pro/kontext')
+  const [editModel, setEditModel] = useState('fal-ai/nano-banana-2/edit')
   // Multi-image selection for edit mode
   const [selectedEditImages, setSelectedEditImages] = useState<
     Array<{

@@ -26,7 +26,7 @@ const modelCategories = [
     bgColor: 'bg-blue-500/10',
     borderColor: 'border-blue-500/20',
     models: [
-      'Kling 2.6 Pro',
+      'Kling 3.0',
       'Sora 2 Pro',
       'Veo 3.1',
       'Wan 2.6',

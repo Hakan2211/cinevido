@@ -186,7 +186,7 @@ export const showcaseVideos = [
   {
     src: `${CDN_BASE}/videos/cml3kjr9w0000e4uc6oymgh4i/generated-1769956469918.mp4`,
     title: 'AI Generated Scene',
-    model: 'Kling 2.6',
+    model: 'Kling 3.0',
   },
   {
     src: `${CDN_BASE}/videos/cml3kjr9w0000e4uc6oymgh4i/video-1769956790001.mp4`,

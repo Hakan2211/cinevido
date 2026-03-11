@@ -97,10 +97,10 @@ export const generateVideoFn = createServerFn({ method: 'POST' })
     let defaultModelId: string
     switch (data.generationType) {
       case 'text-to-video':
-        defaultModelId = 'fal-ai/kling-video/v2.6/pro/text-to-video'
+        defaultModelId = 'fal-ai/kling-video/o3/standard/text-to-video'
         break
       case 'image-to-video':
-        defaultModelId = 'fal-ai/kling-video/v2.6/pro/image-to-video'
+        defaultModelId = 'fal-ai/kling-video/o3/standard/image-to-video'
         break
       case 'keyframes':
         defaultModelId = 'fal-ai/veo3.1/first-last-frame-to-video'

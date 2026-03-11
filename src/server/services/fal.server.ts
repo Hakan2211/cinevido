@@ -171,8 +171,7 @@ export async function generateImage(
   input: ImageGenerationInput,
   userApiKey?: string,
 ): Promise<GenerationJob> {
-  const modelId =
-    input.model || 'imagineart/imagineart-1.5-preview/text-to-image'
+  const modelId = input.model || 'fal-ai/nano-banana-2'
   // Validate model exists (throws if not found)
   getModelById(modelId, IMAGE_MODELS)
 
@@ -252,16 +251,16 @@ export async function generateVideo(
   let defaultModelId: string
   switch (input.generationType) {
     case 'text-to-video':
-      defaultModelId = 'fal-ai/kling-video/v2.6/pro/text-to-video'
+      defaultModelId = 'fal-ai/kling-video/o3/standard/text-to-video'
       break
     case 'image-to-video':
-      defaultModelId = 'fal-ai/kling-video/v2.6/pro/image-to-video'
+      defaultModelId = 'fal-ai/kling-video/o3/standard/image-to-video'
       break
     case 'keyframes':
       defaultModelId = 'fal-ai/veo3.1/first-last-frame-to-video'
       break
     default:
-      defaultModelId = 'fal-ai/kling-video/v2.6/pro/text-to-video'
+      defaultModelId = 'fal-ai/kling-video/o3/standard/text-to-video'
   }
 
   const modelId = input.model || defaultModelId
@@ -714,7 +713,7 @@ export async function generateMotionControl(
   input: MotionControlInput,
   userApiKey?: string,
 ): Promise<GenerationJob> {
-  const modelId = input.model || 'fal-ai/kling-video/v2.6/pro/motion-control'
+  const modelId = input.model || 'fal-ai/kling-video/v3/pro/motion-control'
   const modelConfig = getMotionControlModelById(modelId)
 
   if (!modelConfig) {
@@ -1025,6 +1024,27 @@ function buildVideoPayload(
     }
   }
 
+  // --- Kling v3 ---
+  // Kling v3 API expects duration as a STRING ("5"), uses start_image_url
+  // Must match BEFORE o3 since both contain 'kling-video/'
+  else if (modelId.includes('kling-video/v3')) {
+    payload.duration = String(input.duration || 5)
+    // Aspect ratio (for text-to-video)
+    if (input.aspectRatio) {
+      payload.aspect_ratio = input.aspectRatio
+    }
+    // Audio generation
+    if (input.generateAudio !== undefined) {
+      payload.generate_audio = input.generateAudio
+    } else {
+      payload.generate_audio = true // default on
+    }
+    // Negative prompt
+    if (input.negativePrompt) {
+      payload.negative_prompt = input.negativePrompt
+    }
+  }
+
   // --- Kling 3.0 (O3) ---
   // Kling O3 API expects duration as a STRING ("5") not a number
   else if (modelId.includes('kling-video/o3')) {
@@ -1122,6 +1142,23 @@ function buildVideoPayload(
     }
     if (input.resolution) {
       payload.resolution = input.resolution
+    }
+  }
+
+  // --- LTX 2.3 ---
+  // LTX API expects duration as a NUMBER, supports resolution, aspect_ratio, generate_audio
+  else if (modelId.includes('ltx-2.3')) {
+    payload.duration = input.duration || 6
+    if (input.aspectRatio) {
+      payload.aspect_ratio = input.aspectRatio
+    }
+    if (input.resolution) {
+      payload.resolution = input.resolution
+    }
+    if (input.generateAudio !== undefined) {
+      payload.generate_audio = input.generateAudio
+    } else {
+      payload.generate_audio = true // default on
     }
   }
 
