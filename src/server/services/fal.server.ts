@@ -66,8 +66,11 @@ export interface ImageGenerationInput {
   numImages?: number
   negativePrompt?: string
   seed?: number
-  quality?: 'low' | 'medium' | 'high' // For GPT Image 1.5
+  quality?: 'low' | 'medium' | 'high' // For GPT Image 2
   style?: string // For Recraft V3
+  // GPT Image 2 specific
+  imageSizePreset?: string // Preset name (e.g. 'square_hd', 'landscape_4_3')
+  outputFormat?: 'jpeg' | 'png' | 'webp' // Output format for GPT Image 2
 }
 
 export type VideoGenerationType =
@@ -837,10 +840,16 @@ function buildImagePayload(input: ImageGenerationInput, modelId: string) {
   const width = input.width || 1024
   const height = input.height || 1024
 
-  // === GPT Image 1.5 - uses different size format ===
-  if (modelId === 'fal-ai/gpt-image-1.5') {
-    payload.quality = input.quality || 'medium'
-    payload.size = `${width}x${height}`
+  // === GPT Image 2 - uses image_size (preset or {width,height}), quality, output_format ===
+  if (modelId === 'fal-ai/gpt-image-2') {
+    payload.quality = input.quality || 'high'
+    // Prefer the preset if supplied; otherwise pass custom dimensions
+    if (input.imageSizePreset) {
+      payload.image_size = input.imageSizePreset
+    } else {
+      payload.image_size = { width, height }
+    }
+    payload.output_format = input.outputFormat || 'png'
     if (input.numImages) payload.num_images = input.numImages
   }
   // === Recraft V3 - has style parameter and preset sizes ===

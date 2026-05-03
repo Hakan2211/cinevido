@@ -35,6 +35,9 @@ const generateImageSchema = z.object({
   quality: z.enum(['low', 'medium', 'high']).optional(), // GPT Image quality tier
   style: z.string().optional(), // Recraft V3 style
   numImages: z.number().min(1).max(4).optional(), // Number of images to generate
+  // GPT Image 2 specific
+  imageSizePreset: z.string().optional(),
+  outputFormat: z.enum(['jpeg', 'png', 'webp']).optional(),
 })
 
 const listImagesSchema = z.object({
@@ -104,6 +107,8 @@ export const generateImageFn = createServerFn({ method: 'POST' })
         quality: data.quality,
         style: data.style,
         numImages,
+        imageSizePreset: data.imageSizePreset,
+        outputFormat: data.outputFormat,
       },
       userApiKey,
     )
@@ -126,6 +131,8 @@ export const generateImageFn = createServerFn({ method: 'POST' })
           quality: data.quality,
           style: data.style,
           numImages,
+          imageSizePreset: data.imageSizePreset,
+          outputFormat: data.outputFormat,
         }),
         externalId: job.requestId,
         // Store Fal.ai URLs for reliable status polling

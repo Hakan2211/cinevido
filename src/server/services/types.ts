@@ -50,10 +50,10 @@ export const IMAGE_MODELS: Array<ModelConfig> = [
 
   // === OpenAI (GPT Image) ===
   {
-    id: 'fal-ai/gpt-image-1.5',
-    name: 'GPT Image 1.5',
+    id: 'fal-ai/gpt-image-2',
+    name: 'GPT Image 2',
     provider: 'fal',
-    description: 'OpenAI - Strong prompt adherence, variable quality tiers',
+    description: 'OpenAI - Detailed images with fine typography, quality tiers',
     supportsNumImages: true,
     maxNumImages: 4,
   },
@@ -152,6 +152,54 @@ export const GPT_IMAGE_QUALITY_TIERS = [
 
 export type GptImageQuality = 'low' | 'medium' | 'high'
 
+// GPT Image 2 output formats
+export const GPT_IMAGE_OUTPUT_FORMATS = [
+  { id: 'png', name: 'PNG', description: 'Lossless, larger file' },
+  { id: 'jpeg', name: 'JPEG', description: 'Smaller file, lossy' },
+  { id: 'webp', name: 'WebP', description: 'Modern, efficient' },
+] as const
+
+export type GptImageOutputFormat = 'png' | 'jpeg' | 'webp'
+
+// GPT Image 2 size presets (matches fal.ai ImageSize enum)
+export const GPT_IMAGE_SIZE_PRESETS = [
+  { id: 'square_hd', name: 'Square HD', aspect: '1:1' },
+  { id: 'square', name: 'Square', aspect: '1:1' },
+  { id: 'landscape_4_3', name: 'Landscape 4:3', aspect: '4:3' },
+  { id: 'landscape_16_9', name: 'Landscape 16:9', aspect: '16:9' },
+  { id: 'portrait_4_3', name: 'Portrait 4:3', aspect: '3:4' },
+  { id: 'portrait_16_9', name: 'Portrait 16:9', aspect: '9:16' },
+] as const
+
+export type GptImageSizePreset =
+  | 'square_hd'
+  | 'square'
+  | 'landscape_4_3'
+  | 'landscape_16_9'
+  | 'portrait_4_3'
+  | 'portrait_16_9'
+
+// For edits, fal also accepts 'auto' which lets the model choose
+export type GptImageEditSizePreset = GptImageSizePreset | 'auto'
+
+// Map our aspect-ratio UI strings to gpt-image-2 size presets
+export function aspectRatioToGptImageSize(aspect: string): GptImageSizePreset {
+  switch (aspect) {
+    case '1:1':
+      return 'square_hd'
+    case '4:3':
+      return 'landscape_4_3'
+    case '16:9':
+      return 'landscape_16_9'
+    case '3:4':
+      return 'portrait_4_3'
+    case '9:16':
+      return 'portrait_16_9'
+    default:
+      return 'square_hd'
+  }
+}
+
 // Recraft V3 style options
 export const RECRAFT_STYLES = [
   {
@@ -210,11 +258,11 @@ export const EDIT_MODELS: Array<EditModelConfig> = [
     description: 'Multi-reference, HEX color control',
   },
   {
-    id: 'fal-ai/gpt-image-1.5/edit',
-    name: 'GPT Image 1.5',
+    id: 'fal-ai/gpt-image-2/edit',
+    name: 'GPT Image 2',
     provider: 'fal',
     maxImages: 10,
-    description: 'OpenAI, variable quality tiers',
+    description: 'OpenAI - Fine-grained edits, quality tiers, up to 4K',
   },
   {
     id: 'fal-ai/bytedance/seedream/v4.5/edit',

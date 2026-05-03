@@ -42,6 +42,11 @@ export interface EditInput {
   prompt: string
   model?: string
   seed?: number
+  // GPT Image 2 specific
+  quality?: 'low' | 'medium' | 'high'
+  imageSizePreset?: string // Preset name or 'auto' for edit
+  outputFormat?: 'jpeg' | 'png' | 'webp'
+  numImages?: number
 }
 
 export interface UpscaleInput {
@@ -433,9 +438,13 @@ function buildEditPayload(input: EditInput, modelId: string) {
   } else if (modelId === 'fal-ai/flux-2/edit') {
     // Flux 2 Edit: multi-image, uses image_urls array
     payload.image_urls = input.imageUrls
-  } else if (modelId === 'fal-ai/gpt-image-1.5/edit') {
-    // GPT Image 1.5: multi-image, uses image_urls array
+  } else if (modelId === 'fal-ai/gpt-image-2/edit') {
+    // GPT Image 2: multi-image, supports quality/image_size/output_format/num_images
     payload.image_urls = input.imageUrls
+    payload.quality = input.quality || 'high'
+    payload.image_size = input.imageSizePreset || 'auto'
+    payload.output_format = input.outputFormat || 'png'
+    if (input.numImages) payload.num_images = input.numImages
   } else if (modelId.includes('seedream')) {
     // Seedream 4.5: multi-image, uses image_urls array
     payload.image_urls = input.imageUrls

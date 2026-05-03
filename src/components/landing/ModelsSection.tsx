@@ -11,7 +11,7 @@ const modelCategories = [
     borderColor: 'border-violet-500/20',
     models: [
       'Flux 2 Pro',
-      'GPT Image 1.5',
+      'GPT Image 2',
       'Recraft V3',
       'ImagineArt 1.5',
       'Seedream 4.5',

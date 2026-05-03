@@ -11,7 +11,22 @@ import { Loader2, Paintbrush } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { ModelSelect } from '@/components/ui/model-select'
-import { EDIT_MODELS } from '@/server/services/types'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
+  EDIT_MODELS,
+  GPT_IMAGE_OUTPUT_FORMATS,
+  GPT_IMAGE_QUALITY_TIERS,
+} from '@/server/services/types'
+import type {
+  GptImageOutputFormat,
+  GptImageQuality,
+} from '@/server/services/types'
 import { cn } from '@/lib/utils'
 
 interface EditPanelProps {
@@ -25,6 +40,11 @@ interface EditPanelProps {
   maxImages: number // Max images for current model
   error?: string | null
   className?: string
+  // GPT Image 2 edit specific options
+  gptEditQuality?: GptImageQuality
+  onGptEditQualityChange?: (v: GptImageQuality) => void
+  gptEditOutputFormat?: GptImageOutputFormat
+  onGptEditOutputFormatChange?: (v: GptImageOutputFormat) => void
 }
 
 export function EditPanel({
@@ -38,7 +58,12 @@ export function EditPanel({
   maxImages,
   error,
   className,
+  gptEditQuality,
+  onGptEditQualityChange,
+  gptEditOutputFormat,
+  onGptEditOutputFormatChange,
 }: EditPanelProps) {
+  const isGptImage2Edit = model === 'fal-ai/gpt-image-2/edit'
   const canGenerate = selectedCount > 0 && prompt.trim() && !isGenerating
 
   // Status message based on selection state
@@ -91,6 +116,56 @@ export function EditPanel({
           showDescription={true}
           showProvider={true}
         />
+
+        {/* GPT Image 2 Edit: Quality + Output Format */}
+        {isGptImage2Edit &&
+          gptEditQuality &&
+          onGptEditQualityChange &&
+          gptEditOutputFormat &&
+          onGptEditOutputFormatChange && (
+            <>
+              <Select
+                value={gptEditQuality}
+                onValueChange={onGptEditQualityChange}
+              >
+                <SelectTrigger className="h-9 w-32 rounded-xl border-border/50 bg-background/50">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="rounded-xl">
+                  {GPT_IMAGE_QUALITY_TIERS.map((tier) => (
+                    <SelectItem key={tier.id} value={tier.id}>
+                      <span className="flex items-center gap-2">
+                        {tier.name}
+                        <span className="text-xs text-muted-foreground">
+                          {tier.description}
+                        </span>
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select
+                value={gptEditOutputFormat}
+                onValueChange={onGptEditOutputFormatChange}
+              >
+                <SelectTrigger className="h-9 w-28 rounded-xl border-border/50 bg-background/50">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="rounded-xl">
+                  {GPT_IMAGE_OUTPUT_FORMATS.map((fmt) => (
+                    <SelectItem key={fmt.id} value={fmt.id}>
+                      <span className="flex items-center gap-2">
+                        {fmt.name}
+                        <span className="text-xs text-muted-foreground">
+                          {fmt.description}
+                        </span>
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </>
+          )}
 
         {/* Status indicator - Premium Badge */}
         <div className="flex items-center gap-2 rounded-xl border border-border/50 bg-background/50 px-3 py-1.5">

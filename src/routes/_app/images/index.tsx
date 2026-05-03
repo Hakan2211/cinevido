@@ -42,6 +42,7 @@ import type {
   AgeGroup,
   AgingGender,
   AgingSubMode,
+  GptImageOutputFormat,
   GptImageQuality,
   RecraftStyle,
   SeedvrTargetResolution,
@@ -85,8 +86,10 @@ import {
 } from '@/components/images'
 import { BeforeAfterSlider } from '@/components/images/BeforeAfterSlider'
 import {
+  GPT_IMAGE_OUTPUT_FORMATS,
   GPT_IMAGE_QUALITY_TIERS,
   RECRAFT_STYLES,
+  aspectRatioToGptImageSize,
   getEditModelById,
 } from '@/server/services/types'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
@@ -166,10 +169,17 @@ function ImagesPage() {
   const [negativePrompt, setNegativePrompt] = useState('')
 
   // Model-specific options
-  const [gptQuality, setGptQuality] = useState<GptImageQuality>('medium')
+  const [gptQuality, setGptQuality] = useState<GptImageQuality>('high')
+  const [gptOutputFormat, setGptOutputFormat] =
+    useState<GptImageOutputFormat>('png')
   const [recraftStyle, setRecraftStyle] =
     useState<RecraftStyle>('realistic_image')
   const [numImages, setNumImages] = useState(1)
+
+  // GPT Image 2 edit options
+  const [gptEditQuality, setGptEditQuality] = useState<GptImageQuality>('high')
+  const [gptEditOutputFormat, setGptEditOutputFormat] =
+    useState<GptImageOutputFormat>('png')
 
   // Edit mode state (prompt-based, no masks!)
   const [editPrompt, setEditPrompt] = useState('')
@@ -591,6 +601,8 @@ function ImagesPage() {
     const ratio =
       ASPECT_RATIOS.find((r) => r.id === aspectRatio) || ASPECT_RATIOS[0]
 
+    const isGptImage2 = model === 'fal-ai/gpt-image-2'
+
     generateMutation.mutate({
       data: {
         prompt: prompt.trim(),
@@ -600,8 +612,13 @@ function ImagesPage() {
         negativePrompt: negativePrompt.trim() || undefined,
         numImages: numImages > 1 ? numImages : undefined,
         // Model-specific options
-        quality: model === 'fal-ai/gpt-image-1.5' ? gptQuality : undefined,
+        quality: isGptImage2 ? gptQuality : undefined,
         style: model.includes('recraft') ? recraftStyle : undefined,
+        // GPT Image 2: use preset name for image_size + output_format
+        imageSizePreset: isGptImage2
+          ? aspectRatioToGptImageSize(aspectRatio)
+          : undefined,
+        outputFormat: isGptImage2 ? gptOutputFormat : undefined,
       },
     })
   }
@@ -610,12 +627,17 @@ function ImagesPage() {
     if (selectedEditImages.length === 0 || !editPrompt.trim() || isGenerating)
       return
 
+    const isGptImage2Edit = editModel === 'fal-ai/gpt-image-2/edit'
+
     editMutation.mutate({
       data: {
         imageUrls: selectedEditImages.map((img) => img.url),
         prompt: editPrompt.trim(),
         model: editModel,
         sourceAssetIds: selectedEditImages.map((img) => img.id),
+        // GPT Image 2 edit specific options
+        quality: isGptImage2Edit ? gptEditQuality : undefined,
+        outputFormat: isGptImage2Edit ? gptEditOutputFormat : undefined,
       },
     })
   }
@@ -1414,6 +1436,8 @@ function ImagesPage() {
               // Model-specific options
               gptQuality={gptQuality}
               onGptQualityChange={setGptQuality}
+              gptOutputFormat={gptOutputFormat}
+              onGptOutputFormatChange={setGptOutputFormat}
               recraftStyle={recraftStyle}
               onRecraftStyleChange={setRecraftStyle}
               numImages={numImages}
@@ -1431,6 +1455,10 @@ function ImagesPage() {
               isGenerating={isGenerating}
               selectedCount={selectedEditImages.length}
               maxImages={maxImagesForModel}
+              gptEditQuality={gptEditQuality}
+              onGptEditQualityChange={setGptEditQuality}
+              gptEditOutputFormat={gptEditOutputFormat}
+              onGptEditOutputFormatChange={setGptEditOutputFormat}
               error={
                 editMutation.error instanceof Error
                   ? editMutation.error.message
@@ -1751,6 +1779,8 @@ interface GeneratePanelProps {
   // Model-specific options
   gptQuality: GptImageQuality
   onGptQualityChange: (v: GptImageQuality) => void
+  gptOutputFormat: GptImageOutputFormat
+  onGptOutputFormatChange: (v: GptImageOutputFormat) => void
   recraftStyle: RecraftStyle
   onRecraftStyleChange: (v: RecraftStyle) => void
   numImages: number
@@ -1777,6 +1807,8 @@ function GeneratePanel({
   jobStatus,
   gptQuality,
   onGptQualityChange,
+  gptOutputFormat,
+  onGptOutputFormatChange,
   recraftStyle,
   onRecraftStyleChange,
   numImages,
@@ -1826,24 +1858,46 @@ function GeneratePanel({
         />
 
         {/* GPT Image Quality Selector */}
-        {model === 'fal-ai/gpt-image-1.5' && (
-          <Select value={gptQuality} onValueChange={onGptQualityChange}>
-            <SelectTrigger className="h-9 w-32 rounded-xl border-border/50 bg-background/50">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent className="rounded-xl">
-              {GPT_IMAGE_QUALITY_TIERS.map((tier) => (
-                <SelectItem key={tier.id} value={tier.id}>
-                  <span className="flex items-center gap-2">
-                    {tier.name}
-                    <span className="text-xs text-muted-foreground">
-                      {tier.description}
+        {model === 'fal-ai/gpt-image-2' && (
+          <>
+            <Select value={gptQuality} onValueChange={onGptQualityChange}>
+              <SelectTrigger className="h-9 w-32 rounded-xl border-border/50 bg-background/50">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="rounded-xl">
+                {GPT_IMAGE_QUALITY_TIERS.map((tier) => (
+                  <SelectItem key={tier.id} value={tier.id}>
+                    <span className="flex items-center gap-2">
+                      {tier.name}
+                      <span className="text-xs text-muted-foreground">
+                        {tier.description}
+                      </span>
                     </span>
-                  </span>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select
+              value={gptOutputFormat}
+              onValueChange={onGptOutputFormatChange}
+            >
+              <SelectTrigger className="h-9 w-28 rounded-xl border-border/50 bg-background/50">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="rounded-xl">
+                {GPT_IMAGE_OUTPUT_FORMATS.map((fmt) => (
+                  <SelectItem key={fmt.id} value={fmt.id}>
+                    <span className="flex items-center gap-2">
+                      {fmt.name}
+                      <span className="text-xs text-muted-foreground">
+                        {fmt.description}
+                      </span>
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </>
         )}
 
         {/* Recraft Style Selector */}

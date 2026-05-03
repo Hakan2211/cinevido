@@ -37,6 +37,11 @@ const editSchema = z.object({
   model: z.string().optional(),
   sourceAssetIds: z.array(z.string()).optional(), // Original image asset IDs for linking
   projectId: z.string().optional(),
+  // GPT Image 2 specific options
+  quality: z.enum(['low', 'medium', 'high']).optional(),
+  imageSizePreset: z.string().optional(),
+  outputFormat: z.enum(['jpeg', 'png', 'webp']).optional(),
+  numImages: z.number().min(1).max(4).optional(),
 })
 
 const upscaleSchema = z.object({
@@ -112,6 +117,10 @@ export const editImageFn = createServerFn({ method: 'POST' })
         imageUrls: data.imageUrls,
         prompt: data.prompt,
         model: modelId,
+        quality: data.quality,
+        imageSizePreset: data.imageSizePreset,
+        outputFormat: data.outputFormat,
+        numImages: data.numImages,
       },
       userApiKey,
     )
