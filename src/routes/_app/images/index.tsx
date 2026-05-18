@@ -86,12 +86,16 @@ import {
 } from '@/components/images'
 import { BeforeAfterSlider } from '@/components/images/BeforeAfterSlider'
 import {
+  GPT_IMAGE_CUSTOM_SIZE_LIMITS,
   GPT_IMAGE_OUTPUT_FORMATS,
   GPT_IMAGE_QUALITY_TIERS,
   RECRAFT_STYLES,
   aspectRatioToGptImageSize,
   getEditModelById,
+  snapGptImageDim,
+  validateGptImageCustomSize,
 } from '@/server/services/types'
+import { Input } from '@/components/ui/input'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { downloadFile, generateFilename } from '@/lib/download'
 
@@ -172,6 +176,9 @@ function ImagesPage() {
   const [gptQuality, setGptQuality] = useState<GptImageQuality>('high')
   const [gptOutputFormat, setGptOutputFormat] =
     useState<GptImageOutputFormat>('png')
+  // GPT Image 2 custom dimensions (used when aspectRatio === 'custom')
+  const [gptCustomWidth, setGptCustomWidth] = useState(1920)
+  const [gptCustomHeight, setGptCustomHeight] = useState(1080)
   const [recraftStyle, setRecraftStyle] =
     useState<RecraftStyle>('realistic_image')
   const [numImages, setNumImages] = useState(1)
@@ -598,10 +605,21 @@ function ImagesPage() {
   const handleGenerate = () => {
     if (!prompt.trim() || isGenerating) return
 
-    const ratio =
-      ASPECT_RATIOS.find((r) => r.id === aspectRatio) || ASPECT_RATIOS[0]
-
     const isGptImage2 = model === 'fal-ai/gpt-image-2'
+    const isCustomGptSize = isGptImage2 && aspectRatio === 'custom'
+
+    // Block invalid custom sizes before firing the mutation
+    if (isCustomGptSize) {
+      const err = validateGptImageCustomSize(gptCustomWidth, gptCustomHeight)
+      if (err) {
+        toast.error(err)
+        return
+      }
+    }
+
+    const ratio = isCustomGptSize
+      ? { width: gptCustomWidth, height: gptCustomHeight }
+      : ASPECT_RATIOS.find((r) => r.id === aspectRatio) || ASPECT_RATIOS[0]
 
     generateMutation.mutate({
       data: {
@@ -614,10 +632,12 @@ function ImagesPage() {
         // Model-specific options
         quality: isGptImage2 ? gptQuality : undefined,
         style: model.includes('recraft') ? recraftStyle : undefined,
-        // GPT Image 2: use preset name for image_size + output_format
-        imageSizePreset: isGptImage2
-          ? aspectRatioToGptImageSize(aspectRatio)
-          : undefined,
+        // GPT Image 2: send preset for known ratios; for custom let the server
+        // build image_size from width/height (omit imageSizePreset).
+        imageSizePreset:
+          isGptImage2 && !isCustomGptSize
+            ? aspectRatioToGptImageSize(aspectRatio)
+            : undefined,
         outputFormat: isGptImage2 ? gptOutputFormat : undefined,
       },
     })
@@ -1418,6 +1438,13 @@ function ImagesPage() {
                 if (!newModelConfig?.supportsNumImages) {
                   setNumImages(1)
                 }
+                // 'custom' aspect ratio only applies to gpt-image-2
+                if (
+                  newModel !== 'fal-ai/gpt-image-2' &&
+                  aspectRatio === 'custom'
+                ) {
+                  setAspectRatio('1:1')
+                }
               }}
               models={models}
               aspectRatio={aspectRatio}
@@ -1438,6 +1465,10 @@ function ImagesPage() {
               onGptQualityChange={setGptQuality}
               gptOutputFormat={gptOutputFormat}
               onGptOutputFormatChange={setGptOutputFormat}
+              gptCustomWidth={gptCustomWidth}
+              onGptCustomWidthChange={setGptCustomWidth}
+              gptCustomHeight={gptCustomHeight}
+              onGptCustomHeightChange={setGptCustomHeight}
               recraftStyle={recraftStyle}
               onRecraftStyleChange={setRecraftStyle}
               numImages={numImages}
@@ -1781,6 +1812,10 @@ interface GeneratePanelProps {
   onGptQualityChange: (v: GptImageQuality) => void
   gptOutputFormat: GptImageOutputFormat
   onGptOutputFormatChange: (v: GptImageOutputFormat) => void
+  gptCustomWidth: number
+  onGptCustomWidthChange: (v: number) => void
+  gptCustomHeight: number
+  onGptCustomHeightChange: (v: number) => void
   recraftStyle: RecraftStyle
   onRecraftStyleChange: (v: RecraftStyle) => void
   numImages: number
@@ -1809,6 +1844,10 @@ function GeneratePanel({
   onGptQualityChange,
   gptOutputFormat,
   onGptOutputFormatChange,
+  gptCustomWidth,
+  onGptCustomWidthChange,
+  gptCustomHeight,
+  onGptCustomHeightChange,
   recraftStyle,
   onRecraftStyleChange,
   numImages,
@@ -1816,6 +1855,11 @@ function GeneratePanel({
 }: GeneratePanelProps) {
   const supportsNumImages = selectedModel?.supportsNumImages ?? false
   const maxNumImages = selectedModel?.maxNumImages ?? 4
+  const isGptImage2 = model === 'fal-ai/gpt-image-2'
+  const isCustomGptSize = isGptImage2 && aspectRatio === 'custom'
+  const gptCustomSizeError = isCustomGptSize
+    ? validateGptImageCustomSize(gptCustomWidth, gptCustomHeight)
+    : null
   return (
     <>
       {/* Premium Textarea with Floating Generate Button */}
@@ -1951,6 +1995,18 @@ function GeneratePanel({
               {ratio.name}
             </button>
           ))}
+          {isGptImage2 && (
+            <button
+              onClick={() => onAspectRatioChange('custom')}
+              className={`px-3 py-1.5 text-xs font-medium transition-all duration-200 rounded-lg ${
+                aspectRatio === 'custom'
+                  ? 'bg-primary text-primary-foreground active-glow'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+              }`}
+            >
+              Custom
+            </button>
+          )}
         </div>
 
         {/* Negative Prompt Toggle */}
@@ -1965,6 +2021,54 @@ function GeneratePanel({
           {showNegativePrompt ? '- Negative' : '+ Negative'}
         </button>
       </div>
+
+      {/* GPT Image 2 Custom Dimensions */}
+      {isCustomGptSize && (
+        <div className="mt-3 flex flex-wrap items-center gap-3 rounded-xl border border-border/50 bg-background/50 px-3 py-2">
+          <label className="flex items-center gap-2 text-xs text-muted-foreground">
+            Width
+            <Input
+              type="number"
+              min={GPT_IMAGE_CUSTOM_SIZE_LIMITS.multipleOf}
+              max={GPT_IMAGE_CUSTOM_SIZE_LIMITS.maxEdge}
+              step={GPT_IMAGE_CUSTOM_SIZE_LIMITS.multipleOf}
+              value={gptCustomWidth}
+              onChange={(e) =>
+                onGptCustomWidthChange(Number(e.target.value) || 0)
+              }
+              onBlur={(e) =>
+                onGptCustomWidthChange(snapGptImageDim(Number(e.target.value)))
+              }
+              className="h-8 w-24 rounded-lg"
+            />
+          </label>
+          <label className="flex items-center gap-2 text-xs text-muted-foreground">
+            Height
+            <Input
+              type="number"
+              min={GPT_IMAGE_CUSTOM_SIZE_LIMITS.multipleOf}
+              max={GPT_IMAGE_CUSTOM_SIZE_LIMITS.maxEdge}
+              step={GPT_IMAGE_CUSTOM_SIZE_LIMITS.multipleOf}
+              value={gptCustomHeight}
+              onChange={(e) =>
+                onGptCustomHeightChange(Number(e.target.value) || 0)
+              }
+              onBlur={(e) =>
+                onGptCustomHeightChange(snapGptImageDim(Number(e.target.value)))
+              }
+              className="h-8 w-24 rounded-lg"
+            />
+          </label>
+          <span
+            className={`text-xs ${
+              gptCustomSizeError ? 'text-destructive' : 'text-muted-foreground'
+            }`}
+          >
+            {gptCustomSizeError ??
+              `Multiples of 16, ≤ ${GPT_IMAGE_CUSTOM_SIZE_LIMITS.maxEdge}px, aspect ≤ ${GPT_IMAGE_CUSTOM_SIZE_LIMITS.maxAspect}:1`}
+          </span>
+        </div>
+      )}
 
       {/* Negative Prompt Input */}
       {showNegativePrompt && (

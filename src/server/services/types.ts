@@ -182,6 +182,43 @@ export type GptImageSizePreset =
 // For edits, fal also accepts 'auto' which lets the model choose
 export type GptImageEditSizePreset = GptImageSizePreset | 'auto'
 
+// GPT Image 2 custom-dimension constraints (per fal.ai docs)
+export const GPT_IMAGE_CUSTOM_SIZE_LIMITS = {
+  multipleOf: 16,
+  maxEdge: 3840,
+  minPixels: 655_360,
+  maxPixels: 8_294_400,
+  maxAspect: 3, // longest / shortest must be <= 3
+} as const
+
+// Snap a dimension to the nearest multiple of 16 within [16, maxEdge]
+export function snapGptImageDim(value: number): number {
+  const { multipleOf, maxEdge } = GPT_IMAGE_CUSTOM_SIZE_LIMITS
+  const rounded = Math.round(value / multipleOf) * multipleOf
+  return Math.max(multipleOf, Math.min(maxEdge, rounded))
+}
+
+// Validate a custom {width,height} pair against GPT Image 2 constraints.
+// Returns null if valid, or a short human-readable error string.
+export function validateGptImageCustomSize(
+  width: number,
+  height: number,
+): string | null {
+  const { multipleOf, maxEdge, minPixels, maxPixels, maxAspect } =
+    GPT_IMAGE_CUSTOM_SIZE_LIMITS
+  if (!Number.isFinite(width) || !Number.isFinite(height))
+    return 'Width and height required'
+  if (width % multipleOf !== 0 || height % multipleOf !== 0)
+    return `Must be multiples of ${multipleOf}`
+  if (width > maxEdge || height > maxEdge) return `Max ${maxEdge}px per side`
+  const pixels = width * height
+  if (pixels < minPixels) return 'Too small (min ~0.66MP)'
+  if (pixels > maxPixels) return 'Too large (max ~8.3MP)'
+  const ratio = Math.max(width, height) / Math.min(width, height)
+  if (ratio > maxAspect) return `Aspect ratio must be ≤ ${maxAspect}:1`
+  return null
+}
+
 // Map our aspect-ratio UI strings to gpt-image-2 size presets
 export function aspectRatioToGptImageSize(aspect: string): GptImageSizePreset {
   switch (aspect) {
