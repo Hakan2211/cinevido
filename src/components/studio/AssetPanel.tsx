@@ -4,16 +4,19 @@
  * Shows user's assets and provides generation controls.
  */
 
-import { useState } from 'react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMemo, useState } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
+  Check,
   ChevronLeft,
   ChevronRight,
   Image,
+  LayoutGrid,
+  List,
   Loader2,
   Music,
   Plus,
-  Upload,
+  Search,
   Video,
 } from 'lucide-react'
 // NOTE: Server functions are dynamically imported in mutationFn
@@ -21,6 +24,14 @@ import {
 // See: https://tanstack.com/router/latest/docs/framework/react/start/server-functions
 import { Button } from '../ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs'
+import { KIND, probeDurationSeconds } from './timeline/shared'
+import {
+  allClips,
+  appendClip,
+  clipKindForAsset,
+  newId,
+  trackKindForAsset,
+} from '../../remotion/types'
 import type { ProjectManifest } from '../../remotion/types'
 
 interface Asset {
@@ -41,17 +52,39 @@ interface AssetPanelProps {
   onManifestChange: (manifest: ProjectManifest) => void
   collapsed: boolean
   onToggleCollapse: () => void
+  /** Frames per second of the sequence a take is dropped into */
+  fps?: number
   /** Display mode: 'panel' for sidebar, 'fullscreen' for mobile */
   mode?: 'panel' | 'fullscreen'
+}
+
+/**
+ * The library's type chips. 'audio' deliberately covers both voice and music —
+ * from the rail's point of view they are both "a sound", and the lane they land
+ * on is decided by the asset's own type, not by this filter.
+ */
+type TypeFilter = 'all' | 'video' | 'image' | 'audio'
+
+const TYPE_FILTERS: Array<{ id: TypeFilter; label: string }> = [
+  { id: 'all', label: 'All' },
+  { id: 'video', label: 'Video' },
+  { id: 'audio', label: 'Audio' },
+  { id: 'image', label: 'Image' },
+]
+
+function matchesTypeFilter(assetType: string, filter: TypeFilter): boolean {
+  if (filter === 'audio') return assetType === 'audio' || assetType === 'music'
+  return assetType === filter
 }
 
 export function AssetPanel({
   projectId,
   assets,
-  manifest: _manifest,
-  onManifestChange: _onManifestChange,
+  manifest,
+  onManifestChange,
   collapsed,
   onToggleCollapse,
+  fps = 30,
   mode = 'panel',
 }: AssetPanelProps) {
   const queryClient = useQueryClient()
@@ -59,6 +92,78 @@ export function AssetPanel({
   const [generateTab, setGenerateTab] = useState<'image' | 'video' | 'audio'>(
     'image',
   )
+
+  // Library rail state
+  const [search, setSearch] = useState('')
+  const [onlyUncut, setOnlyUncut] = useState(false)
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>('all')
+  const [view, setView] = useState<'grid' | 'list'>('grid')
+
+  /**
+   * How many times each asset is in the cut. Deliberately ONE list rather than
+   * "footage" beside "used in the cut": the same take living in two panels
+   * means searching twice. Being in the sequence is state on the card.
+   */
+  const usage = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const { clip } of allClips(manifest)) {
+      if (!clip.assetId) continue
+      counts.set(clip.assetId, (counts.get(clip.assetId) ?? 0) + 1)
+    }
+    return counts
+  }, [manifest])
+
+  /**
+   * Tracks written in the Music lab belong to the user, not to a project, so
+   * the panel shows the whole music library here and adopts a track into this
+   * project the moment it is used. Without this a score could be made but
+   * never cut in.
+   */
+  const { data: libraryMusic = [] } = useQuery({
+    queryKey: ['music', 'library'],
+    queryFn: async () => {
+      const { listUserMusicFn } = await import('../../server/music.server')
+      return listUserMusicFn({ data: { limit: 50 } })
+    },
+  })
+
+  /** Click a take and it lands at the end of its own lane. */
+  const addToTimeline = async (asset: Asset) => {
+    // adopt a library track into this project before it joins the cut
+    if (asset.type === 'music' && !assets.some((a) => a.id === asset.id)) {
+      try {
+        const { attachTrackToProjectFn } =
+          await import('../../server/music.server')
+        await attachTrackToProjectFn({
+          data: { trackId: asset.id, projectId },
+        })
+        queryClient.invalidateQueries({ queryKey: ['project', projectId] })
+      } catch (error) {
+        console.error('Failed to attach track to project:', error)
+      }
+    }
+
+    const seconds =
+      asset.durationSeconds ??
+      (await probeDurationSeconds(asset.url, clipKindForAsset(asset.type)))
+
+    const { manifest: next } = appendClip(
+      manifest,
+      trackKindForAsset(asset.type),
+      {
+        id: newId(),
+        kind: clipKindForAsset(asset.type),
+        assetId: asset.id,
+        url: asset.url,
+        label: asset.filename,
+        durationFrames: Math.max(1, Math.round(seconds * fps)),
+        sourceInFrame: 0,
+        transitionFrames: 0,
+        gain: 1,
+      },
+    )
+    onManifestChange(next)
+  }
 
   // Generation form state
   const [imagePrompt, setImagePrompt] = useState('')
@@ -142,10 +247,37 @@ export function AssetPanel({
     })
   }
 
-  // Filter assets by type
-  const imageAssets = assets.filter((a) => a.type === 'image')
-  const videoAssets = assets.filter((a) => a.type === 'video')
-  const audioAssets = assets.filter((a) => a.type === 'audio')
+  // The library the rail lists: this project's assets plus every music track
+  // the user owns (a lab track has no project until it is used).
+  const allAssets: Array<Asset> = [
+    ...assets,
+    ...libraryMusic
+      .filter((track) => !assets.some((a) => a.id === track.id))
+      .map((track) => ({
+        id: track.id,
+        type: 'music',
+        url: track.url,
+        filename: track.title,
+        prompt: track.prompt,
+        metadata: null,
+        durationSeconds: track.durationSeconds,
+        createdAt: new Date(track.createdAt),
+      })),
+  ]
+
+  // Filter assets by type, honouring the rail's search and "not in cut" filter
+  const visible = allAssets.filter((a) => {
+    if (onlyUncut && (usage.get(a.id) ?? 0) > 0) return false
+    if (typeFilter !== 'all' && !matchesTypeFilter(a.type, typeFilter)) {
+      return false
+    }
+    if (!search.trim()) return true
+    const needle = search.toLowerCase()
+    return (
+      a.filename.toLowerCase().includes(needle) ||
+      (a.prompt ?? '').toLowerCase().includes(needle)
+    )
+  })
 
   // Collapsed state (only for panel mode)
   if (collapsed && mode === 'panel') {
@@ -205,7 +337,7 @@ export function AssetPanel({
           value="library"
           className="flex-1 overflow-y-auto p-4 mt-0"
         >
-          {assets.length === 0 ? (
+          {allAssets.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-8 text-center">
               <Image className="h-10 w-10 text-muted-foreground/50" />
               <p className="mt-4 text-sm text-muted-foreground">
@@ -214,66 +346,117 @@ export function AssetPanel({
             </div>
           ) : (
             <div className="space-y-4">
-              {/* Images */}
-              {imageAssets.length > 0 && (
-                <div>
-                  <h4 className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1">
-                    <Image className="h-3 w-3" />
-                    Images ({imageAssets.length})
-                  </h4>
-                  <div className="grid grid-cols-2 gap-2">
-                    {imageAssets.map((asset) => (
+              {/* Search, then the filter row: one flat library, not four
+                  stacked type sections. Type and "Uncut" are orthogonal, so
+                  Uncut sits apart from the exclusive type chips. */}
+              <div className="flex items-center gap-2">
+                <div className="relative flex-1">
+                  <Search className="absolute top-1/2 left-2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                  <input
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="Search media…"
+                    className="w-full rounded border bg-background py-1 pr-2 pl-7 text-xs"
+                  />
+                </div>
+                <div className="flex rounded border">
+                  <button
+                    type="button"
+                    onClick={() => setView('grid')}
+                    title="Grid view"
+                    className={`rounded-l p-1 ${
+                      view === 'grid'
+                        ? 'bg-primary/10 text-primary'
+                        : 'text-muted-foreground hover:bg-muted'
+                    }`}
+                  >
+                    <LayoutGrid className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setView('list')}
+                    title="List view"
+                    className={`rounded-r p-1 ${
+                      view === 'list'
+                        ? 'bg-primary/10 text-primary'
+                        : 'text-muted-foreground hover:bg-muted'
+                    }`}
+                  >
+                    <List className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-1">
+                {TYPE_FILTERS.map((filter) => (
+                  <button
+                    key={filter.id}
+                    type="button"
+                    onClick={() => setTypeFilter(filter.id)}
+                    className={`rounded-full border px-2 py-0.5 text-[11px] ${
+                      typeFilter === filter.id
+                        ? 'border-primary bg-primary/10 text-primary'
+                        : 'text-muted-foreground hover:bg-muted'
+                    }`}
+                  >
+                    {filter.label}
+                  </button>
+                ))}
+                <span className="mx-0.5 h-4 w-px bg-border" />
+                <button
+                  type="button"
+                  onClick={() => setOnlyUncut((v) => !v)}
+                  className={`rounded-full border px-2 py-0.5 text-[11px] ${
+                    onlyUncut
+                      ? 'border-primary bg-primary/10 text-primary'
+                      : 'text-muted-foreground hover:bg-muted'
+                  }`}
+                  title="Show only takes that are not in the cut"
+                >
+                  Uncut
+                </button>
+              </div>
+
+              {visible.length === 0 ? (
+                <p className="py-6 text-center text-xs text-muted-foreground">
+                  Nothing matches that filter.
+                </p>
+              ) : view === 'grid' ? (
+                <div className="grid grid-cols-2 gap-2">
+                  {visible.map((asset) =>
+                    asset.type === 'image' || asset.type === 'video' ? (
                       <AssetThumbnail
                         key={asset.id}
                         asset={asset}
-                        onSelect={() => setSelectedImageUrl(asset.url)}
+                        usedCount={usage.get(asset.id) ?? 0}
+                        onAdd={() => void addToTimeline(asset)}
+                        onUseAsSource={
+                          asset.type === 'image'
+                            ? () => setSelectedImageUrl(asset.url)
+                            : undefined
+                        }
                         isSelected={selectedImageUrl === asset.url}
                       />
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Videos */}
-              {videoAssets.length > 0 && (
-                <div>
-                  <h4 className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1">
-                    <Video className="h-3 w-3" />
-                    Videos ({videoAssets.length})
-                  </h4>
-                  <div className="grid grid-cols-2 gap-2">
-                    {videoAssets.map((asset) => (
-                      <AssetThumbnail key={asset.id} asset={asset} />
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Audio */}
-              {audioAssets.length > 0 && (
-                <div>
-                  <h4 className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1">
-                    <Music className="h-3 w-3" />
-                    Audio ({audioAssets.length})
-                  </h4>
-                  <div className="space-y-2">
-                    {audioAssets.map((asset) => (
-                      <div
+                    ) : (
+                      <AudioTile
                         key={asset.id}
-                        className="flex items-center gap-2 rounded bg-muted/50 p-2 text-xs"
-                      >
-                        <Music className="h-4 w-4 text-muted-foreground" />
-                        <span className="flex-1 truncate">
-                          {asset.filename}
-                        </span>
-                        {asset.durationSeconds && (
-                          <span className="text-muted-foreground">
-                            {Math.floor(asset.durationSeconds)}s
-                          </span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
+                        asset={asset}
+                        usedCount={usage.get(asset.id) ?? 0}
+                        onAdd={() => void addToTimeline(asset)}
+                      />
+                    ),
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  {visible.map((asset) => (
+                    <AssetRow
+                      key={asset.id}
+                      asset={asset}
+                      usedCount={usage.get(asset.id) ?? 0}
+                      onAdd={() => void addToTimeline(asset)}
+                    />
+                  ))}
                 </div>
               )}
             </div>
@@ -434,15 +617,37 @@ export function AssetPanel({
 
 interface AssetThumbnailProps {
   asset: Asset
-  onSelect?: () => void
+  /** how many times this take is already in the cut */
+  usedCount: number
+  /** click: append it to its lane */
+  onAdd: () => void
+  /** images double as the source frame for image-to-video */
+  onUseAsSource?: () => void
   isSelected?: boolean
 }
 
-function AssetThumbnail({ asset, onSelect, isSelected }: AssetThumbnailProps) {
+function AssetThumbnail({
+  asset,
+  usedCount,
+  onAdd,
+  onUseAsSource,
+  isSelected,
+}: AssetThumbnailProps) {
   return (
-    <button
-      onClick={onSelect}
-      className={`relative aspect-square bg-muted rounded overflow-hidden hover:ring-2 hover:ring-primary transition-all ${
+    <div
+      role="button"
+      tabIndex={0}
+      draggable
+      onDragStart={(e) => {
+        e.dataTransfer.setData('text/asset-id', asset.id)
+        e.dataTransfer.effectAllowed = 'copy'
+      }}
+      onClick={onAdd}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') onAdd()
+      }}
+      title={`${asset.filename} — click to add to the timeline`}
+      className={`relative aspect-square cursor-grab overflow-hidden rounded bg-muted transition-all hover:ring-2 hover:ring-primary ${
         isSelected ? 'ring-2 ring-primary' : ''
       }`}
     >
@@ -450,19 +655,153 @@ function AssetThumbnail({ asset, onSelect, isSelected }: AssetThumbnailProps) {
         <img
           src={asset.url}
           alt={asset.filename}
-          className="w-full h-full object-cover"
+          draggable={false}
+          className="h-full w-full object-cover"
         />
       ) : asset.type === 'video' ? (
-        <video src={asset.url} className="w-full h-full object-cover" muted />
+        <video src={asset.url} className="h-full w-full object-cover" muted />
       ) : null}
 
+      {usedCount > 0 && (
+        <div className="absolute top-1 left-1 flex items-center gap-0.5 rounded bg-primary/90 px-1 text-[10px] text-primary-foreground">
+          <Check className="h-2.5 w-2.5" />
+          {usedCount > 1 ? `×${usedCount}` : ''}
+        </div>
+      )}
+
+      {onUseAsSource && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            onUseAsSource()
+          }}
+          className="absolute top-1 right-1 rounded bg-black/60 px-1 text-[10px] text-white hover:bg-black/80"
+          title="Use as the source image for video generation"
+        >
+          Source
+        </button>
+      )}
+
       {asset.type === 'video' && (
-        <div className="absolute bottom-1 right-1 bg-black/70 text-white text-[10px] px-1 rounded">
+        <div className="absolute right-1 bottom-1 rounded bg-black/70 px-1 text-[10px] text-white">
           {asset.durationSeconds
             ? `${Math.floor(asset.durationSeconds)}s`
             : 'Video'}
         </div>
       )}
-    </button>
+    </div>
+  )
+}
+
+/** A sound in the grid: no thumbnail to show, so the lane's colour stands in. */
+function AudioTile({
+  asset,
+  usedCount,
+  onAdd,
+}: {
+  asset: Asset
+  usedCount: number
+  onAdd: () => void
+}) {
+  const kind = asset.type === 'music' ? KIND.music : KIND.voice
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      draggable
+      onDragStart={(e) => {
+        e.dataTransfer.setData('text/asset-id', asset.id)
+        e.dataTransfer.effectAllowed = 'copy'
+      }}
+      onClick={onAdd}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') onAdd()
+      }}
+      title={`${asset.filename} — click to add to the timeline`}
+      className="relative flex aspect-square cursor-grab flex-col items-center justify-center gap-1 overflow-hidden rounded p-2 text-center transition-all hover:ring-2 hover:ring-primary"
+      style={{ background: kind.tint, border: `1px solid ${kind.accent}44` }}
+    >
+      <Music className="h-5 w-5" style={{ color: kind.accent }} />
+      <span className="line-clamp-2 text-[10px] leading-tight text-muted-foreground">
+        {asset.filename}
+      </span>
+      {asset.durationSeconds != null && (
+        <span className="text-[10px] tabular-nums text-muted-foreground/70">
+          {Math.floor(asset.durationSeconds)}s
+        </span>
+      )}
+      {usedCount > 0 && <InCutBadge count={usedCount} />}
+    </div>
+  )
+}
+
+/** The list row — one line per take, where a long filename is legible. */
+function AssetRow({
+  asset,
+  usedCount,
+  onAdd,
+}: {
+  asset: Asset
+  usedCount: number
+  onAdd: () => void
+}) {
+  const visual = asset.type === 'image' || asset.type === 'video'
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      draggable
+      onDragStart={(e) => {
+        e.dataTransfer.setData('text/asset-id', asset.id)
+        e.dataTransfer.effectAllowed = 'copy'
+      }}
+      onClick={onAdd}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') onAdd()
+      }}
+      title={`${asset.filename} — click to add to the timeline`}
+      className="flex cursor-grab items-center gap-2 rounded bg-muted/40 p-1.5 text-xs hover:bg-muted"
+    >
+      <div className="h-8 w-8 shrink-0 overflow-hidden rounded bg-muted">
+        {asset.type === 'image' ? (
+          <img
+            src={asset.url}
+            alt=""
+            draggable={false}
+            className="h-full w-full object-cover"
+          />
+        ) : asset.type === 'video' ? (
+          <video src={asset.url} className="h-full w-full object-cover" muted />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center">
+            <Music className="h-3.5 w-3.5 text-muted-foreground" />
+          </div>
+        )}
+      </div>
+      <span className="min-w-0 flex-1 truncate">{asset.filename}</span>
+      {usedCount > 0 && (
+        <span className="flex shrink-0 items-center gap-0.5 text-[10px] text-primary">
+          <Check className="h-3 w-3" />
+          {usedCount > 1 ? `×${usedCount}` : ''}
+        </span>
+      )}
+      {asset.durationSeconds != null && !visual && (
+        <span className="shrink-0 tabular-nums text-muted-foreground">
+          {Math.floor(asset.durationSeconds)}s
+        </span>
+      )}
+    </div>
+  )
+}
+
+/** The badge the mockup puts on anything already in the sequence. */
+function InCutBadge({ count }: { count: number }) {
+  return (
+    <div className="absolute top-1 left-1 flex items-center gap-0.5 rounded bg-primary/90 px-1 text-[10px] text-primary-foreground">
+      in cut
+      <Check className="h-2.5 w-2.5" />
+      {count > 1 ? `×${count}` : ''}
+    </div>
   )
 }

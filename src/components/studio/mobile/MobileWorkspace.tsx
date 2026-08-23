@@ -12,7 +12,7 @@ import { Link } from '@tanstack/react-router'
 import { MobileNavTabs, type MobileTab } from './MobileNavTabs'
 import { ChatPanel } from '../ChatPanel'
 import { VideoPreview } from '../VideoPreview'
-import { Timeline } from '../Timeline'
+import { Timeline } from '../timeline'
 import { AssetPanel } from '../AssetPanel'
 import { Button } from '../../ui/button'
 import {
@@ -57,6 +57,9 @@ interface MobileWorkspaceProps {
 const JOB_POLL_INTERVAL = 3000
 const MANIFEST_POLL_INTERVAL = 5000
 
+// How long timeline edits settle before they are written to the server
+const SAVE_DEBOUNCE = 700
+
 export function MobileWorkspace({ project }: MobileWorkspaceProps) {
   const queryClient = useQueryClient()
 
@@ -67,6 +70,10 @@ export function MobileWorkspace({ project }: MobileWorkspaceProps) {
   const [manifest, setManifest] = useState<ProjectManifest>(project.manifest)
   const [manifestVersion, setManifestVersion] = useState(0)
   const lastManifestUpdate = useRef<Date>(project.updatedAt)
+
+  // Debounced timeline save (see Workspace: edits apply locally at once)
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const pendingSave = useRef(false)
 
   // Player state
   const [currentFrame, setCurrentFrame] = useState(0)
@@ -138,6 +145,8 @@ export function MobileWorkspace({ project }: MobileWorkspaceProps) {
   // =============================================================================
 
   const refreshManifest = useCallback(async () => {
+    // a local edit that has not been saved yet must not be overwritten
+    if (pendingSave.current) return
     try {
       const { getManifestFn } = await import('../../../server/project.server')
       const result = await getManifestFn({ data: { projectId: project.id } })
@@ -163,10 +172,35 @@ export function MobileWorkspace({ project }: MobileWorkspaceProps) {
   // Handlers
   // =============================================================================
 
-  const handleManifestChange = useCallback((newManifest: ProjectManifest) => {
-    setManifest(newManifest)
-    setManifestVersion((v) => v + 1)
-    lastManifestUpdate.current = new Date()
+  const handleManifestChange = useCallback(
+    (newManifest: ProjectManifest) => {
+      setManifest(newManifest)
+      setManifestVersion((v) => v + 1)
+      lastManifestUpdate.current = new Date()
+
+      pendingSave.current = true
+      clearTimeout(saveTimer.current)
+      const projectId = project.id
+      saveTimer.current = setTimeout(async () => {
+        try {
+          const { updateManifestFn } =
+            await import('../../../server/project.server')
+          const result = await updateManifestFn({
+            data: { projectId, manifest: JSON.stringify(newManifest) },
+          })
+          lastManifestUpdate.current = new Date(result.updatedAt)
+        } catch (error) {
+          console.error('Failed to save timeline:', error)
+        } finally {
+          pendingSave.current = false
+        }
+      }, SAVE_DEBOUNCE)
+    },
+    [project.id],
+  )
+
+  useEffect(() => {
+    return () => clearTimeout(saveTimer.current)
   }, [])
 
   const handleSeek = useCallback((frame: number) => {
@@ -278,6 +312,7 @@ export function MobileWorkspace({ project }: MobileWorkspaceProps) {
               assets={project.assets}
               manifest={manifest}
               onManifestChange={handleManifestChange}
+              fps={project.fps}
               collapsed={false}
               onToggleCollapse={() => {}}
               mode="fullscreen"
@@ -295,6 +330,10 @@ export function MobileWorkspace({ project }: MobileWorkspaceProps) {
               onSeek={handleSeek}
               onSelectClip={setSelectedClipId}
               onManifestChange={handleManifestChange}
+              isPlaying={isPlaying}
+              onTogglePlay={() => setIsPlaying((p) => !p)}
+              assets={project.assets}
+              showInspector={false}
             />
           </div>
         )}

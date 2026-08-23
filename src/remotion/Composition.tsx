@@ -1,15 +1,16 @@
 /**
  * Main Video Composition
  *
- * This component reads the ProjectManifest and renders all tracks:
- * - Video clips with transitions
- * - Audio clips with volume control
- * - Component overlays (text, titles, images)
+ * Renders a manifest v2 sequence: tracks in array order (later lanes
+ * composite on top), each clip as a Remotion Sequence that plays its own
+ * slice of the source (`sourceInFrame`), fades in over its crossfade
+ * (`transitionFrames`) and carries clip gain × track gain into the mix.
  */
 
 import {
   AbsoluteFill,
   Audio,
+  Img,
   Sequence,
   Video,
   interpolate,
@@ -19,15 +20,16 @@ import { KaraokeText } from './components/overlays/KaraokeText'
 import { BigTitle } from './components/overlays/BigTitle'
 import { ImageOverlay } from './components/overlays/ImageOverlay'
 import { LowerThird } from './components/overlays/LowerThird'
+import { createEmptyManifest } from './types'
 import type {
   BigTitleProps,
-  ComponentOverlayProps,
   CompositionProps,
   ImageOverlayProps,
   KaraokeTextProps,
   LowerThirdProps,
+  ManifestClip,
+  ManifestTrack,
   TransitionType,
-  VideoClipProps,
 } from './types'
 
 // =============================================================================
@@ -35,130 +37,149 @@ import type {
 // =============================================================================
 
 export const VideoComposition: React.FC<CompositionProps> = ({ manifest }) => {
-  // Use empty manifest if not provided
-  const safeManifest = manifest || {
-    version: 1,
-    tracks: { video: [], audio: [], components: [] },
-    globalSettings: { backgroundColor: '#000000' },
-  }
-
-  // Sort clips by layer for proper z-ordering
-  const sortedVideoClips = [...safeManifest.tracks.video].sort(
-    (a, b) => a.layer - b.layer,
-  )
-  const sortedComponents = [...safeManifest.tracks.components].sort(
-    (a, b) => a.layer - b.layer,
-  )
+  const safeManifest = manifest ?? createEmptyManifest()
 
   return (
     <AbsoluteFill
       style={{ backgroundColor: safeManifest.globalSettings.backgroundColor }}
     >
-      {/* Video Track */}
-      {sortedVideoClips.map((clip) => (
-        <Sequence
-          key={clip.id}
-          from={clip.startFrame}
-          durationInFrames={clip.durationFrames}
-        >
-          <VideoClipComponent clip={clip} />
-        </Sequence>
-      ))}
-
-      {/* Component Overlays */}
-      {sortedComponents.map((comp) => (
-        <Sequence
-          key={comp.id}
-          from={comp.startFrame}
-          durationInFrames={comp.durationFrames}
-        >
-          <ComponentRenderer component={comp} />
-        </Sequence>
-      ))}
-
-      {/* Audio Track */}
-      {safeManifest.tracks.audio.map((audio) => (
-        <Sequence
-          key={audio.id}
-          from={audio.startFrame}
-          durationInFrames={audio.durationFrames}
-        >
-          <Audio src={audio.url} volume={audio.volume} />
-        </Sequence>
-      ))}
+      {safeManifest.tracks.map((track) =>
+        track.clips.map((clip) => (
+          <Sequence
+            key={clip.id}
+            from={clip.startFrame}
+            durationInFrames={clip.durationFrames}
+          >
+            <ClipRenderer clip={clip} track={track} />
+          </Sequence>
+        )),
+      )}
     </AbsoluteFill>
   )
 }
 
 // =============================================================================
-// Video Clip with Transitions
+// Clip Renderer
 // =============================================================================
 
-interface VideoClipComponentProps {
-  clip: VideoClipProps
+const ClipRenderer: React.FC<{ clip: ManifestClip; track: ManifestTrack }> = ({
+  clip,
+  track,
+}) => {
+  switch (clip.kind) {
+    case 'component':
+      return <ComponentClip clip={clip} />
+    case 'audio':
+      return track.muted ? null : <AudioClip clip={clip} track={track} />
+    case 'image':
+    case 'video':
+    default:
+      return <VisualClip clip={clip} track={track} />
+  }
 }
 
-const VideoClipComponent: React.FC<VideoClipComponentProps> = ({ clip }) => {
+// =============================================================================
+// Video / Image clips
+// =============================================================================
+
+const VisualClip: React.FC<{ clip: ManifestClip; track: ManifestTrack }> = ({
+  clip,
+  track,
+}) => {
   const frame = useCurrentFrame()
 
-  // Calculate transition
-  const transitionDuration = 15 // frames for transition
-  const transitionStart = clip.durationFrames - transitionDuration
-
-  // Apply effects
+  // Apply colour effects
   let filterStyle = ''
-  if (clip.effects) {
-    for (const effect of clip.effects) {
-      switch (effect.type) {
-        case 'brightness':
-          filterStyle += `brightness(${effect.value}) `
-          break
-        case 'contrast':
-          filterStyle += `contrast(${effect.value}) `
-          break
-        case 'saturation':
-          filterStyle += `saturate(${effect.value}) `
-          break
-        case 'blur':
-          filterStyle += `blur(${effect.value}px) `
-          break
-        case 'grayscale':
-          filterStyle += `grayscale(${effect.value}) `
-          break
-      }
+  for (const effect of clip.effects ?? []) {
+    switch (effect.type) {
+      case 'brightness':
+        filterStyle += `brightness(${effect.value}) `
+        break
+      case 'contrast':
+        filterStyle += `contrast(${effect.value}) `
+        break
+      case 'saturation':
+        filterStyle += `saturate(${effect.value}) `
+        break
+      case 'blur':
+        filterStyle += `blur(${effect.value}px) `
+        break
+      case 'grayscale':
+        filterStyle += `grayscale(${effect.value}) `
+        break
     }
   }
 
-  // Calculate transition opacity/transform
-  const transitionStyle = calculateTransition(
-    clip.transition || 'cut',
+  // Crossfade INTO this clip, then the legacy outgoing transition
+  const fadeIn = fadeInOpacity(frame, clip.transitionFrames)
+  const outgoing = calculateTransition(
+    clip.transition ?? 'cut',
     frame,
-    transitionStart,
+    clip.durationFrames - OUTGOING_TRANSITION_FRAMES,
     clip.durationFrames,
   )
+  const opacity = Number(outgoing.opacity ?? 1) * fadeIn
+
+  if (!clip.url) return null
+
+  const media =
+    clip.kind === 'image' ? (
+      <Img
+        src={clip.url}
+        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+      />
+    ) : (
+      <Video
+        src={clip.url}
+        startFrom={clip.sourceInFrame}
+        volume={track.muted ? 0 : clip.gain * track.gain}
+        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+      />
+    )
 
   return (
     <AbsoluteFill
-      style={{
-        ...transitionStyle,
-        filter: filterStyle || undefined,
-      }}
+      style={{ ...outgoing, opacity, filter: filterStyle || undefined }}
     >
-      <Video
-        src={clip.url}
-        style={{
-          width: '100%',
-          height: '100%',
-          objectFit: 'cover',
-        }}
-      />
+      {media}
     </AbsoluteFill>
   )
 }
 
 // =============================================================================
-// Transition Calculator
+// Audio clips
 // =============================================================================
+
+const AudioClip: React.FC<{ clip: ManifestClip; track: ManifestTrack }> = ({
+  clip,
+  track,
+}) => {
+  if (!clip.url) return null
+  const level = clip.gain * track.gain
+  return (
+    <Audio
+      src={clip.url}
+      startFrom={clip.sourceInFrame}
+      volume={(frame) => level * fadeInOpacity(frame, clip.transitionFrames)}
+    />
+  )
+}
+
+// =============================================================================
+// Transitions
+// =============================================================================
+
+/** frames the legacy per-clip outgoing transition runs for */
+const OUTGOING_TRANSITION_FRAMES = 15
+
+/** the crossfade a clip fades in with, 0..1 */
+function fadeInOpacity(frame: number, transitionFrames: number): number {
+  if (transitionFrames <= 0) return 1
+  return interpolate(frame, [0, transitionFrames], [0, 1], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+  })
+}
 
 function calculateTransition(
   transition: TransitionType,
@@ -166,7 +187,7 @@ function calculateTransition(
   transitionStart: number,
   totalFrames: number,
 ): React.CSSProperties {
-  if (frame < transitionStart) {
+  if (transition === 'cut' || frame < transitionStart) {
     return { opacity: 1 }
   }
 
@@ -205,38 +226,33 @@ function calculateTransition(
       }
     }
 
-    case 'cut':
     default:
       return { opacity: 1 }
   }
 }
 
 // =============================================================================
-// Component Renderer
+// Component overlays
 // =============================================================================
 
-interface ComponentRendererProps {
-  component: ComponentOverlayProps
-}
+const ComponentClip: React.FC<{ clip: ManifestClip }> = ({ clip }) => {
+  const props = clip.props ?? {}
 
-const ComponentRenderer: React.FC<ComponentRendererProps> = ({ component }) => {
-  const props = component.props
-
-  switch (component.component) {
+  switch (clip.component) {
     case 'KaraokeText':
-      return <KaraokeText {...(props as KaraokeTextProps)} />
+      return <KaraokeText {...(props as unknown as KaraokeTextProps)} />
 
     case 'BigTitle':
-      return <BigTitle {...(props as BigTitleProps)} />
+      return <BigTitle {...(props as unknown as BigTitleProps)} />
 
     case 'ImageOverlay':
-      return <ImageOverlay {...(props as ImageOverlayProps)} />
+      return <ImageOverlay {...(props as unknown as ImageOverlayProps)} />
 
     case 'LowerThird':
-      return <LowerThird {...(props as LowerThirdProps)} />
+      return <LowerThird {...(props as unknown as LowerThirdProps)} />
 
     default:
-      console.warn(`Unknown component type: ${component.component}`)
+      console.warn(`Unknown component type: ${String(clip.component)}`)
       return null
   }
 }

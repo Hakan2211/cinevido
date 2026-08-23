@@ -948,36 +948,159 @@ export const AUDIO_MODELS: Array<ModelConfig> = [
   },
 ]
 
+// =============================================================================
+// Music Models (text-to-music via fal.ai)
+// =============================================================================
+
+/**
+ * What a music engine actually takes. The lab reads these flags to decide
+ * which controls to show, so a model that cannot sing never shows a lyrics
+ * box and a model with a fixed length never shows a duration slider.
+ */
+export interface MusicModelConfig extends ModelConfig {
+  /** 'tags' = comma-separated genre tags (ACE-Step), 'prompt' = prose */
+  promptStyle: 'tags' | 'prompt'
+  supportsLyrics: boolean
+  /** the engine takes lyrics and will not run without them (MiniMax) */
+  requiresLyrics?: boolean
+  supportsInstrumental: boolean
+  supportsSeed: boolean
+  supportsNegativePrompt: boolean
+  /**
+   * How the output's length is chosen:
+   *   'slider' — we send a duration and the engine honours it
+   *   'cap'    — we send a duration the engine treats as an upper bound
+   *   'model'  — the engine takes no duration at all; it decides
+   */
+  durationMode: 'slider' | 'cap' | 'model'
+  minDurationSec?: number
+  /** the engine's ceiling — for 'model' engines this is documentation only */
+  maxDurationSec?: number
+  defaultDurationSec: number
+}
+
+export const MUSIC_MODELS: Array<MusicModelConfig> = [
+  {
+    id: 'fal-ai/ace-step',
+    name: 'ACE-Step',
+    provider: 'fal',
+    description:
+      'Genre tags + lyrics, any length up to 4 minutes. The cheapest way to draft a track.',
+    promptStyle: 'tags',
+    supportsLyrics: true,
+    supportsInstrumental: true,
+    supportsSeed: true,
+    supportsNegativePrompt: false,
+    durationMode: 'slider',
+    minDurationSec: 10,
+    maxDurationSec: 240,
+    defaultDurationSec: 60,
+  },
+  {
+    id: 'minimax/music-3',
+    name: 'MiniMax Music 3',
+    provider: 'fal',
+    description:
+      'Full songs up to 5 minutes from a description plus your lyrics. Needs words — it will not run instrumental.',
+    promptStyle: 'prompt',
+    supportsLyrics: true,
+    requiresLyrics: true,
+    supportsInstrumental: false,
+    supportsSeed: true,
+    supportsNegativePrompt: false,
+    // `duration` is an upper bound: the model may resolve the song earlier
+    durationMode: 'cap',
+    minDurationSec: 10,
+    maxDurationSec: 300,
+    defaultDurationSec: 90,
+  },
+  {
+    id: 'fal-ai/elevenlabs/music',
+    name: 'ElevenLabs Music',
+    provider: 'fal',
+    description:
+      'Prose prompt, studio quality, 3s-10min, with a hard instrumental switch.',
+    promptStyle: 'prompt',
+    supportsLyrics: false,
+    supportsInstrumental: true,
+    supportsSeed: false,
+    supportsNegativePrompt: false,
+    durationMode: 'slider',
+    minDurationSec: 3,
+    maxDurationSec: 600,
+    defaultDurationSec: 60,
+  },
+  {
+    id: 'fal-ai/lyria3/pro',
+    name: 'Lyria 3 Pro',
+    provider: 'fal',
+    description:
+      "Google's model — one prose prompt, no knobs. Writes and sings its own words, up to 3 minutes of 44.1kHz MP3.",
+    promptStyle: 'prompt',
+    supportsLyrics: false,
+    supportsInstrumental: false,
+    supportsSeed: false,
+    supportsNegativePrompt: false,
+    // the endpoint takes no duration field at all
+    durationMode: 'model',
+    maxDurationSec: 180,
+    defaultDurationSec: 180,
+  },
+]
+
+export function getMusicModelById(
+  modelId: string,
+): MusicModelConfig | undefined {
+  return MUSIC_MODELS.find((m) => m.id === modelId)
+}
+
+export function getDefaultMusicModel(): MusicModelConfig {
+  return MUSIC_MODELS[0]
+}
+
+/**
+ * The models the Director can run on, reached through fal's OpenRouter proxy
+ * (`services/openrouter.server.ts`). Ids are OpenRouter slugs; every one below
+ * was verified to resolve against the live endpoint. Ordered best-tool-use
+ * first — MODELS[0] is what a caller with no preference gets.
+ */
 export const LLM_MODELS: Array<ModelConfig> = [
   {
-    id: 'anthropic/claude-3.5-sonnet',
-    name: 'Claude 3.5 Sonnet',
+    id: 'anthropic/claude-opus-5',
+    name: 'Claude Opus 5',
     provider: 'openrouter',
-    description: 'Best for creative writing and tool use',
+    description:
+      'Best at multi-step tool use — the safest choice for driving the timeline.',
   },
   {
-    id: 'openai/gpt-4o',
-    name: 'GPT-4o',
+    id: 'anthropic/claude-sonnet-5',
+    name: 'Claude Sonnet 5',
     provider: 'openrouter',
-    description: 'Fast and capable',
+    description: 'Nearly as capable at a third of the price. The value pick.',
   },
   {
-    id: 'openai/gpt-4o-mini',
-    name: 'GPT-4o Mini',
+    id: 'openai/gpt-5',
+    name: 'GPT-5',
     provider: 'openrouter',
-    description: 'Cheapest option, good for simple tasks',
+    description: "OpenAI's flagship, if you prefer its phrasing.",
   },
   {
-    id: 'google/gemini-pro-1.5',
-    name: 'Gemini Pro 1.5',
+    id: 'google/gemini-2.5-pro',
+    name: 'Gemini 2.5 Pro',
     provider: 'openrouter',
-    description: 'Google Gemini with large context',
+    description: 'Long context and strong reasoning.',
   },
   {
-    id: 'anthropic/claude-3-opus',
-    name: 'Claude 3 Opus',
+    id: 'anthropic/claude-haiku-4.5',
+    name: 'Claude Haiku 4.5',
     provider: 'openrouter',
-    description: 'Highest quality, most expensive',
+    description: 'Fast and cheap; fine for chat, weaker at long tool chains.',
+  },
+  {
+    id: 'google/gemini-2.5-flash',
+    name: 'Gemini 2.5 Flash',
+    provider: 'openrouter',
+    description: 'The cheapest option — pennies per hundred messages.',
   },
 ]
 
@@ -1029,68 +1152,56 @@ export interface GenerationJobOutput {
 // Project Manifest Types (The DNA of a video)
 // =============================================================================
 
-export interface ProjectManifest {
-  version: number
-  tracks: {
-    video: Array<VideoClip>
-    audio: Array<AudioClip>
-    components: Array<ComponentOverlay>
-  }
-  globalSettings: {
-    backgroundColor: string
-  }
-}
+/**
+ * The manifest lives in `src/remotion/types.ts` — the composition renders it,
+ * the timeline edits it and the server stores it, so there is exactly one
+ * definition. This file re-exports it so server code can keep importing from
+ * the services barrel. `VideoClip`/`AudioClip`/`ComponentOverlay` are the
+ * legacy v1 clip shapes, kept only for reading documents written before v2.
+ */
+export type {
+  ProjectManifest,
+  ManifestTrack,
+  ManifestClip,
+  TrackKind,
+  ClipKind,
+  LegacyProjectManifest,
+  WordTimestampProps as WordTimestamp,
+  ClipEffectProps as ClipEffect,
+  TransitionType,
+  VideoClipProps as VideoClip,
+  AudioClipProps as AudioClip,
+  ComponentOverlayProps as ComponentOverlay,
+} from '../../remotion/types'
 
-export interface VideoClip {
-  id: string
-  assetId: string
-  url: string
-  startFrame: number
-  durationFrames: number
-  layer: number
-  transition?: TransitionType
-  effects?: Array<ClipEffect>
-}
-
-export interface AudioClip {
-  id: string
-  assetId: string
-  url: string
-  startFrame: number
-  durationFrames: number
-  volume: number
-  // Word timestamps for karaoke sync
-  wordTimestamps?: Array<WordTimestamp>
-}
-
-export interface ComponentOverlay {
-  id: string
-  component: 'KaraokeText' | 'BigTitle' | 'ImageOverlay' | 'LowerThird'
-
-  props: Record<string, any>
-  startFrame: number
-  durationFrames: number
-  layer: number
-}
-
-export interface WordTimestamp {
-  word: string
-  start: number // seconds
-  end: number // seconds
-}
-
-export type TransitionType =
-  | 'cut'
-  | 'fade'
-  | 'slide-left'
-  | 'slide-right'
-  | 'glitch'
-  | 'zoom'
-
-export interface ClipEffect {
-  type: 'brightness' | 'contrast' | 'saturation' | 'blur' | 'grayscale'
-  value: number
-}
+export {
+  MANIFEST_VERSION,
+  BASE_TRACKS,
+  TRACK_CODE,
+  createEmptyManifest,
+  createTrack,
+  migrateManifest,
+  withBaseLanes,
+  newId,
+  trackEndFrame,
+  sequenceEndFrame,
+  clipCount,
+  allClips,
+  tracksOfKind,
+  findClip,
+  trackCode,
+  trackKindForAsset,
+  clipKindForAsset,
+  clipHasAudio,
+  mapTrack,
+  addClip,
+  appendClip,
+  updateClip,
+  removeClip,
+  splitClipAt,
+  formatTimecode,
+  formatDuration,
+} from '../../remotion/types'
 
 // =============================================================================
 // Helper Functions
@@ -1233,20 +1344,6 @@ export interface VideoUpscaleInput {
   // Bytedance specific
   bytedanceTargetResolution?: BytedanceVideoTargetResolution
   bytedanceTargetFps?: BytedanceVideoTargetFps
-}
-
-export function createEmptyManifest(): ProjectManifest {
-  return {
-    version: 1,
-    tracks: {
-      video: [],
-      audio: [],
-      components: [],
-    },
-    globalSettings: {
-      backgroundColor: '#000000',
-    },
-  }
 }
 
 // =============================================================================

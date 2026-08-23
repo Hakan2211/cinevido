@@ -12,6 +12,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { GripHorizontal } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ChatPanel } from './ChatPanel'
 
@@ -19,7 +20,7 @@ import { ChatPanel } from './ChatPanel'
 // to prevent Prisma and other server-only code from being bundled into the client.
 // See: https://tanstack.com/router/latest/docs/framework/react/start/server-functions
 import { VideoPreview } from './VideoPreview'
-import { Timeline } from './Timeline'
+import { Timeline } from './timeline'
 import { AssetPanel } from './AssetPanel'
 import { QuickActionsToolbar } from './QuickActionsToolbar'
 import { MobileWorkspace } from './mobile'
@@ -60,6 +61,14 @@ interface WorkspaceProps {
 const JOB_POLL_INTERVAL = 3000 // 3 seconds
 const MANIFEST_POLL_INTERVAL = 5000 // 5 seconds
 
+// How long timeline edits settle before they are written to the server
+const SAVE_DEBOUNCE = 700
+
+// Timeline zone height (px) — the editor needs room for four lanes
+const TIMELINE_MIN_H = 190
+const TIMELINE_MAX_H = 700
+const TIMELINE_DEFAULT_H = 320
+
 export function Workspace({ project }: WorkspaceProps) {
   const queryClient = useQueryClient()
   const isMobile = useIsMobile()
@@ -70,6 +79,13 @@ export function Workspace({ project }: WorkspaceProps) {
 
   // Track the last known manifest update time for change detection
   const lastManifestUpdate = useRef<Date>(project.updatedAt)
+
+  // Debounced timeline save: the timer, and whether an edit is still in flight
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const pendingSave = useRef(false)
+
+  // Timeline zone height, dragged from the splitter above it
+  const [timelineHeight, setTimelineHeight] = useState(TIMELINE_DEFAULT_H)
 
   // Player state
   const [currentFrame, setCurrentFrame] = useState(0)
@@ -152,6 +168,9 @@ export function Workspace({ project }: WorkspaceProps) {
   // =============================================================================
 
   const refreshManifest = useCallback(async () => {
+    // A local edit that has not reached the server yet must win: pulling the
+    // server's copy on top of it would throw away the cut the user is making.
+    if (pendingSave.current) return
     try {
       const { getManifestFn } = await import('../../server/project.server')
       const result = await getManifestFn({ data: { projectId: project.id } })
@@ -181,12 +200,42 @@ export function Workspace({ project }: WorkspaceProps) {
   // Handlers
   // =============================================================================
 
-  // Handle manifest updates (from user actions or AI)
-  const handleManifestChange = useCallback((newManifest: ProjectManifest) => {
-    setManifest(newManifest)
-    setManifestVersion((v) => v + 1)
-    lastManifestUpdate.current = new Date()
-    // TODO: Debounce and save to server
+  // Handle manifest updates (from user actions or AI).
+  //
+  // Edits apply locally at once and save on a debounce — a timeline drag emits
+  // a manifest per pointer move, and none of those deserve a round trip. The
+  // save carries the project it belongs to, so a project switch mid-debounce
+  // can never write this cut into the next project.
+  const handleManifestChange = useCallback(
+    (newManifest: ProjectManifest) => {
+      setManifest(newManifest)
+      setManifestVersion((v) => v + 1)
+      lastManifestUpdate.current = new Date()
+
+      pendingSave.current = true
+      clearTimeout(saveTimer.current)
+      const projectId = project.id
+      saveTimer.current = setTimeout(async () => {
+        try {
+          const { updateManifestFn } =
+            await import('../../server/project.server')
+          const result = await updateManifestFn({
+            data: { projectId, manifest: JSON.stringify(newManifest) },
+          })
+          lastManifestUpdate.current = new Date(result.updatedAt)
+        } catch (error) {
+          console.error('Failed to save timeline:', error)
+        } finally {
+          pendingSave.current = false
+        }
+      }, SAVE_DEBOUNCE)
+    },
+    [project.id],
+  )
+
+  // Never let a debounced save land after the workspace moved on
+  useEffect(() => {
+    return () => clearTimeout(saveTimer.current)
   }, [])
 
   // Handle frame change from timeline
@@ -267,7 +316,10 @@ export function Workspace({ project }: WorkspaceProps) {
           </div>
 
           {/* Quick Actions Toolbar - Floating above timeline */}
-          <div className="absolute bottom-52 left-1/2 z-10 -translate-x-1/2">
+          <div
+            className="absolute left-1/2 z-10 -translate-x-1/2"
+            style={{ bottom: timelineHeight + 16 }}
+          >
             <QuickActionsToolbar
               isPlaying={isPlaying}
               onTogglePlay={() => setIsPlaying(!isPlaying)}
@@ -285,8 +337,40 @@ export function Workspace({ project }: WorkspaceProps) {
             />
           </div>
 
+          {/* Splitter — drag to give the cut more room */}
+          <div
+            role="separator"
+            aria-orientation="horizontal"
+            aria-label="Resize timeline"
+            className="group flex h-2.5 shrink-0 cursor-row-resize items-center justify-center bg-border/40 hover:bg-primary/20"
+            onPointerDown={(e) => {
+              e.preventDefault()
+              const startY = e.clientY
+              const startH = timelineHeight
+              const onMove = (move: PointerEvent) => {
+                setTimelineHeight(
+                  Math.max(
+                    TIMELINE_MIN_H,
+                    Math.min(TIMELINE_MAX_H, startH + (startY - move.clientY)),
+                  ),
+                )
+              }
+              const onUp = () => {
+                window.removeEventListener('pointermove', onMove)
+                window.removeEventListener('pointerup', onUp)
+              }
+              window.addEventListener('pointermove', onMove)
+              window.addEventListener('pointerup', onUp)
+            }}
+          >
+            <GripHorizontal className="h-3 w-3 text-muted-foreground/50 group-hover:text-primary" />
+          </div>
+
           {/* Timeline */}
-          <div className="h-48 border-t bg-muted/20">
+          <div
+            className="shrink-0 border-t bg-muted/20"
+            style={{ height: timelineHeight }}
+          >
             <Timeline
               manifest={manifest}
               fps={project.fps}
@@ -297,6 +381,7 @@ export function Workspace({ project }: WorkspaceProps) {
               onManifestChange={handleManifestChange}
               isPlaying={isPlaying}
               onTogglePlay={() => setIsPlaying(!isPlaying)}
+              assets={project.assets}
             />
           </div>
         </main>
@@ -312,6 +397,7 @@ export function Workspace({ project }: WorkspaceProps) {
             assets={project.assets}
             manifest={manifest}
             onManifestChange={handleManifestChange}
+            fps={project.fps}
             collapsed={rightPanelCollapsed}
             onToggleCollapse={() =>
               setRightPanelCollapsed(!rightPanelCollapsed)

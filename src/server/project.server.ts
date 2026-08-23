@@ -8,8 +8,11 @@ import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod'
 import { prisma } from '../db.server'
 import { authMiddleware } from './middleware.server'
-import { createEmptyManifest } from './services/index.server'
-import type { ProjectManifest } from './services/index.server'
+import {
+  createEmptyManifest,
+  migrateManifest,
+  sequenceEndFrame,
+} from './services/index.server'
 
 // =============================================================================
 // Schemas
@@ -118,7 +121,7 @@ export const getProjectFn = createServerFn({ method: 'GET' })
       status: project.status,
       outputUrl: project.outputUrl,
       thumbnailUrl: project.thumbnailUrl,
-      manifest: JSON.parse(project.manifest) as ProjectManifest,
+      manifest: migrateManifest(project.manifest),
       assets: project.assets.map((asset) => ({
         id: asset.id,
         type: asset.type,
@@ -329,33 +332,23 @@ export const updateManifestFn = createServerFn({ method: 'POST' })
       throw new Error('Unauthorized')
     }
 
-    // Validate manifest JSON
-    let manifest: ProjectManifest
+    // Validate the JSON, then normalise it: whatever shape the client sent
+    // (v1 buckets, a lane missing, an out-of-range gain) is stored as a clean
+    // v2 document, so nothing downstream has to cope with two shapes.
+    let parsed: unknown
     try {
-      manifest = JSON.parse(data.manifest)
+      parsed = JSON.parse(data.manifest)
     } catch {
       throw new Error('Invalid manifest JSON')
     }
 
-    // Calculate total duration from manifest
-    let maxFrame = 0
-    for (const clip of manifest.tracks.video) {
-      const endFrame = clip.startFrame + clip.durationFrames
-      if (endFrame > maxFrame) maxFrame = endFrame
-    }
-    for (const clip of manifest.tracks.audio) {
-      const endFrame = clip.startFrame + clip.durationFrames
-      if (endFrame > maxFrame) maxFrame = endFrame
-    }
-    for (const comp of manifest.tracks.components) {
-      const endFrame = comp.startFrame + comp.durationFrames
-      if (endFrame > maxFrame) maxFrame = endFrame
-    }
+    const manifest = migrateManifest(parsed)
+    const maxFrame = sequenceEndFrame(manifest)
 
     const project = await prisma.project.update({
       where: { id: data.projectId },
       data: {
-        manifest: data.manifest,
+        manifest: JSON.stringify(manifest),
         duration: maxFrame,
       },
     })
@@ -393,7 +386,7 @@ export const getManifestFn = createServerFn({ method: 'GET' })
     }
 
     return {
-      manifest: JSON.parse(project.manifest) as ProjectManifest,
+      manifest: migrateManifest(project.manifest),
       duration: project.duration,
       updatedAt: project.updatedAt,
     }

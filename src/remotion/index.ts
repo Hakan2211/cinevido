@@ -12,6 +12,11 @@ export { RemotionRoot } from './Root'
 export type {
   CompositionProps,
   ProjectManifest,
+  ManifestTrack,
+  ManifestClip,
+  TrackKind,
+  ClipKind,
+  LegacyProjectManifest,
   VideoClipProps,
   AudioClipProps,
   ComponentOverlayProps,
@@ -24,13 +29,38 @@ export type {
   ImageOverlayProps,
   LowerThirdProps,
   PlayerState,
-  TimelineTrack,
-  TimelineClip,
   TimelineSelection,
 } from './types'
 
 // Utilities
-export { createEmptyManifest } from './types'
+export {
+  MANIFEST_VERSION,
+  BASE_TRACKS,
+  TRACK_CODE,
+  createEmptyManifest,
+  createTrack,
+  migrateManifest,
+  withBaseLanes,
+  newId,
+  trackEndFrame,
+  sequenceEndFrame,
+  clipCount,
+  allClips,
+  tracksOfKind,
+  findClip,
+  trackCode,
+  trackKindForAsset,
+  clipKindForAsset,
+  clipHasAudio,
+  mapTrack,
+  addClip,
+  appendClip,
+  updateClip,
+  removeClip,
+  splitClipAt,
+  formatTimecode,
+  formatDuration,
+} from './types'
 
 // Overlay components
 export { KaraokeText } from './components/overlays/KaraokeText'

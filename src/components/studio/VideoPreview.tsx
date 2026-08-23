@@ -4,10 +4,11 @@
  * Renders the Remotion player for video preview.
  */
 
-import { useCallback, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { Player } from '@remotion/player'
 import { Maximize, Pause, Play, SkipBack, SkipForward } from 'lucide-react'
 import { VideoComposition } from '../../remotion/Composition'
+import { formatTimecode, sequenceEndFrame } from '../../remotion/types'
 import { Button } from '../ui/button'
 import type { PlayerRef } from '@remotion/player'
 import type { ProjectManifest } from '../../remotion/types'
@@ -38,28 +39,46 @@ export function VideoPreview({
   // Calculate duration from manifest
   const durationFrames = Math.max(
     1,
-    manifest.tracks.video.reduce(
-      (max, clip) => Math.max(max, clip.startFrame + clip.durationFrames),
-      0,
-    ),
-    manifest.tracks.audio.reduce(
-      (max, clip) => Math.max(max, clip.startFrame + clip.durationFrames),
-      0,
-    ),
-    manifest.tracks.components.reduce(
-      (max, comp) => Math.max(max, comp.startFrame + comp.durationFrames),
-      0,
-    ),
+    sequenceEndFrame(manifest),
     fps * 5, // Minimum 5 seconds
   )
 
-  const formatTime = (frames: number) => {
-    const totalSeconds = Math.floor(frames / fps)
-    const minutes = Math.floor(totalSeconds / 60)
-    const seconds = totalSeconds % 60
-    const remainingFrames = frames % fps
-    return `${minutes}:${seconds.toString().padStart(2, '0')}:${remainingFrames.toString().padStart(2, '0')}`
-  }
+  const formatTime = (frames: number) => formatTimecode(frames, fps)
+
+  // The player IS the program monitor: it reports the playhead while it runs,
+  // and follows the playhead when the timeline scrubs it. `lastReported` keeps
+  // the two from fighting — a frame the player just told us about must not be
+  // seeked back into the player.
+  const lastReported = useRef(0)
+
+  useEffect(() => {
+    const player = playerRef.current
+    if (!player) return
+
+    const onFrame = (e: { detail: { frame: number } }) => {
+      lastReported.current = e.detail.frame
+      onFrameChange(e.detail.frame)
+    }
+    const onPlay = () => onPlayingChange(true)
+    const onPause = () => onPlayingChange(false)
+
+    player.addEventListener('frameupdate', onFrame)
+    player.addEventListener('play', onPlay)
+    player.addEventListener('pause', onPause)
+    return () => {
+      player.removeEventListener('frameupdate', onFrame)
+      player.removeEventListener('play', onPlay)
+      player.removeEventListener('pause', onPause)
+    }
+  }, [onFrameChange, onPlayingChange])
+
+  // Follow an externally moved playhead (timeline scrub, razor, cut stepping)
+  useEffect(() => {
+    const player = playerRef.current
+    if (!player) return
+    if (currentFrame === lastReported.current) return
+    player.seekTo(Math.max(0, Math.min(durationFrames - 1, currentFrame)))
+  }, [currentFrame, durationFrames])
 
   const handleTogglePlay = useCallback(() => {
     if (playerRef.current) {
@@ -89,7 +108,7 @@ export function VideoPreview({
   }, [])
 
   // Calculate aspect ratio for responsive sizing
-  const aspectRatio = width / height
+  // (aspect ratio is applied inline on the player frame below)
   const isVertical = height > width
 
   return (
