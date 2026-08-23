@@ -7,20 +7,32 @@
 
 import { prisma } from '../../db.server'
 import {
+  addClip,
+  appendClip,
+  clipCount,
+  findClip,
   generateImage,
   generateSpeech,
   generateVideo,
+  migrateManifest,
+  newId,
+  removeClip,
+  sequenceEndFrame,
+  tracksOfKind,
+  updateClip,
 } from '../services/index.server'
 import { getUserStorageConfig } from '../storage-config.server'
+import { getUserFalApiKey } from '../byok.server'
+import {
+  clampDuration as clampMusicDuration,
+  generateMusic,
+} from '../services/music.server'
+import { MUSIC_MODELS } from '../services/types'
 import { TOOL_NAMES } from './tools.server'
-import type {
-  AudioClip,
-  ComponentOverlay,
-  ProjectManifest,
-  VideoClip,
-} from '../services/index.server'
+import type { ProjectManifest, TrackKind } from '../services/index.server'
 import type {
   GenerateImageArgs,
+  GenerateMusicArgs,
   GenerateVideoArgs,
   GenerateVoiceoverArgs,
   ListAssetsArgs,
@@ -74,7 +86,9 @@ export async function executeGetProjectState(
       return { success: false, error: 'Unauthorized' }
     }
 
-    const manifest = JSON.parse(project.manifest) as ProjectManifest
+    const manifest = migrateManifest(project.manifest)
+    const countOfKind = (kind: TrackKind) =>
+      tracksOfKind(manifest, kind).reduce((n, t) => n + t.clips.length, 0)
 
     return {
       success: true,
@@ -89,9 +103,11 @@ export async function executeGetProjectState(
           status: project.status,
         },
         manifest: {
-          videoClipCount: manifest.tracks.video.length,
-          audioClipCount: manifest.tracks.audio.length,
-          componentCount: manifest.tracks.components.length,
+          videoClipCount: countOfKind('video'),
+          audioClipCount: countOfKind('voice'),
+          musicClipCount: countOfKind('music'),
+          componentCount: countOfKind('component'),
+          totalClipCount: clipCount(manifest),
           backgroundColor: manifest.globalSettings.backgroundColor,
         },
         assets: project.assets.map((asset) => ({
@@ -106,6 +122,7 @@ export async function executeGetProjectState(
           images: project.assets.filter((a) => a.type === 'image').length,
           videos: project.assets.filter((a) => a.type === 'video').length,
           audio: project.assets.filter((a) => a.type === 'audio').length,
+          music: project.assets.filter((a) => a.type === 'music').length,
         },
       },
     }
@@ -406,6 +423,78 @@ export async function executeGenerateVoiceover(
 }
 
 // =============================================================================
+// Tool: generateMusic
+// =============================================================================
+
+/**
+ * Score the project. Music is a queued job like video — this returns the job
+ * id, and the finished track shows up as a music asset on the next poll.
+ */
+export async function executeGenerateMusic(
+  args: GenerateMusicArgs,
+  context: ToolContext,
+): Promise<ToolResult> {
+  try {
+    const modelId = MUSIC_MODELS[0].id
+    const durationSec = clampMusicDuration(args.durationSec, modelId)
+    const instrumental = args.instrumental ?? !args.lyrics?.trim()
+
+    const userApiKey = await getUserFalApiKey(context.userId)
+    const job = await generateMusic(
+      {
+        prompt: args.prompt,
+        model: modelId,
+        lyrics: args.lyrics,
+        instrumental,
+        durationSec,
+      },
+      userApiKey,
+    )
+
+    const dbJob = await prisma.generationJob.create({
+      data: {
+        userId: context.userId,
+        projectId: context.projectId,
+        type: 'music',
+        status: 'pending',
+        provider: 'fal',
+        model: modelId,
+        input: JSON.stringify({
+          prompt: args.prompt,
+          lyrics: args.lyrics,
+          instrumental,
+          durationSec,
+          title: args.title,
+        }),
+        externalId: job.requestId,
+        statusUrl: job.statusUrl,
+        responseUrl: job.responseUrl,
+        cancelUrl: job.cancelUrl,
+      },
+    })
+
+    return {
+      success: true,
+      data: {
+        jobId: dbJob.id,
+        model: modelId,
+        durationSec,
+        instrumental,
+        message: `Writing a ${durationSec}s ${
+          instrumental ? 'instrumental' : 'vocal'
+        } track. It will appear as a music asset when it is done.`,
+      },
+    }
+  } catch (error) {
+    return {
+      success: false,
+      error:
+        error instanceof Error ? error.message : 'Failed to generate music',
+    }
+  }
+}
+
+// =============================================================================
 // Tool: updateTimeline
 // =============================================================================
 
@@ -428,8 +517,11 @@ export async function executeUpdateTimeline(
       return { success: false, error: 'Unauthorized' }
     }
 
-    const manifest = JSON.parse(project.manifest) as ProjectManifest
+    let manifest: ProjectManifest = migrateManifest(project.manifest)
     const fps = project.fps
+
+    /** `layer` used to mean z-order; in v2 it is the nth lane of a kind */
+    const laneIndex = args.layer !== undefined ? Math.max(0, args.layer) : 0
 
     switch (args.action) {
       case 'addVideoClip': {
@@ -444,15 +536,9 @@ export async function executeUpdateTimeline(
           where: { id: args.videoAssetId },
         })
 
-        if (!asset || asset.type !== 'video') {
+        if (!asset || (asset.type !== 'video' && asset.type !== 'image')) {
           return { success: false, error: 'Video asset not found' }
         }
-
-        // Calculate end of current timeline
-        const lastEndFrame = manifest.tracks.video.reduce(
-          (max, clip) => Math.max(max, clip.startFrame + clip.durationFrames),
-          0,
-        )
 
         const durationFrames =
           args.durationFrames ||
@@ -460,16 +546,23 @@ export async function executeUpdateTimeline(
             ? Math.round(asset.durationSeconds * fps)
             : 150)
 
-        const newClip: VideoClip = {
-          id: `video-${Date.now()}`,
-          assetId: asset.id,
-          url: asset.storageUrl,
-          startFrame: args.startFrame ?? lastEndFrame,
-          durationFrames,
-          layer: args.layer ?? 0,
-        }
-
-        manifest.tracks.video.push(newClip)
+        manifest = appendClip(
+          manifest,
+          'video',
+          {
+            id: newId('video'),
+            kind: asset.type === 'image' ? 'image' : 'video',
+            assetId: asset.id,
+            url: asset.storageUrl,
+            label: asset.filename,
+            startFrame: args.startFrame,
+            durationFrames,
+            sourceInFrame: 0,
+            transitionFrames: 0,
+            gain: 1,
+          },
+          laneIndex,
+        ).manifest
         break
       }
 
@@ -485,7 +578,7 @@ export async function executeUpdateTimeline(
           where: { id: args.audioAssetId },
         })
 
-        if (!asset || asset.type !== 'audio') {
+        if (!asset || (asset.type !== 'audio' && asset.type !== 'music')) {
           return { success: false, error: 'Audio asset not found' }
         }
 
@@ -497,17 +590,28 @@ export async function executeUpdateTimeline(
             ? Math.round(asset.durationSeconds * fps)
             : 150)
 
-        const newClip: AudioClip = {
-          id: `audio-${Date.now()}`,
-          assetId: asset.id,
-          url: asset.storageUrl,
-          startFrame: args.startFrame ?? 0,
-          durationFrames,
-          volume: 1,
-          wordTimestamps: metadata.wordTimestamps,
-        }
+        // Voice takes go on the Voice lane, scores on the Music lane, so the
+        // mixer can duck one under the other.
+        const kind: TrackKind = asset.type === 'music' ? 'music' : 'voice'
 
-        manifest.tracks.audio.push(newClip)
+        manifest = addClip(
+          manifest,
+          kind,
+          {
+            id: newId('audio'),
+            kind: 'audio',
+            assetId: asset.id,
+            url: asset.storageUrl,
+            label: asset.filename,
+            startFrame: args.startFrame ?? 0,
+            durationFrames,
+            sourceInFrame: 0,
+            transitionFrames: 0,
+            gain: 1,
+            wordTimestamps: metadata.wordTimestamps,
+          },
+          laneIndex,
+        ).manifest
         break
       }
 
@@ -520,21 +624,28 @@ export async function executeUpdateTimeline(
           }
         }
 
-        const newOverlay: ComponentOverlay = {
-          id: `text-${Date.now()}`,
-          component: args.textOverlayType,
-          props: {
-            text: args.textOverlayText,
-            position: args.textOverlayPosition || 'center',
-            fontSize: args.textOverlayFontSize || 48,
-            color: args.textOverlayColor || '#FFFFFF',
+        manifest = addClip(
+          manifest,
+          'component',
+          {
+            id: newId('text'),
+            kind: 'component',
+            label: args.textOverlayText.slice(0, 40),
+            component: args.textOverlayType,
+            props: {
+              text: args.textOverlayText,
+              position: args.textOverlayPosition || 'center',
+              fontSize: args.textOverlayFontSize || 48,
+              color: args.textOverlayColor || '#FFFFFF',
+            },
+            startFrame: args.startFrame ?? 0,
+            durationFrames: args.durationFrames ?? 90, // Default 3 seconds
+            sourceInFrame: 0,
+            transitionFrames: 0,
+            gain: 1,
           },
-          startFrame: args.startFrame ?? 0,
-          durationFrames: args.durationFrames ?? 90, // Default 3 seconds
-          layer: args.layer ?? 10,
-        }
-
-        manifest.tracks.components.push(newOverlay)
+          0,
+        ).manifest
         break
       }
 
@@ -543,36 +654,11 @@ export async function executeUpdateTimeline(
           return { success: false, error: 'clipId is required for removeClip' }
         }
 
-        // Try to find and remove from each track type
-        let removed = false
-
-        const videoIndex = manifest.tracks.video.findIndex(
-          (c) => c.id === args.clipId,
-        )
-        if (videoIndex !== -1) {
-          manifest.tracks.video.splice(videoIndex, 1)
-          removed = true
-        }
-
-        const audioIndex = manifest.tracks.audio.findIndex(
-          (c) => c.id === args.clipId,
-        )
-        if (audioIndex !== -1) {
-          manifest.tracks.audio.splice(audioIndex, 1)
-          removed = true
-        }
-
-        const compIndex = manifest.tracks.components.findIndex(
-          (c) => c.id === args.clipId,
-        )
-        if (compIndex !== -1) {
-          manifest.tracks.components.splice(compIndex, 1)
-          removed = true
-        }
-
-        if (!removed) {
+        if (!findClip(manifest, args.clipId)) {
           return { success: false, error: `Clip not found: ${args.clipId}` }
         }
+
+        manifest = removeClip(manifest, args.clipId)
         break
       }
 
@@ -584,35 +670,13 @@ export async function executeUpdateTimeline(
           }
         }
 
-        let moved = false
-
-        const videoClip = manifest.tracks.video.find(
-          (c) => c.id === args.clipId,
-        )
-        if (videoClip) {
-          videoClip.startFrame = args.newStartFrame
-          moved = true
-        }
-
-        const audioClip = manifest.tracks.audio.find(
-          (c) => c.id === args.clipId,
-        )
-        if (audioClip) {
-          audioClip.startFrame = args.newStartFrame
-          moved = true
-        }
-
-        const compClip = manifest.tracks.components.find(
-          (c) => c.id === args.clipId,
-        )
-        if (compClip) {
-          compClip.startFrame = args.newStartFrame
-          moved = true
-        }
-
-        if (!moved) {
+        if (!findClip(manifest, args.clipId)) {
           return { success: false, error: `Clip not found: ${args.clipId}` }
         }
+
+        manifest = updateClip(manifest, args.clipId, {
+          startFrame: Math.max(0, Math.round(args.newStartFrame)),
+        })
         break
       }
 
@@ -624,7 +688,13 @@ export async function executeUpdateTimeline(
           }
         }
 
-        manifest.globalSettings.backgroundColor = args.backgroundColor
+        manifest = {
+          ...manifest,
+          globalSettings: {
+            ...manifest.globalSettings,
+            backgroundColor: args.backgroundColor,
+          },
+        }
         break
       }
 
@@ -632,17 +702,7 @@ export async function executeUpdateTimeline(
         return { success: false, error: `Unknown action: ${args.action}` }
     }
 
-    // Calculate new duration
-    let maxFrame = 0
-    for (const clip of manifest.tracks.video) {
-      maxFrame = Math.max(maxFrame, clip.startFrame + clip.durationFrames)
-    }
-    for (const clip of manifest.tracks.audio) {
-      maxFrame = Math.max(maxFrame, clip.startFrame + clip.durationFrames)
-    }
-    for (const comp of manifest.tracks.components) {
-      maxFrame = Math.max(maxFrame, comp.startFrame + comp.durationFrames)
-    }
+    const maxFrame = sequenceEndFrame(manifest)
 
     // Save updated manifest
     await prisma.project.update({
@@ -653,6 +713,9 @@ export async function executeUpdateTimeline(
       },
     })
 
+    const countOfKind = (kind: TrackKind) =>
+      tracksOfKind(manifest, kind).reduce((n, t) => n + t.clips.length, 0)
+
     return {
       success: true,
       data: {
@@ -660,9 +723,10 @@ export async function executeUpdateTimeline(
         totalDuration: maxFrame,
         totalDurationSeconds: maxFrame / fps,
         clipCounts: {
-          video: manifest.tracks.video.length,
-          audio: manifest.tracks.audio.length,
-          components: manifest.tracks.components.length,
+          video: countOfKind('video'),
+          audio: countOfKind('voice'),
+          music: countOfKind('music'),
+          components: countOfKind('component'),
         },
       },
     }
@@ -741,6 +805,9 @@ export async function executeTool(
 
     case TOOL_NAMES.GENERATE_VOICEOVER:
       return executeGenerateVoiceover(args as GenerateVoiceoverArgs, context)
+
+    case TOOL_NAMES.GENERATE_MUSIC:
+      return executeGenerateMusic(args as GenerateMusicArgs, context)
 
     case TOOL_NAMES.UPDATE_TIMELINE:
       return executeUpdateTimeline(args as UpdateTimelineArgs, context)

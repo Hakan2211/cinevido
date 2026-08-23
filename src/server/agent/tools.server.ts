@@ -66,6 +66,34 @@ export const generateVoiceoverSchema = z.object({
     .describe('Voice style to use. Defaults to male-narrator.'),
 })
 
+export const generateMusicSchema = z.object({
+  prompt: z
+    .string()
+    .min(3)
+    .max(1000)
+    .describe(
+      'The music to write. For ACE-Step this is comma-separated genre tags ("synthwave, driving bass, 110 BPM"); for the other engines a prose description.',
+    ),
+  lyrics: z
+    .string()
+    .max(3000)
+    .optional()
+    .describe(
+      'Words to sing, with [verse]/[chorus] markers. ACE-Step only; leave empty for an instrumental.',
+    ),
+  instrumental: z
+    .boolean()
+    .optional()
+    .describe('Force an instrumental take with no vocals. Defaults to true.'),
+  durationSec: z
+    .number()
+    .min(10)
+    .max(240)
+    .optional()
+    .describe('Track length in seconds. Defaults to 60.'),
+  title: z.string().max(120).optional().describe('A name for the track'),
+})
+
 export const updateTimelineSchema = z.object({
   action: z
     .enum([
@@ -130,7 +158,9 @@ export const updateTimelineSchema = z.object({
   layer: z
     .number()
     .optional()
-    .describe('Layer/track number (0 = bottom, higher = on top)'),
+    .describe(
+      'Which lane of its kind to use (0 = the base lane). Later video lanes composite on top.',
+    ),
 
   // For setBackground
   backgroundColor: z
@@ -141,7 +171,7 @@ export const updateTimelineSchema = z.object({
 
 export const listAssetsSchema = z.object({
   type: z
-    .enum(['image', 'video', 'audio', 'all'])
+    .enum(['image', 'video', 'audio', 'music', 'all'])
     .optional()
     .describe('Filter assets by type. Defaults to all.'),
 })
@@ -155,6 +185,7 @@ export const TOOL_NAMES = {
   GENERATE_IMAGE: 'generateImage',
   GENERATE_VIDEO: 'generateVideo',
   GENERATE_VOICEOVER: 'generateVoiceover',
+  GENERATE_MUSIC: 'generateMusic',
   UPDATE_TIMELINE: 'updateTimeline',
   LIST_ASSETS: 'listAssets',
 } as const
@@ -233,6 +264,15 @@ export const AGENT_TOOLS: Array<ToolDefinition> = [
   {
     type: 'function',
     function: {
+      name: TOOL_NAMES.GENERATE_MUSIC,
+      description:
+        'Write a music track from a description (genre tags or prose) with optional lyrics. Returns a job ID for polling; the finished track becomes a music asset that belongs on the Music lane of the timeline.',
+      parameters: schemaToParameters(generateMusicSchema),
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: TOOL_NAMES.UPDATE_TIMELINE,
       description:
         'Modify the video timeline. Can add video/audio clips, add text overlays, remove clips, move clips, or change background color. Returns the updated manifest.',
@@ -258,6 +298,7 @@ export type GetProjectStateArgs = z.infer<typeof getProjectStateSchema>
 export type GenerateImageArgs = z.infer<typeof generateImageSchema>
 export type GenerateVideoArgs = z.infer<typeof generateVideoSchema>
 export type GenerateVoiceoverArgs = z.infer<typeof generateVoiceoverSchema>
+export type GenerateMusicArgs = z.infer<typeof generateMusicSchema>
 export type UpdateTimelineArgs = z.infer<typeof updateTimelineSchema>
 export type ListAssetsArgs = z.infer<typeof listAssetsSchema>
 
@@ -266,5 +307,6 @@ export type ToolArgs =
   | { name: typeof TOOL_NAMES.GENERATE_IMAGE; args: GenerateImageArgs }
   | { name: typeof TOOL_NAMES.GENERATE_VIDEO; args: GenerateVideoArgs }
   | { name: typeof TOOL_NAMES.GENERATE_VOICEOVER; args: GenerateVoiceoverArgs }
+  | { name: typeof TOOL_NAMES.GENERATE_MUSIC; args: GenerateMusicArgs }
   | { name: typeof TOOL_NAMES.UPDATE_TIMELINE; args: UpdateTimelineArgs }
   | { name: typeof TOOL_NAMES.LIST_ASSETS; args: ListAssetsArgs }

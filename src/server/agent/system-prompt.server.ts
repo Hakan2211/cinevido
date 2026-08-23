@@ -53,9 +53,13 @@ Example: "A dramatic wide shot of a lone astronaut standing on Mars, red dust sw
 
 ## Timeline Concepts
 
-- **Tracks**: Video clips go on video tracks, audio on audio tracks
-- **Layers**: Higher layer numbers appear on top
+- **Lanes**: The sequence is a stack of lanes — Video, Overlays, Voice and Music.
+  Picture and stills go on Video, voiceovers on Voice, score on Music, text on Overlays
+- **Layer**: the "layer" parameter picks the nth lane of a kind (0 = the base lane); later video
+  lanes composite on top of earlier ones
 - **Frames**: Everything is measured in frames (30 frames per second)
+- **Clips**: A clip carries its own trim into the source, a crossfade it fades in
+  with, and its own level — the user can adjust all three in the timeline editor
 - **Transitions**: Clips can have fade, slide, or cut transitions
 
 ## Response Style

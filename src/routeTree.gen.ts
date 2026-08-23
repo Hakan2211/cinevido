@@ -28,6 +28,7 @@ import { Route as AppAdminRouteImport } from './routes/_app/admin'
 import { Route as App3dModelsRouteImport } from './routes/_app/3d-models'
 import { Route as AppVideosIndexRouteImport } from './routes/_app/videos/index'
 import { Route as AppProjectsIndexRouteImport } from './routes/_app/projects/index'
+import { Route as AppMusicIndexRouteImport } from './routes/_app/music/index'
 import { Route as AppMotionControlIndexRouteImport } from './routes/_app/motion-control/index'
 import { Route as AppImagesIndexRouteImport } from './routes/_app/images/index'
 import { Route as ApiStripeWebhookRouteImport } from './routes/api/stripe/webhook'
@@ -127,6 +128,11 @@ const AppProjectsIndexRoute = AppProjectsIndexRouteImport.update({
   path: '/projects/',
   getParentRoute: () => AppRoute,
 } as any)
+const AppMusicIndexRoute = AppMusicIndexRouteImport.update({
+  id: '/music/',
+  path: '/music/',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppMotionControlIndexRoute = AppMotionControlIndexRouteImport.update({
   id: '/motion-control/',
   path: '/motion-control/',
@@ -174,6 +180,7 @@ export interface FileRoutesByFullPath {
   '/api/stripe/webhook': typeof ApiStripeWebhookRoute
   '/images': typeof AppImagesIndexRoute
   '/motion-control': typeof AppMotionControlIndexRoute
+  '/music': typeof AppMusicIndexRoute
   '/projects': typeof AppProjectsIndexRoute
   '/videos': typeof AppVideosIndexRoute
 }
@@ -198,6 +205,7 @@ export interface FileRoutesByTo {
   '/api/stripe/webhook': typeof ApiStripeWebhookRoute
   '/images': typeof AppImagesIndexRoute
   '/motion-control': typeof AppMotionControlIndexRoute
+  '/music': typeof AppMusicIndexRoute
   '/projects': typeof AppProjectsIndexRoute
   '/videos': typeof AppVideosIndexRoute
 }
@@ -225,6 +233,7 @@ export interface FileRoutesById {
   '/api/stripe/webhook': typeof ApiStripeWebhookRoute
   '/_app/images/': typeof AppImagesIndexRoute
   '/_app/motion-control/': typeof AppMotionControlIndexRoute
+  '/_app/music/': typeof AppMusicIndexRoute
   '/_app/projects/': typeof AppProjectsIndexRoute
   '/_app/videos/': typeof AppVideosIndexRoute
 }
@@ -251,6 +260,7 @@ export interface FileRouteTypes {
     | '/api/stripe/webhook'
     | '/images'
     | '/motion-control'
+    | '/music'
     | '/projects'
     | '/videos'
   fileRoutesByTo: FileRoutesByTo
@@ -275,6 +285,7 @@ export interface FileRouteTypes {
     | '/api/stripe/webhook'
     | '/images'
     | '/motion-control'
+    | '/music'
     | '/projects'
     | '/videos'
   id:
@@ -301,6 +312,7 @@ export interface FileRouteTypes {
     | '/api/stripe/webhook'
     | '/_app/images/'
     | '/_app/motion-control/'
+    | '/_app/music/'
     | '/_app/projects/'
     | '/_app/videos/'
   fileRoutesById: FileRoutesById
@@ -455,6 +467,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppProjectsIndexRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/music/': {
+      id: '/_app/music/'
+      path: '/music'
+      fullPath: '/music'
+      preLoaderRoute: typeof AppMusicIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/motion-control/': {
       id: '/_app/motion-control/'
       path: '/motion-control'
@@ -502,6 +521,7 @@ interface AppRouteChildren {
   AppProjectsProjectIdRoute: typeof AppProjectsProjectIdRoute
   AppImagesIndexRoute: typeof AppImagesIndexRoute
   AppMotionControlIndexRoute: typeof AppMotionControlIndexRoute
+  AppMusicIndexRoute: typeof AppMusicIndexRoute
   AppProjectsIndexRoute: typeof AppProjectsIndexRoute
   AppVideosIndexRoute: typeof AppVideosIndexRoute
 }
@@ -515,6 +535,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppProjectsProjectIdRoute: AppProjectsProjectIdRoute,
   AppImagesIndexRoute: AppImagesIndexRoute,
   AppMotionControlIndexRoute: AppMotionControlIndexRoute,
+  AppMusicIndexRoute: AppMusicIndexRoute,
   AppProjectsIndexRoute: AppProjectsIndexRoute,
   AppVideosIndexRoute: AppVideosIndexRoute,
 }

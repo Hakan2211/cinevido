@@ -6,6 +6,7 @@ import {
   LayoutDashboard,
   LogOut,
   Move,
+  Music,
   Shield,
   User,
   Video,
@@ -155,6 +156,23 @@ export function AppSidebar({ user }: AppSidebarProps) {
                     <Video className="h-5! w-5!" />
                     <span className="text-base font-medium group-data-[collapsible=icon]:hidden">
                       Videos
+                    </span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  isActive={isActive('/music')}
+                  tooltip="Music"
+                  size="lg"
+                  className="data-[active=true]:bg-primary/5 data-[active=true]:text-primary group-data-[collapsible=icon]:justify-center"
+                  onClick={handleNavClick}
+                >
+                  <Link to="/music">
+                    <Music className="h-5! w-5!" />
+                    <span className="text-base font-medium group-data-[collapsible=icon]:hidden">
+                      Music
                     </span>
                   </Link>
                 </SidebarMenuButton>
