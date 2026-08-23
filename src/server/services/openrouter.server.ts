@@ -1,18 +1,74 @@
 /**
- * OpenRouter LLM Service
+ * LLM Service — OpenRouter, reached through fal
  *
- * Routes LLM requests to various providers (Claude, GPT-4, Gemini, etc.)
- * via OpenRouter's unified API.
+ * Routes LLM requests to Claude, GPT, Gemini and the rest of OpenRouter's
+ * catalogue, but over fal's OpenAI-compatible proxy rather than OpenRouter
+ * directly. The reason is billing: every other generator in this app already
+ * runs on the user's own fal key (BYOK), so the Director does too — one key
+ * per user, one invoice, no second signup.
  *
- * Environment variables required:
- * - OPENROUTER_API_KEY: OpenRouter API key
- * - DEFAULT_LLM_MODEL: Default model to use (optional)
+ * The wire format is plain OpenAI chat-completions. Two things differ from
+ * OpenRouter proper:
+ *   - the auth header is `Key <FAL_KEY>`, not `Bearer`
+ *   - fal streams SSE comment lines (`: OPENROUTER PROCESSING`) as keepalives,
+ *     which the parser below skips because it only reads `data: ` lines
+ *
+ * `usage.cost` comes back on every response as real dollars for that call, and
+ * `usage.prompt_tokens_details` reports what the cache did (see CACHING below).
+ *
+ * Environment variables:
+ * - FAL_KEY: admin/testing fallback when a user has no key of their own
  */
 
 import { LLM_MODELS } from './types'
 
 const MOCK_OPENROUTER = process.env.MOCK_GENERATION === 'true'
-const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1'
+const FAL_LLM_API_URL = 'https://fal.run/openrouter/router/openai/v1'
+
+/**
+ * The Director is a tool-calling loop over a video timeline, so the default is
+ * chosen for tool-use reliability rather than price — a weaker model here does
+ * not read as "different style", it reads as edits silently not happening.
+ */
+const DEFAULT_MODEL = 'anthropic/claude-opus-5'
+
+// =============================================================================
+// Caching
+// =============================================================================
+
+/**
+ * The Director resends an identical ~2.3k-token prefix (system prompt + 14 tool
+ * schemas) on every iteration of its loop, up to five times per message. Root
+ * `cache_control` tells OpenRouter to put a breakpoint on the last cacheable
+ * block and advance it forward as the conversation grows, so each iteration
+ * reads the previous one's prefix instead of paying for it again. Writes cost
+ * ~1.25x and reads ~0.1x, so a loop of two or more turns is already ahead.
+ *
+ * Only for providers that require an explicit breakpoint. OpenAI and DeepSeek
+ * cache automatically and are left alone rather than sent a flag they never
+ * asked for.
+ */
+const EXPLICIT_CACHE_PREFIXES = ['anthropic/', 'google/', 'qwen/']
+
+export function supportsExplicitCaching(modelId: string): boolean {
+  return EXPLICIT_CACHE_PREFIXES.some((p) => modelId.startsWith(p))
+}
+
+/** the request body fields that turn caching on, or nothing at all */
+function cacheFields(modelId: string): Record<string, unknown> {
+  return supportsExplicitCaching(modelId)
+    ? { cache_control: { type: 'ephemeral' } }
+    : {}
+}
+
+function getApiKey(userApiKey?: string): string {
+  if (userApiKey) return userApiKey
+  const envKey = process.env.FAL_KEY
+  if (envKey) return envKey
+  throw new Error(
+    'No fal.ai API key available. Please add your API key in settings.',
+  )
+}
 
 // =============================================================================
 // Types
@@ -73,6 +129,13 @@ export interface ChatCompletionResponse {
     prompt_tokens: number
     completion_tokens: number
     total_tokens: number
+    /** what this call actually cost, in dollars, as reported by fal */
+    cost?: number
+    /** what the cache did: `cached_tokens` were read, not re-billed in full */
+    prompt_tokens_details?: {
+      cached_tokens?: number
+      cache_write_tokens?: number
+    }
   }
 }
 
@@ -95,28 +158,21 @@ export interface StreamChunk {
  */
 export async function chatCompletion(
   input: ChatCompletionInput,
+  userApiKey?: string,
 ): Promise<ChatCompletionResponse> {
-  const modelId =
-    input.model ||
-    process.env.DEFAULT_LLM_MODEL ||
-    'anthropic/claude-3.5-sonnet'
+  const modelId = input.model || DEFAULT_MODEL
 
   if (MOCK_OPENROUTER) {
     return mockChatCompletion(input, modelId)
   }
 
-  const apiKey = process.env.OPENROUTER_API_KEY
-  if (!apiKey) {
-    throw new Error('OPENROUTER_API_KEY not configured')
-  }
+  const apiKey = getApiKey(userApiKey)
 
-  const response = await fetch(`${OPENROUTER_API_URL}/chat/completions`, {
+  const response = await fetch(`${FAL_LLM_API_URL}/chat/completions`, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${apiKey}`,
+      Authorization: `Key ${apiKey}`,
       'Content-Type': 'application/json',
-      'HTTP-Referer': process.env.BETTER_AUTH_URL || 'http://localhost:3000',
-      'X-Title': 'Cinevido',
     },
     body: JSON.stringify({
       model: modelId,
@@ -126,12 +182,13 @@ export async function chatCompletion(
       temperature: input.temperature ?? 0.7,
       max_tokens: input.maxTokens ?? 4096,
       stream: false,
+      ...cacheFields(modelId),
     }),
   })
 
   if (!response.ok) {
     const error = await response.text()
-    throw new Error(`OpenRouter error: ${response.status} - ${error}`)
+    throw new Error(`LLM error: ${response.status} - ${error}`)
   }
 
   return response.json()
@@ -143,29 +200,22 @@ export async function chatCompletion(
  */
 export async function* chatCompletionStream(
   input: ChatCompletionInput,
+  userApiKey?: string,
 ): AsyncGenerator<StreamChunk, void, unknown> {
-  const modelId =
-    input.model ||
-    process.env.DEFAULT_LLM_MODEL ||
-    'anthropic/claude-3.5-sonnet'
+  const modelId = input.model || DEFAULT_MODEL
 
   if (MOCK_OPENROUTER) {
     yield* mockChatCompletionStream(input, modelId)
     return
   }
 
-  const apiKey = process.env.OPENROUTER_API_KEY
-  if (!apiKey) {
-    throw new Error('OPENROUTER_API_KEY not configured')
-  }
+  const apiKey = getApiKey(userApiKey)
 
-  const response = await fetch(`${OPENROUTER_API_URL}/chat/completions`, {
+  const response = await fetch(`${FAL_LLM_API_URL}/chat/completions`, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${apiKey}`,
+      Authorization: `Key ${apiKey}`,
       'Content-Type': 'application/json',
-      'HTTP-Referer': process.env.BETTER_AUTH_URL || 'http://localhost:3000',
-      'X-Title': 'Cinevido',
     },
     body: JSON.stringify({
       model: modelId,
@@ -175,12 +225,13 @@ export async function* chatCompletionStream(
       temperature: input.temperature ?? 0.7,
       max_tokens: input.maxTokens ?? 4096,
       stream: true,
+      ...cacheFields(modelId),
     }),
   })
 
   if (!response.ok) {
     const error = await response.text()
-    throw new Error(`OpenRouter error: ${response.status} - ${error}`)
+    throw new Error(`LLM error: ${response.status} - ${error}`)
   }
 
   const reader = response.body?.getReader()
@@ -231,11 +282,12 @@ export function calculateCredits(
 }
 
 /**
- * Check if OpenRouter is configured
+ * Is the LLM route usable without a user key? (users bring their own; this is
+ * the admin/testing fallback, so it reads the same FAL_KEY as everything else)
  */
 export function isOpenRouterConfigured(): boolean {
   if (MOCK_OPENROUTER) return true
-  return !!process.env.OPENROUTER_API_KEY
+  return !!process.env.FAL_KEY
 }
 
 /**
@@ -249,7 +301,7 @@ export function getLlmModels() {
  * Get the default model ID
  */
 export function getDefaultModel(): string {
-  return process.env.DEFAULT_LLM_MODEL || 'anthropic/claude-3.5-sonnet'
+  return DEFAULT_MODEL
 }
 
 // =============================================================================

@@ -54,7 +54,7 @@ model User {
   bunnyStorageAddedAt DateTime? // When the storage config was added/updated
 
   // Cinevido: User preferences
-  preferredLlmModel   String? // e.g., "anthropic/claude-3.5-sonnet"
+  preferredLlmModel   String? // OpenRouter slug, e.g. "anthropic/claude-opus-5"
   preferredImageModel String? // e.g., "flux-pro"
   preferredVideoModel String? // e.g., "kling-1.5"
   preferredVoiceId    String? // ElevenLabs voice ID

@@ -6,7 +6,12 @@
  */
 
 import { prisma } from '../../db.server'
-import { chatCompletion, chatCompletionStream } from '../services/index.server'
+import { getUserFalApiKey } from '../byok.server'
+import {
+  chatCompletion,
+  chatCompletionStream,
+  getDefaultModel,
+} from '../services/index.server'
 import { AGENT_TOOLS } from './tools.server'
 import { getSystemPrompt } from './system-prompt.server'
 import { executeTool } from './executor.server'
@@ -152,8 +157,11 @@ export async function* runAgent(input: AgentInput): AsyncGenerator<AgentEvent> {
       select: { preferredLlmModel: true },
     })
 
-    const llmModel =
-      model || user?.preferredLlmModel || 'anthropic/claude-3.5-sonnet'
+    // The Director bills to the user's own fal key, like every other
+    // generator here; getDefaultModel() owns the fallback so the default is
+    // stated in exactly one place.
+    const llmModel = model || user?.preferredLlmModel || getDefaultModel()
+    const userApiKey = await getUserFalApiKey(userId)
 
     // Build system prompt with context
     const systemPrompt = getSystemPrompt({
@@ -184,13 +192,16 @@ export async function* runAgent(input: AgentInput): AsyncGenerator<AgentEvent> {
       iteration++
 
       // First, make a non-streaming call to check if tools need to be called
-      const response = await chatCompletion({
-        messages,
-        model: llmModel,
-        tools: AGENT_TOOLS,
-        toolChoice: 'auto',
-        temperature: 0.7,
-      })
+      const response = await chatCompletion(
+        {
+          messages,
+          model: llmModel,
+          tools: AGENT_TOOLS,
+          toolChoice: 'auto',
+          temperature: 0.7,
+        },
+        userApiKey,
+      )
 
       const assistantMessage = response.choices[0]?.message
       if (!assistantMessage) {
@@ -286,13 +297,16 @@ export async function* runAgent(input: AgentInput): AsyncGenerator<AgentEvent> {
 
         // Remove the last non-streaming response and re-request with streaming
         // This ensures we get a proper streamed response
-        for await (const chunk of chatCompletionStream({
-          messages: streamMessages,
-          model: llmModel,
-          tools: AGENT_TOOLS,
-          toolChoice: 'none', // No more tool calls for final response
-          temperature: 0.7,
-        })) {
+        for await (const chunk of chatCompletionStream(
+          {
+            messages: streamMessages,
+            model: llmModel,
+            tools: AGENT_TOOLS,
+            toolChoice: 'none', // No more tool calls for final response
+            temperature: 0.7,
+          },
+          userApiKey,
+        )) {
           const delta = chunk.choices[0]?.delta
           if (delta?.content) {
             yield { type: 'text', data: { content: delta.content } }

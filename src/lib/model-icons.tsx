@@ -112,7 +112,11 @@ export type ProviderKey = keyof typeof PROVIDER_COLORS
 export function getProviderFromModelId(modelId: string): ProviderKey {
   const lowerModelId = modelId.toLowerCase()
 
-  if (lowerModelId.includes('nano-banana') || lowerModelId.includes('google')) {
+  if (
+    lowerModelId.includes('nano-banana') ||
+    lowerModelId.includes('google') ||
+    lowerModelId.includes('lyria')
+  ) {
     return 'google'
   }
   if (lowerModelId.includes('gpt') || lowerModelId.includes('openai')) {
