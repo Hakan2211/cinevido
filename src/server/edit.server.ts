@@ -19,6 +19,7 @@ import {
   upscaleImage,
 } from './services/edit.server'
 import {
+  GPT_IMAGE_QUALITY_VALUES,
   UPSCALE_MODELS,
   getEditModelById,
   getModelById,
@@ -38,7 +39,7 @@ const editSchema = z.object({
   sourceAssetIds: z.array(z.string()).optional(), // Original image asset IDs for linking
   projectId: z.string().optional(),
   // GPT Image 2 specific options
-  quality: z.enum(['low', 'medium', 'high']).optional(),
+  quality: z.enum(GPT_IMAGE_QUALITY_VALUES).optional(),
   imageSizePreset: z.string().optional(),
   outputFormat: z.enum(['jpeg', 'png', 'webp']).optional(),
   numImages: z.number().min(1).max(4).optional(),

@@ -13,9 +13,12 @@
 import {
   EDIT_MODELS,
   UPSCALE_MODELS,
+  clampGptImageQuality,
   getEditModelById,
   getModelById,
+  isGptImageEditModel,
 } from './types'
+import type { GptImageQuality } from './types'
 
 const MOCK_EDIT = process.env.MOCK_GENERATION === 'true'
 const FAL_API_URL = 'https://queue.fal.run'
@@ -43,7 +46,7 @@ export interface EditInput {
   model?: string
   seed?: number
   // GPT Image 2 specific
-  quality?: 'low' | 'medium' | 'high'
+  quality?: GptImageQuality
   imageSizePreset?: string // Preset name or 'auto' for edit
   outputFormat?: 'jpeg' | 'png' | 'webp'
   numImages?: number
@@ -438,10 +441,10 @@ function buildEditPayload(input: EditInput, modelId: string) {
   } else if (modelId === 'fal-ai/flux-2/edit') {
     // Flux 2 Edit: multi-image, uses image_urls array
     payload.image_urls = input.imageUrls
-  } else if (modelId === 'fal-ai/gpt-image-2/edit') {
-    // GPT Image 2: multi-image, supports quality/image_size/output_format/num_images
+  } else if (isGptImageEditModel(modelId)) {
+    // GPT Image 2 / 2.5: multi-image, supports quality/image_size/output_format/num_images
     payload.image_urls = input.imageUrls
-    payload.quality = input.quality || 'high'
+    payload.quality = clampGptImageQuality(modelId, input.quality)
     payload.image_size = input.imageSizePreset || 'auto'
     payload.output_format = input.outputFormat || 'png'
     if (input.numImages) payload.num_images = input.numImages

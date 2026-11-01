@@ -88,10 +88,13 @@ import { BeforeAfterSlider } from '@/components/images/BeforeAfterSlider'
 import {
   GPT_IMAGE_CUSTOM_SIZE_LIMITS,
   GPT_IMAGE_OUTPUT_FORMATS,
-  GPT_IMAGE_QUALITY_TIERS,
   RECRAFT_STYLES,
   aspectRatioToGptImageSize,
+  clampGptImageQuality,
   getEditModelById,
+  gptImageQualityTiers,
+  isGptImageEditModel,
+  isGptImageModel,
   snapGptImageDim,
   validateGptImageCustomSize,
 } from '@/server/services/types'
@@ -605,7 +608,7 @@ function ImagesPage() {
   const handleGenerate = () => {
     if (!prompt.trim() || isGenerating) return
 
-    const isGptImage2 = model === 'fal-ai/gpt-image-2'
+    const isGptImage2 = isGptImageModel(model)
     const isCustomGptSize = isGptImage2 && aspectRatio === 'custom'
 
     // Block invalid custom sizes before firing the mutation
@@ -630,7 +633,9 @@ function ImagesPage() {
         negativePrompt: negativePrompt.trim() || undefined,
         numImages: numImages > 1 ? numImages : undefined,
         // Model-specific options
-        quality: isGptImage2 ? gptQuality : undefined,
+        quality: isGptImage2
+          ? clampGptImageQuality(model, gptQuality)
+          : undefined,
         style: model.includes('recraft') ? recraftStyle : undefined,
         // GPT Image 2: send preset for known ratios; for custom let the server
         // build image_size from width/height (omit imageSizePreset).
@@ -647,7 +652,7 @@ function ImagesPage() {
     if (selectedEditImages.length === 0 || !editPrompt.trim() || isGenerating)
       return
 
-    const isGptImage2Edit = editModel === 'fal-ai/gpt-image-2/edit'
+    const isGptImage2Edit = isGptImageEditModel(editModel)
 
     editMutation.mutate({
       data: {
@@ -656,7 +661,9 @@ function ImagesPage() {
         model: editModel,
         sourceAssetIds: selectedEditImages.map((img) => img.id),
         // GPT Image 2 edit specific options
-        quality: isGptImage2Edit ? gptEditQuality : undefined,
+        quality: isGptImage2Edit
+          ? clampGptImageQuality(editModel, gptEditQuality)
+          : undefined,
         outputFormat: isGptImage2Edit ? gptEditOutputFormat : undefined,
       },
     })
@@ -907,6 +914,7 @@ function ImagesPage() {
     const newMaxImages = newModelConfig?.maxImages || 1
 
     setEditModel(newModel)
+    setGptEditQuality((q) => clampGptImageQuality(newModel, q))
 
     // If current selection exceeds new model's limit, trim it
     if (selectedEditImages.length > newMaxImages) {
@@ -1438,13 +1446,12 @@ function ImagesPage() {
                 if (!newModelConfig?.supportsNumImages) {
                   setNumImages(1)
                 }
-                // 'custom' aspect ratio only applies to gpt-image-2
-                if (
-                  newModel !== 'fal-ai/gpt-image-2' &&
-                  aspectRatio === 'custom'
-                ) {
+                // 'custom' aspect ratio only applies to GPT Image models
+                if (!isGptImageModel(newModel) && aspectRatio === 'custom') {
                   setAspectRatio('1:1')
                 }
+                // Drop 2.5-only quality tiers (xhigh/max/auto) on GPT Image 2
+                setGptQuality((q) => clampGptImageQuality(newModel, q))
               }}
               models={models}
               aspectRatio={aspectRatio}
@@ -1855,7 +1862,7 @@ function GeneratePanel({
 }: GeneratePanelProps) {
   const supportsNumImages = selectedModel?.supportsNumImages ?? false
   const maxNumImages = selectedModel?.maxNumImages ?? 4
-  const isGptImage2 = model === 'fal-ai/gpt-image-2'
+  const isGptImage2 = isGptImageModel(model)
   const isCustomGptSize = isGptImage2 && aspectRatio === 'custom'
   const gptCustomSizeError = isCustomGptSize
     ? validateGptImageCustomSize(gptCustomWidth, gptCustomHeight)
@@ -1902,14 +1909,14 @@ function GeneratePanel({
         />
 
         {/* GPT Image Quality Selector */}
-        {model === 'fal-ai/gpt-image-2' && (
+        {isGptImage2 && (
           <>
             <Select value={gptQuality} onValueChange={onGptQualityChange}>
               <SelectTrigger className="h-9 w-32 rounded-xl border-border/50 bg-background/50">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent className="rounded-xl">
-                {GPT_IMAGE_QUALITY_TIERS.map((tier) => (
+                {gptImageQualityTiers(model).map((tier) => (
                   <SelectItem key={tier.id} value={tier.id}>
                     <span className="flex items-center gap-2">
                       {tier.name}

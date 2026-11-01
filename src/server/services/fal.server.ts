@@ -13,17 +13,20 @@
 import {
   IMAGE_MODELS,
   VIDEO_MODELS,
+  clampGptImageQuality,
   get3DModelById,
   getAgingModelByType,
   getModelById,
   getMotionControlModelById,
   getVideoModelById,
+  isGptImageModel,
 } from './types'
 import type {
   AgeGroup,
   AgingGender,
   AgingSubMode,
   CharacterOrientation,
+  GptImageQuality,
   Model3DConfig,
   VideoModelConfig,
 } from './types'
@@ -66,7 +69,7 @@ export interface ImageGenerationInput {
   numImages?: number
   negativePrompt?: string
   seed?: number
-  quality?: 'low' | 'medium' | 'high' // For GPT Image 2
+  quality?: GptImageQuality // For GPT Image 2 / 2.5
   style?: string // For Recraft V3
   // GPT Image 2 specific
   imageSizePreset?: string // Preset name (e.g. 'square_hd', 'landscape_4_3')
@@ -840,9 +843,9 @@ function buildImagePayload(input: ImageGenerationInput, modelId: string) {
   const width = input.width || 1024
   const height = input.height || 1024
 
-  // === GPT Image 2 - uses image_size (preset or {width,height}), quality, output_format ===
-  if (modelId === 'fal-ai/gpt-image-2') {
-    payload.quality = input.quality || 'high'
+  // === GPT Image 2 / 2.5 - uses image_size (preset or {width,height}), quality, output_format ===
+  if (isGptImageModel(modelId)) {
+    payload.quality = clampGptImageQuality(modelId, input.quality)
     // Prefer the preset if supplied; otherwise pass custom dimensions
     if (input.imageSizePreset) {
       payload.image_size = input.imageSizePreset
@@ -1134,6 +1137,16 @@ function buildVideoPayload(
     } else {
       payload.generate_audio = true
     }
+  }
+
+  // --- MiniMax H3 Max Turbo ---
+  // Float duration, uppercase resolution enum, prompt_expansion_mode required
+  else if (modelId.includes('minimax/h3-')) {
+    payload.duration = input.duration || 5
+    if (input.resolution) {
+      payload.resolution = input.resolution
+    }
+    payload.prompt_expansion_mode = 'balanced'
   }
 
   // --- MiniMax Hailuo ---

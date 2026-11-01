@@ -11,7 +11,8 @@ const modelCategories = [
     borderColor: 'border-violet-500/20',
     models: [
       'Flux 2 Pro',
-      'GPT Image 2',
+      'GPT Image 2.5',
+      'Nano Banana 2.1',
       'Recraft V3',
       'ImagineArt 1.5',
       'Seedream 4.5',
@@ -31,6 +32,7 @@ const modelCategories = [
       'Veo 3.1',
       'Wan 2.6',
       'Seedance 1.5',
+      'MiniMax H3',
       'Hailuo 2.3',
       'Pika 2.2',
     ],

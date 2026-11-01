@@ -40,6 +40,14 @@ export const IMAGE_MODELS: Array<ModelConfig> = [
     maxNumImages: 4,
   },
   {
+    id: 'google/nano-banana-2.1',
+    name: 'Nano Banana 2.1',
+    provider: 'fal',
+    description: 'Google - Newest Nano Banana, sharper detail and text',
+    supportsNumImages: true,
+    maxNumImages: 4,
+  },
+  {
     id: 'fal-ai/nano-banana-2',
     name: 'Nano Banana 2',
     provider: 'fal',
@@ -49,6 +57,22 @@ export const IMAGE_MODELS: Array<ModelConfig> = [
   },
 
   // === OpenAI (GPT Image) ===
+  {
+    id: 'openai/gpt-image-2.5/flare/text-to-image',
+    name: 'GPT Image 2.5 Flare',
+    provider: 'fal',
+    description: "OpenAI Flare - OpenAI's default image model, up to max quality",
+    supportsNumImages: true,
+    maxNumImages: 4,
+  },
+  {
+    id: 'openai/gpt-image-2.5/sunburst/text-to-image',
+    name: 'GPT Image 2.5 Sunburst',
+    provider: 'fal',
+    description: 'OpenAI Sunburst - Up to "max" quality tier, fine typography',
+    supportsNumImages: true,
+    maxNumImages: 4,
+  },
   {
     id: 'fal-ai/gpt-image-2',
     name: 'GPT Image 2',
@@ -150,7 +174,64 @@ export const GPT_IMAGE_QUALITY_TIERS = [
   { id: 'high', name: 'High', description: 'Best quality' },
 ] as const
 
-export type GptImageQuality = 'low' | 'medium' | 'high'
+// GPT Image 2.5 (Flare + Sunburst) adds auto plus two tiers above high
+export const GPT_IMAGE_25_QUALITY_TIERS = [
+  { id: 'auto', name: 'Auto', description: 'Model decides' },
+  ...GPT_IMAGE_QUALITY_TIERS,
+  { id: 'xhigh', name: 'X-High', description: 'Extra detail, slower' },
+  { id: 'max', name: 'Max', description: 'Maximum detail, slowest' },
+] as const
+
+export type GptImageQuality =
+  | 'auto'
+  | 'low'
+  | 'medium'
+  | 'high'
+  | 'xhigh'
+  | 'max'
+
+export const GPT_IMAGE_QUALITY_VALUES = [
+  'auto',
+  'low',
+  'medium',
+  'high',
+  'xhigh',
+  'max',
+] as const
+
+// Any GPT Image text-to-image model (2, 2.5 Flare, 2.5 Sunburst)
+export function isGptImageModel(modelId: string): boolean {
+  return (
+    modelId === 'fal-ai/gpt-image-2' ||
+    modelId === 'openai/gpt-image-2.5/flare/text-to-image' ||
+    modelId === 'openai/gpt-image-2.5/sunburst/text-to-image'
+  )
+}
+
+// Any GPT Image edit model (2, 2.5 Flare, 2.5 Sunburst)
+export function isGptImageEditModel(modelId: string): boolean {
+  return (
+    modelId === 'fal-ai/gpt-image-2/edit' ||
+    modelId === 'openai/gpt-image-2.5/flare/edit' ||
+    modelId === 'openai/gpt-image-2.5/sunburst/edit'
+  )
+}
+
+// Quality tiers offered by a given GPT Image model (create or edit)
+export function gptImageQualityTiers(modelId: string) {
+  return modelId.includes('gpt-image-2.5')
+    ? GPT_IMAGE_25_QUALITY_TIERS
+    : GPT_IMAGE_QUALITY_TIERS
+}
+
+// Clamp a quality to one the model accepts (falls back to 'high')
+export function clampGptImageQuality(
+  modelId: string,
+  quality: GptImageQuality | undefined,
+): GptImageQuality {
+  const tiers = gptImageQualityTiers(modelId)
+  return quality && tiers.some((t) => t.id === quality) ? quality : 'high'
+}
 
 // GPT Image 2 output formats
 export const GPT_IMAGE_OUTPUT_FORMATS = [
@@ -281,6 +362,13 @@ export const EDIT_MODELS: Array<EditModelConfig> = [
     description: 'Best quality, multi-image composition',
   },
   {
+    id: 'google/nano-banana-2.1/edit',
+    name: 'Nano Banana 2.1',
+    provider: 'fal',
+    maxImages: 10,
+    description: 'Google - Newest Nano Banana editing',
+  },
+  {
     id: 'fal-ai/nano-banana-2/edit',
     name: 'Nano Banana 2',
     provider: 'fal',
@@ -293,6 +381,20 @@ export const EDIT_MODELS: Array<EditModelConfig> = [
     provider: 'fal',
     maxImages: 10,
     description: 'Multi-reference, HEX color control',
+  },
+  {
+    id: 'openai/gpt-image-2.5/flare/edit',
+    name: 'GPT Image 2.5 Flare',
+    provider: 'fal',
+    maxImages: 16,
+    description: 'OpenAI Flare - Up to 16 refs, "max" quality tier',
+  },
+  {
+    id: 'openai/gpt-image-2.5/sunburst/edit',
+    name: 'GPT Image 2.5 Sunburst',
+    provider: 'fal',
+    maxImages: 16,
+    description: 'OpenAI Sunburst - Up to 16 refs, "max" quality tier',
   },
   {
     id: 'fal-ai/gpt-image-2/edit',
@@ -768,6 +870,24 @@ export const VIDEO_MODELS: Array<VideoModelConfig> = [
     aspectRatios: ['21:9', '16:9', '4:3', '1:1', '3:4', '9:16'],
     resolutions: ['480p', '720p', '1080p'],
     supportsAudio: true,
+    supportsEndFrame: true,
+    fieldMappings: {
+      imageUrl: 'image_url',
+      endImageUrl: 'end_image_url',
+    },
+  },
+
+  // =============================================================================
+  // MiniMax H3 Max Turbo - first/last frame, 480P-1080P
+  // =============================================================================
+  {
+    id: 'minimax/h3-max-turbo/image-to-video',
+    name: 'MiniMax H3 Max Turbo',
+    provider: 'fal',
+    description: 'MiniMax H3 - Fast I2V with optional end frame',
+    capabilities: ['image-to-video', 'keyframes'],
+    durations: [5, 10],
+    resolutions: ['480P', '768P', '1080P'],
     supportsEndFrame: true,
     fieldMappings: {
       imageUrl: 'image_url',

@@ -21,7 +21,8 @@ import {
 import {
   EDIT_MODELS,
   GPT_IMAGE_OUTPUT_FORMATS,
-  GPT_IMAGE_QUALITY_TIERS,
+  gptImageQualityTiers,
+  isGptImageEditModel,
 } from '@/server/services/types'
 import type {
   GptImageOutputFormat,
@@ -63,7 +64,7 @@ export function EditPanel({
   gptEditOutputFormat,
   onGptEditOutputFormatChange,
 }: EditPanelProps) {
-  const isGptImage2Edit = model === 'fal-ai/gpt-image-2/edit'
+  const isGptImage2Edit = isGptImageEditModel(model)
   const canGenerate = selectedCount > 0 && prompt.trim() && !isGenerating
 
   // Status message based on selection state
@@ -132,7 +133,7 @@ export function EditPanel({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="rounded-xl">
-                  {GPT_IMAGE_QUALITY_TIERS.map((tier) => (
+                  {gptImageQualityTiers(model).map((tier) => (
                     <SelectItem key={tier.id} value={tier.id}>
                       <span className="flex items-center gap-2">
                         {tier.name}

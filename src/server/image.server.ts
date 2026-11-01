@@ -18,7 +18,11 @@ import {
 import sharp from 'sharp'
 import { uploadBuffer, uploadFromUrl } from './services/bunny.server'
 import { getUserStorageConfig } from './storage-config.server'
-import { IMAGE_MODELS, getModelById } from './services/types'
+import {
+  GPT_IMAGE_QUALITY_VALUES,
+  IMAGE_MODELS,
+  getModelById,
+} from './services/types'
 import type { FalImageResult } from './services/fal.server'
 
 // =============================================================================
@@ -32,7 +36,7 @@ const generateImageSchema = z.object({
   height: z.number().min(256).max(4096).optional(),
   negativePrompt: z.string().max(1000).optional(),
   projectId: z.string().optional(),
-  quality: z.enum(['low', 'medium', 'high']).optional(), // GPT Image quality tier
+  quality: z.enum(GPT_IMAGE_QUALITY_VALUES).optional(), // GPT Image quality tier
   style: z.string().optional(), // Recraft V3 style
   numImages: z.number().min(1).max(4).optional(), // Number of images to generate
   // GPT Image 2 specific
