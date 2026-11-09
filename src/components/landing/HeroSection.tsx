@@ -63,49 +63,29 @@ export function HeroSection() {
           {/* Left: Content */}
           <div className="text-center lg:text-left">
             {/* Badge */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5 }}
-              className="mb-6"
-            >
+            <div className="mb-6 animate-in fade-in slide-in-from-bottom-5 duration-500 fill-mode-both">
               <span className="inline-flex items-center gap-2 rounded-full border bg-background px-4 py-1.5 text-sm font-medium shadow-sm">
                 <Key className="h-4 w-4 text-primary" />
                 BYOK - Bring Your Own Key
               </span>
-            </motion.div>
+            </div>
 
             {/* Headline */}
-            <motion.h1
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.1 }}
-              className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight mb-6"
-            >
+            <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight mb-6 animate-in fade-in slide-in-from-bottom-5 duration-500 fill-mode-both delay-100">
               Create Stunning AI{' '}
               <span className="bg-gradient-to-r from-orange-500 via-amber-500 to-orange-600 bg-clip-text text-transparent">
                 Art, Videos & 3D
               </span>
-            </motion.h1>
+            </h1>
 
             {/* Subheadline */}
-            <motion.p
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.2 }}
-              className="text-lg md:text-xl text-muted-foreground mb-8 max-w-xl mx-auto lg:mx-0"
-            >
+            <p className="text-lg md:text-xl text-muted-foreground mb-8 max-w-xl mx-auto lg:mx-0 animate-in fade-in slide-in-from-bottom-5 duration-500 fill-mode-both delay-200">
               One platform for FLUX, Kling, Meshy and 10+ AI models. Connect
               your fal.ai key — pay only for what you use. No subscriptions.
-            </motion.p>
+            </p>
 
             {/* CTA Buttons */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.3 }}
-              className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start"
-            >
+            <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start animate-in fade-in slide-in-from-bottom-5 duration-500 fill-mode-both delay-300">
               {hasPlatformAccess ? (
                 <Link to="/dashboard">
                   <Button size="lg" className="min-w-[200px] group">
@@ -137,15 +117,10 @@ export function HeroSection() {
                 <Sparkles className="mr-2 h-4 w-4" />
                 See Examples
               </Button>
-            </motion.div>
+            </div>
 
             {/* How it works - simplified */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.4 }}
-              className="mt-12 flex flex-wrap justify-center lg:justify-start gap-6"
-            >
+            <div className="mt-12 flex flex-wrap justify-center lg:justify-start gap-6 animate-in fade-in slide-in-from-bottom-5 duration-500 fill-mode-both delay-400">
               {[
                 { step: '1', label: 'Connect fal.ai key' },
                 { step: '2', label: 'Create content' },
@@ -163,20 +138,16 @@ export function HeroSection() {
                   )}
                 </div>
               ))}
-            </motion.div>
+            </div>
           </div>
 
           {/* Right: Hero Image Showcase */}
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.7, delay: 0.3 }}
-            className="relative"
-          >
+          <div className="relative animate-in fade-in zoom-in-95 duration-700 fill-mode-both delay-300">
             <div className="relative rounded-2xl border bg-gradient-to-b from-muted/50 to-muted/20 p-2 shadow-2xl overflow-hidden">
               {/* Image container */}
               <div className="aspect-[4/3] rounded-xl overflow-hidden relative">
-                <AnimatePresence mode="wait">
+                {/* initial={false}: first image is visible in the server HTML */}
+                <AnimatePresence mode="wait" initial={false}>
                   <motion.img
                     key={currentImageIndex}
                     src={heroImages[currentImageIndex]}
@@ -218,12 +189,7 @@ export function HeroSection() {
             </div>
 
             {/* Stats overlay */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.6 }}
-              className="absolute -bottom-6 left-1/2 -translate-x-1/2 w-[90%] md:w-auto"
-            >
+            <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 w-[90%] md:w-auto animate-in fade-in slide-in-from-bottom-5 duration-500 fill-mode-both delay-600">
               <div className="flex items-center justify-center gap-6 rounded-xl border bg-background/90 backdrop-blur-sm px-6 py-4 shadow-lg">
                 {[
                   { value: '10+', label: 'AI Models' },
@@ -245,8 +211,8 @@ export function HeroSection() {
                   </div>
                 ))}
               </div>
-            </motion.div>
-          </motion.div>
+            </div>
+          </div>
         </div>
       </div>
     </section>
