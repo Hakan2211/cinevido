@@ -82,7 +82,14 @@ function AppLayout() {
 
   // Detect if we're on a studio/project workspace route (needs full-bleed layout)
   // Studio and the labs manage their own panels and scrolling (full-bleed)
-  const FULL_BLEED_ROUTES = ['/_app/projects/$projectId', '/_app/videos/']
+  const FULL_BLEED_ROUTES = [
+    '/_app/projects/$projectId',
+    '/_app/videos/',
+    '/_app/images/',
+    '/_app/music/',
+    '/_app/3d-models',
+    '/_app/motion-control/',
+  ]
   const isFullBleed = matches.some((match) =>
     FULL_BLEED_ROUTES.includes(match.routeId),
   )

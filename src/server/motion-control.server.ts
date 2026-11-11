@@ -12,8 +12,10 @@ import { authMiddleware } from './middleware.server'
 import { getUserFalApiKey } from './byok.server'
 import { generateMotionControl, getJobStatus } from './services/fal.server'
 import {
+  DEFAULT_MODELS,
   MOTION_CONTROL_MODELS,
   getMotionControlModelById,
+  resolveModelId,
 } from './services/types'
 import type { FalVideoResult } from './services/fal.server'
 
@@ -36,13 +38,9 @@ const generateMotionControlSchema = z.object({
   prompt: z.string().max(500).optional(),
   model: z.string().optional(),
   characterOrientation: characterOrientationSchema.optional(),
-  duration: z.number().min(5).max(30).optional(), // Output duration in seconds
-
-  // Audio parameters (optional)
-  audioUrl: z.string().url().optional(),
-  soundStartTime: z.number().min(0).optional(), // ms
-  soundEndTime: z.number().min(0).optional(), // ms
-  soundInsertTime: z.number().min(0).optional(), // ms
+  keepOriginalSound: z.boolean().optional(),
+  /** the reference clip's length as the browser measured it; the output follows it */
+  referenceDurationSec: z.number().min(0).max(600).optional(),
 
   // Project association
   projectId: z.string().optional(),
@@ -71,7 +69,11 @@ export const generateMotionControlFn = createServerFn({ method: 'POST' })
   .middleware([authMiddleware])
   .inputValidator(generateMotionControlSchema)
   .handler(async ({ data, context }) => {
-    const modelId = data.model || 'fal-ai/kling-video/v3/pro/motion-control'
+    const modelId = resolveModelId(
+      data.model,
+      MOTION_CONTROL_MODELS,
+      DEFAULT_MODELS.motionControl,
+    )
     const modelConfig = getMotionControlModelById(modelId)
 
     if (!modelConfig) {
@@ -89,11 +91,7 @@ export const generateMotionControlFn = createServerFn({ method: 'POST' })
         prompt: data.prompt,
         model: modelId,
         characterOrientation: data.characterOrientation,
-        duration: data.duration,
-        audioUrl: data.audioUrl,
-        soundStartTime: data.soundStartTime,
-        soundEndTime: data.soundEndTime,
-        soundInsertTime: data.soundInsertTime,
+        keepOriginalSound: data.keepOriginalSound,
       },
       userApiKey,
     )
@@ -115,8 +113,17 @@ export const generateMotionControlFn = createServerFn({ method: 'POST' })
           videoAssetId: data.videoAssetId,
           prompt: data.prompt,
           characterOrientation: data.characterOrientation,
-          duration: data.duration,
-          audioUrl: data.audioUrl,
+          keepOriginalSound: data.keepOriginalSound,
+          // the output follows the reference clip, capped by orientation
+          duration:
+            data.referenceDurationSec !== undefined
+              ? Math.min(
+                  data.referenceDurationSec,
+                  data.characterOrientation === 'image'
+                    ? modelConfig.maxDurationImage
+                    : modelConfig.maxDurationVideo,
+                )
+              : undefined,
         }),
         externalId: job.requestId,
         statusUrl: job.statusUrl,
@@ -195,6 +202,7 @@ export const getMotionControlJobStatusFn = createServerFn({ method: 'GET' })
             prompt: inputData.prompt || null,
             provider: 'fal',
             model: job.model,
+            durationSeconds: inputData.duration ?? null,
             metadata: JSON.stringify({
               generationType: 'motion-control',
               sourceImageUrl: inputData.imageUrl,

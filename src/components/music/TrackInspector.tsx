@@ -9,9 +9,19 @@ import { ChevronDown, Download, Loader2, Trash2 } from 'lucide-react'
 import { Button } from '../ui/button'
 import { TrackWaveform } from './TrackWaveform'
 import { KIND } from '../studio/timeline/shared'
+import { LANE_FOR_TAB } from './TrackList'
 import type { MusicTrack } from './TrackList'
+import type { AudioTab } from './panel-tabs'
+
+const NOUN: Record<AudioTab, string> = {
+  music: 'track',
+  voice: 'voice clip',
+  sfx: 'sound',
+}
 
 interface TrackInspectorProps {
+  kind: AudioTab
+  cost?: string | null
   track?: MusicTrack
   downloading: boolean
   onDownload: (track: MusicTrack) => void
@@ -19,6 +29,8 @@ interface TrackInspectorProps {
 }
 
 export function TrackInspector({
+  kind,
+  cost,
   track,
   downloading,
   onDownload,
@@ -26,11 +38,10 @@ export function TrackInspector({
 }: TrackInspectorProps) {
   if (!track) {
     return (
-      <aside className="hidden w-72 shrink-0 flex-col gap-3 border-l p-4 xl:flex">
-        <Label>Track</Label>
+      <aside className="hidden w-72 shrink-0 flex-col gap-3 border-l border-border p-5 xl:flex">
+        <Label>Details</Label>
         <p className="text-xs leading-relaxed text-muted-foreground">
-          Select a track to see its prompt, its lyrics and the engine that wrote
-          it.
+          Select a {NOUN[kind]} to see what made it.
         </p>
       </aside>
     )
@@ -40,7 +51,7 @@ export function TrackInspector({
   const hasLyrics = !!track.lyrics && track.lyrics !== '[inst]'
 
   return (
-    <aside className="hidden w-72 shrink-0 flex-col gap-3 overflow-y-auto border-l p-4 xl:flex">
+    <aside className="hidden w-72 shrink-0 flex-col gap-3 overflow-y-auto border-l border-border p-5 xl:flex">
       <div>
         <h3 className="text-sm font-semibold break-words">{track.title}</h3>
         <p className="text-xs text-muted-foreground">
@@ -50,22 +61,33 @@ export function TrackInspector({
 
       <TrackWaveform
         url={track.url}
-        color={KIND.music.wave}
+        color={KIND[LANE_FOR_TAB[kind]].wave}
         height={72}
         className="w-full"
       />
 
-      <div className="flex flex-col gap-1.5 border-t pt-3">
+      <div className="flex flex-col gap-1.5 border-t border-border pt-3">
         <Row label="Engine" value={engine} />
         <Row label="Length" value={fmtLength(track.durationSeconds)} />
-        <Row
-          label="Arrangement"
-          value={track.instrumental ? 'Instrumental' : 'Vocals'}
-        />
-        <Row
-          label="Seed"
-          value={track.seed == null ? '—' : String(track.seed)}
-        />
+        {cost && <Row label="Est. cost" value={cost} />}
+        {kind === 'music' && (
+          <>
+            <Row
+              label="Arrangement"
+              value={track.instrumental ? 'Instrumental' : 'Vocals'}
+            />
+            <Row
+              label="Seed"
+              value={track.seed == null ? '—' : String(track.seed)}
+            />
+          </>
+        )}
+        {kind === 'voice' && track.voice && (
+          <Row label="Voice" value={track.voice} />
+        )}
+        {kind === 'sfx' && (
+          <Row label="Loop" value={track.loop ? 'Yes' : 'No'} />
+        )}
         <Row
           label="Created"
           value={new Date(track.createdAt).toLocaleString(undefined, {
@@ -76,7 +98,10 @@ export function TrackInspector({
       </div>
 
       {track.prompt && (
-        <Collapsible label="Prompt" defaultOpen={!hasLyrics}>
+        <Collapsible
+          label={kind === 'voice' ? 'Script' : 'Prompt'}
+          defaultOpen={!hasLyrics}
+        >
           <p className="text-xs leading-relaxed break-words text-muted-foreground">
             {track.prompt}
           </p>
@@ -93,26 +118,26 @@ export function TrackInspector({
 
       <div className="mt-auto flex gap-2 pt-4">
         <Button
-          variant="outline"
+          variant="secondary"
           size="sm"
           className="flex-1"
           onClick={() => onDownload(track)}
           disabled={downloading}
         >
           {downloading ? (
-            <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
           ) : (
-            <Download className="mr-2 h-3.5 w-3.5" />
+            <Download className="h-3.5 w-3.5" />
           )}
           Download
         </Button>
         <Button
-          variant="outline"
+          variant="ghost"
           size="sm"
-          className="flex-1 text-destructive hover:bg-destructive/10"
+          className="flex-1 text-destructive hover:bg-destructive/10 hover:text-destructive"
           onClick={() => onDelete(track)}
         >
-          <Trash2 className="mr-2 h-3.5 w-3.5" />
+          <Trash2 className="h-3.5 w-3.5" />
           Delete
         </Button>
       </div>
@@ -132,7 +157,7 @@ function Collapsible({
 }) {
   const [open, setOpen] = useState(defaultOpen ?? false)
   return (
-    <div className="border-t pt-3">
+    <div className="border-t border-border pt-3">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}

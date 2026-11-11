@@ -11,7 +11,12 @@ import {
   DEFAULT_MODELS,
   EDIT_MODELS,
   IMAGE_MODELS,
+  IMAGE_TO_3D_MODELS,
+  IMAGE_TO_WORLD_MODELS,
+  MOTION_CONTROL_MODELS,
   MUSIC_MODELS,
+  SFX_MODELS,
+  TEXT_TO_3D_MODELS,
   UPSCALE_MODELS,
   VIDEO_MODELS,
   getVideoModelById,
@@ -26,6 +31,8 @@ describe('catalog', () => {
     expect(has(EDIT_MODELS, DEFAULT_MODELS.edit)).toBe(true)
     expect(has(UPSCALE_MODELS, DEFAULT_MODELS.upscale)).toBe(true)
     expect(has(AUDIO_MODELS, DEFAULT_MODELS.tts)).toBe(true)
+    expect(has(SFX_MODELS, DEFAULT_MODELS.sfx)).toBe(true)
+    expect(has(MOTION_CONTROL_MODELS, DEFAULT_MODELS.motionControl)).toBe(true)
     expect(
       getVideoModelById(DEFAULT_MODELS.textToVideo)?.capabilities,
     ).toContain('text-to-video')
@@ -45,6 +52,51 @@ describe('catalog', () => {
     expect(first('keyframes')).toBe(DEFAULT_MODELS.keyframes)
   })
 
+  it('video models price and default to a resolution they offer', () => {
+    for (const m of VIDEO_MODELS) {
+      if (!m.resolutions?.length) continue
+      expect(m.defaultResolution, m.id).toBeDefined()
+      expect(m.resolutions, m.id).toContain(m.defaultResolution)
+      // pricing.usd is quoted at the default resolution
+      const table =
+        m.pricing?.kind === 'perSecond' ? m.pricing.byResolution : undefined
+      const atDefault = table?.[m.defaultResolution!]
+      if (atDefault !== undefined && m.pricing?.kind === 'perSecond') {
+        expect(atDefault, m.id).toBe(m.pricing.usd)
+      }
+    }
+  })
+
+  it('every 3D and motion model has a price (Generate shows a cost)', () => {
+    for (const m of [
+      ...TEXT_TO_3D_MODELS,
+      ...IMAGE_TO_3D_MODELS,
+      ...IMAGE_TO_WORLD_MODELS,
+      ...MOTION_CONTROL_MODELS,
+    ]) {
+      expect(m.pricing, m.id).toBeDefined()
+    }
+  })
+
+  it('flat rules price modes and add-ons', () => {
+    const hunyuan = TEXT_TO_3D_MODELS.find((m) => m.id === 'hunyuan3d-v3-text')!
+    expect(estimateCost(hunyuan.pricing)!.min).toBeCloseTo(0.375)
+    // fal: "a Normal generation with PBR materials costs $0.525"
+    expect(
+      estimateCost(hunyuan.pricing, { quality: 'Normal', addOns: ['pbr'] })!
+        .min,
+    ).toBeCloseTo(0.525)
+    expect(
+      estimateCost(hunyuan.pricing, { quality: 'Geometry' })!.min,
+    ).toBeCloseTo(0.225)
+    const meshy = TEXT_TO_3D_MODELS.find((m) => m.id === 'meshy-v7-text')!
+    expect(estimateCost(meshy.pricing)!.min).toBeCloseTo(1.2)
+    expect(
+      estimateCost(meshy.pricing, { quality: 'untextured' })!.min,
+    ).toBeCloseTo(0.8)
+    expect(formatRate(meshy.pricing)).toBe('$0.80–1.20/run')
+  })
+
   it('has no duplicate ids', () => {
     for (const list of [
       IMAGE_MODELS,
@@ -52,6 +104,7 @@ describe('catalog', () => {
       VIDEO_MODELS,
       AUDIO_MODELS,
       MUSIC_MODELS,
+      SFX_MODELS,
     ]) {
       const ids = list.map((m) => m.id)
       expect(new Set(ids).size).toBe(ids.length)
@@ -65,6 +118,11 @@ describe('catalog', () => {
       ...VIDEO_MODELS,
       ...AUDIO_MODELS,
       ...MUSIC_MODELS,
+      ...SFX_MODELS,
+      ...TEXT_TO_3D_MODELS,
+      ...IMAGE_TO_3D_MODELS,
+      ...IMAGE_TO_WORLD_MODELS,
+      ...MOTION_CONTROL_MODELS,
     ]) {
       if (!m.pricing) continue
       const e = estimateCost(m.pricing, {

@@ -12,12 +12,14 @@
 
 import {
   DEFAULT_MODELS,
+  HUNYUAN_DEFAULT_FACE_COUNT,
   IMAGE_MODELS,
   aspectRatioToGptImageSize,
   VIDEO_MODELS,
   clampGptImageQuality,
   get3DModelById,
   getModelById,
+  getDefaultMotionControlModel,
   getMotionControlModelById,
   getVideoModelById,
   isGptImageModel,
@@ -527,12 +529,42 @@ export interface MotionControlInput {
   prompt?: string // Optional prompt for guidance
   characterOrientation?: CharacterOrientation // 'video' (default) or 'image'
   model?: string // Standard or Pro endpoint
-  duration?: number // Output duration in seconds (5, 10, 15, 20, 30)
-  // Audio parameters (optional)
-  audioUrl?: string
-  soundStartTime?: number // ms
-  soundEndTime?: number // ms
-  soundInsertTime?: number // ms
+  /** keep the reference video's soundtrack (fal default: true) */
+  keepOriginalSound?: boolean
+}
+
+// Encode each path segment (handles spaces and special chars in filenames)
+function encodeUrlPath(url: string): string {
+  try {
+    const parsed = new URL(url)
+    parsed.pathname = parsed.pathname
+      .split('/')
+      .map((segment) => encodeURIComponent(decodeURIComponent(segment)))
+      .join('/')
+    return parsed.toString()
+  } catch {
+    return url
+  }
+}
+
+/**
+ * The body for a Kling motion-control endpoint — only fields its schema
+ * declares. There is no duration: the output follows the reference video
+ * (capped at 30s for 'video' orientation, 10s for 'image').
+ */
+export function buildMotionControlPayload(
+  input: MotionControlInput,
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {
+    image_url: encodeUrlPath(input.imageUrl),
+    video_url: encodeUrlPath(input.videoUrl),
+    character_orientation: input.characterOrientation ?? 'video',
+  }
+  if (input.prompt?.trim()) payload.prompt = input.prompt.trim()
+  if (input.keepOriginalSound !== undefined) {
+    payload.keep_original_sound = input.keepOriginalSound
+  }
+  return payload
 }
 
 /**
@@ -546,27 +578,14 @@ export async function generateMotionControl(
   input: MotionControlInput,
   userApiKey?: string,
 ): Promise<GenerationJob> {
-  const modelId = input.model || 'fal-ai/kling-video/v3/pro/motion-control'
+  const modelId = input.model || getDefaultMotionControlModel().id
   const modelConfig = getMotionControlModelById(modelId)
 
   if (!modelConfig) {
     throw new Error(`Unknown motion control model: ${modelId}`)
   }
-
-  // Validation
-  if (!input.imageUrl) {
-    throw new Error('Character image URL is required')
-  }
-  if (!input.videoUrl) {
-    throw new Error('Reference video URL is required')
-  }
-
-  console.log('[FAL] generateMotionControl called:', {
-    modelId,
-    imageUrl: input.imageUrl.slice(0, 50) + '...',
-    videoUrl: input.videoUrl.slice(0, 50) + '...',
-    characterOrientation: input.characterOrientation,
-  })
+  if (!input.imageUrl) throw new Error('Character image URL is required')
+  if (!input.videoUrl) throw new Error('Reference video URL is required')
 
   if (MOCK_FAL) {
     console.log('[FAL] Using MOCK mode for motion control')
@@ -574,54 +593,7 @@ export async function generateMotionControl(
   }
 
   const apiKey = getApiKey(userApiKey)
-
-  // Helper to encode URL path (handles spaces and special chars in filenames)
-  const encodeUrlPath = (url: string): string => {
-    try {
-      const parsed = new URL(url)
-      // Encode each path segment to handle spaces/special chars
-      parsed.pathname = parsed.pathname
-        .split('/')
-        .map((segment) => encodeURIComponent(decodeURIComponent(segment)))
-        .join('/')
-      return parsed.toString()
-    } catch {
-      return url // Return original if parsing fails
-    }
-  }
-
-  // Build the request payload with encoded URLs
-  const payload: Record<string, unknown> = {
-    image_url: encodeUrlPath(input.imageUrl),
-    video_url: encodeUrlPath(input.videoUrl),
-  }
-
-  // Optional parameters
-  if (input.prompt?.trim()) {
-    payload.prompt = input.prompt.trim()
-  }
-
-  if (input.characterOrientation) {
-    payload.character_orientation = input.characterOrientation
-  }
-
-  if (input.duration) {
-    payload.duration = input.duration
-  }
-
-  // Audio parameters
-  if (input.audioUrl) {
-    payload.audio_url = input.audioUrl
-  }
-  if (input.soundStartTime !== undefined) {
-    payload.sound_start_time = input.soundStartTime
-  }
-  if (input.soundEndTime !== undefined) {
-    payload.sound_end_time = input.soundEndTime
-  }
-  if (input.soundInsertTime !== undefined) {
-    payload.sound_insert_time = input.soundInsertTime
-  }
+  const payload = buildMotionControlPayload(input)
 
   console.log('[FAL] Motion Control payload:', JSON.stringify(payload, null, 2))
 
@@ -1109,7 +1081,8 @@ export function build3DModelPayload(
   if (modelConfig.id === 'hunyuan3d-v3-text') {
     payload.prompt = input.prompt
     if (input.enablePbr !== undefined) payload.enable_pbr = input.enablePbr
-    if (input.faceCount) payload.face_count = input.faceCount
+    if (input.faceCount && input.faceCount !== HUNYUAN_DEFAULT_FACE_COUNT)
+      payload.face_count = input.faceCount
     if (input.generateType) payload.generate_type = input.generateType
     if (input.polygonType) payload.polygon_type = input.polygonType
   }
@@ -1143,7 +1116,8 @@ export function build3DModelPayload(
     if (input.leftImageUrl) payload.left_image_url = input.leftImageUrl
     if (input.rightImageUrl) payload.right_image_url = input.rightImageUrl
     if (input.enablePbr !== undefined) payload.enable_pbr = input.enablePbr
-    if (input.faceCount) payload.face_count = input.faceCount
+    if (input.faceCount && input.faceCount !== HUNYUAN_DEFAULT_FACE_COUNT)
+      payload.face_count = input.faceCount
     if (input.generateType) payload.generate_type = input.generateType
     if (input.polygonType) payload.polygon_type = input.polygonType
   }
@@ -1201,13 +1175,6 @@ export function build3DModelPayload(
     if (input.addons) payload.addons = input.addons
     if (input.previewRender !== undefined)
       payload.preview_render = input.previewRender
-  }
-
-  // =============================================================================
-  // Bytedance Seed3D
-  // =============================================================================
-  else if (modelConfig.id === 'seed3d') {
-    payload.image_url = input.imageUrl || input.imageUrls?.[0]
   }
 
   // =============================================================================

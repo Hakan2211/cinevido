@@ -43,23 +43,25 @@ export function MeshSettingsPanel({
 
   return (
     <div className={cn('space-y-4', className)}>
-      {/* PBR Toggle - Most models support this */}
-      <div className="flex items-center justify-between">
-        <div className="space-y-0.5">
-          <Label htmlFor="pbr">PBR Materials</Label>
-          <p className="text-xs text-muted-foreground">
-            Generate physically-based rendering textures
-          </p>
+      {/* PBR - Hunyuan (+$0.15) and Meshy */}
+      {(modelType === 'hunyuan' || modelType === 'meshy') && (
+        <div className="flex items-center justify-between">
+          <div className="space-y-0.5">
+            <Label htmlFor="pbr">PBR Materials</Label>
+            <p className="text-xs text-muted-foreground">
+              Physically-based textures{modelType === 'hunyuan' && ' · +$0.15'}
+            </p>
+          </div>
+          <Switch
+            id="pbr"
+            checked={settings.enablePbr || false}
+            onCheckedChange={(checked) => update({ enablePbr: checked })}
+          />
         </div>
-        <Switch
-          id="pbr"
-          checked={settings.enablePbr || false}
-          onCheckedChange={(checked) => update({ enablePbr: checked })}
-        />
-      </div>
+      )}
 
       {/* Face Count - Hunyuan models */}
-      {(modelType === 'hunyuan' || modelType === 'generic') && (
+      {modelType === 'hunyuan' && (
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <Label>Face Count</Label>
@@ -75,7 +77,7 @@ export function MeshSettingsPanel({
             step={10000}
           />
           <p className="text-xs text-muted-foreground">
-            Higher values produce more detail but larger files
+            More detail, larger files · any value but 500K adds $0.15
           </p>
         </div>
       )}
@@ -96,16 +98,16 @@ export function MeshSettingsPanel({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="Normal">Normal (Textured)</SelectItem>
-              <SelectItem value="LowPoly">Low Poly</SelectItem>
-              <SelectItem value="Geometry">Geometry Only</SelectItem>
+              <SelectItem value="Normal">Normal (textured) · $0.375</SelectItem>
+              <SelectItem value="LowPoly">Low poly · $0.45</SelectItem>
+              <SelectItem value="Geometry">Geometry only · $0.225</SelectItem>
             </SelectContent>
           </Select>
         </div>
       )}
 
       {/* Topology - Meshy models */}
-      {(modelType === 'meshy' || modelType === 'generic') && (
+      {modelType === 'meshy' && (
         <div className="space-y-2">
           <Label>Topology</Label>
           <Select

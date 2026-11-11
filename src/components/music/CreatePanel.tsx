@@ -1,21 +1,29 @@
 /**
- * The Create rail of the Music lab.
+ * The Music tab of the Audio lab's settings panel.
  *
- * Order is engine → description → arrangement → lyrics → style → duration,
- * not description → style → duration → arrangement → lyrics: the words are the
- * second-most creative thing on the screen, and Arrangement is the switch that
- * reveals them, so the branch that decides what the rest of the rail contains
- * sits at the top and the sticky settings you set once sink below the thing you
- * retype every run.
+ * Order is engine → description → arrangement → lyrics → length: the engine
+ * decides which of the rest exist (a model that cannot sing shows no lyrics
+ * box, one with a fixed length no slider), so it sits at the top.
  */
 
-import { useState } from 'react'
-import { Dices, Loader2, Music2, Sparkles } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Dices, Sparkles } from 'lucide-react'
+import { estimateCost, formatEstimate } from '@/lib/pricing'
+import {
+  Field,
+  FieldError,
+  GenerateButton,
+  LabPanel,
+  ModelRadioList,
+  PromptBox,
+  Segmented,
+} from '@/components/generate'
 import { Button } from '../ui/button'
+import { Input } from '../ui/input'
 import { Textarea } from '../ui/textarea'
 import { Slider } from '../ui/slider'
-import { ModelSelect } from '../ui/model-select'
 import type { MusicModelConfig } from '../../server/services/types'
+import type { AudioPanelTabs } from './panel-tabs'
 
 export interface MusicFormValues {
   model: string
@@ -43,20 +51,29 @@ const STYLE_CHIPS = [
   'hip hop',
   'rock',
   'jazz',
-  'folk',
   'trailer',
   'upbeat',
   'melancholic',
 ]
 
-interface CreatePanelProps {
+const fmt = (sec: number) =>
+  `${Math.floor(sec / 60)}:${String(Math.round(sec % 60)).padStart(2, '0')}`
+
+interface CreatePanelProps extends AudioPanelTabs {
   models: Array<MusicModelConfig>
   busy: boolean
+  error?: string | null
   onGenerate: (values: MusicFormValues) => void
 }
 
-export function CreatePanel({ models, busy, onGenerate }: CreatePanelProps) {
-  const [modelId, setModelId] = useState(models[0]?.id ?? '')
+export function CreatePanel({
+  models,
+  busy,
+  error,
+  onGenerate,
+  ...tabs
+}: CreatePanelProps) {
+  const [modelId, setModelId] = useState('')
   const [prompt, setPrompt] = useState('')
   const [lyrics, setLyrics] = useState('')
   const [instrumentalPref, setInstrumental] = useState(true)
@@ -66,6 +83,11 @@ export function CreatePanel({ models, busy, onGenerate }: CreatePanelProps) {
   const [title, setTitle] = useState('')
   const [advancedOpen, setAdvancedOpen] = useState(false)
 
+  // models arrive after the first render
+  useEffect(() => {
+    if (!modelId && models[0]) setModelId(models[0].id)
+  }, [models, modelId])
+
   const model = models.find((m) => m.id === modelId) ?? models[0]
   const tagStyle = model?.promptStyle === 'tags'
   const canSing = model?.supportsLyrics ?? false
@@ -73,9 +95,8 @@ export function CreatePanel({ models, busy, onGenerate }: CreatePanelProps) {
   const mustSing = model?.requiresLyrics ?? false
   const canBeInstrumental = model?.supportsInstrumental ?? false
   const instrumental = mustSing ? false : instrumentalPref
-  const vocals = !instrumental
   const showArrangement = (canSing || canBeInstrumental) && !mustSing
-  const showLyrics = canSing && vocals
+  const showLyrics = canSing && !instrumental
 
   const durationMode = model?.durationMode ?? 'slider'
   const minDuration = model?.minDurationSec ?? 10
@@ -87,12 +108,14 @@ export function CreatePanel({ models, busy, onGenerate }: CreatePanelProps) {
   const canGenerate =
     !busy && prompt.trim().length > 0 && !!model && !lyricsMissing
 
-  // the rail numbers what it actually shows, so hiding a step doesn't gap it
-  let stepNo = 0
-  const step = () => ++stepNo
-
-  const fmt = (sec: number) =>
-    `${Math.floor(sec / 60)}:${String(Math.round(sec % 60)).padStart(2, '0')}`
+  const costLabel = formatEstimate(
+    estimateCost(model?.pricing, {
+      durationSec:
+        durationMode === 'model'
+          ? (model?.defaultDurationSec ?? 60)
+          : boundedDuration,
+    }),
+  )
 
   const appendStyle = (style: string) => {
     setPrompt((p) => (p.trim() ? `${p.replace(/,\s*$/, '')}, ${style}` : style))
@@ -118,130 +141,144 @@ export function CreatePanel({ models, busy, onGenerate }: CreatePanelProps) {
   }
 
   return (
-    <aside className="flex w-[340px] shrink-0 flex-col gap-5 overflow-y-auto border-r p-4">
-      <Step n={step()} label="Engine">
-        <ModelSelect
-          value={modelId}
-          onValueChange={setModelId}
-          models={models}
-          showDescription
+    <LabPanel
+      title="Generate Music"
+      subtitle="Score a scene or lay a bed under a voiceover."
+      {...tabs}
+      footer={
+        <GenerateButton
+          label="Generate track"
+          icon={Sparkles}
+          busy={busy}
+          busyLabel="Starting…"
+          costLabel={costLabel}
+          disabled={!canGenerate}
+          onClick={submit}
+          hint={
+            durationMode === 'cap'
+              ? 'Priced at the full length — it may finish earlier'
+              : 'Billed to your fal account'
+          }
         />
-        {model?.description && (
-          <p className="text-xs leading-relaxed text-muted-foreground">
-            {model.description}
-          </p>
-        )}
-      </Step>
+      }
+    >
+      <Field label="Engine">
+        <ModelRadioList
+          models={models}
+          value={model?.id ?? ''}
+          onChange={setModelId}
+          footnote="Rates are fal's prices; length-billed engines scale with duration."
+        />
+      </Field>
 
-      <Step n={step()} label={tagStyle ? 'Genre tags' : 'Description'}>
-        <Textarea
+      <Field label={tagStyle ? 'Genre tags' : 'Description'}>
+        <PromptBox
           value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
+          onChange={setPrompt}
+          max={2000}
+          rows={4}
           placeholder={
             tagStyle
               ? 'synthwave, driving bass, analog pads, 110 BPM'
               : 'A warm cinematic theme that swells into strings, hopeful and wide'
           }
-          className="min-h-[92px] resize-none text-sm"
         />
-        <div className="flex flex-wrap gap-1.5">
+        <div className="mt-2 flex flex-wrap gap-1.5">
           {STYLE_CHIPS.map((style) => (
             <button
               key={style}
               type="button"
               onClick={() => appendStyle(style)}
-              className="rounded-full border px-2 py-0.5 text-[11px] text-muted-foreground hover:bg-muted hover:text-foreground"
+              className="rounded-full border border-border px-2.5 py-0.5 text-[11px] text-muted-foreground transition-colors hover:border-muted-foreground/60 hover:text-foreground"
             >
               {style}
             </button>
           ))}
         </div>
-      </Step>
+      </Field>
 
       {showArrangement && (
-        <Step n={step()} label="Arrangement">
-          <div className="flex rounded-md border p-0.5">
-            <SegButton
-              active={instrumental}
-              onClick={() => setInstrumental(true)}
-              label="Instrumental"
-              disabled={!canBeInstrumental}
-            />
-            <SegButton
-              active={!instrumental}
-              onClick={() => setInstrumental(false)}
-              label="Vocals"
-            />
-          </div>
-          {!canSing && vocals && (
-            <p className="text-[11px] text-amber-500">
+        <Field label="Arrangement">
+          <Segmented
+            options={[
+              {
+                value: 'instrumental',
+                label: 'Instrumental',
+              },
+              { value: 'vocals', label: 'Vocals' },
+            ]}
+            value={instrumental ? 'instrumental' : 'vocals'}
+            onChange={(v) =>
+              setInstrumental(v === 'instrumental' && canBeInstrumental)
+            }
+          />
+          {!canSing && !instrumental && (
+            <p className="mt-2 text-xs text-muted-foreground">
               {model?.name} writes its own vocal line — there is no lyrics box
               for it.
             </p>
           )}
-        </Step>
+        </Field>
       )}
 
       {showLyrics && (
-        <Step n={step()} label={mustSing ? 'Lyrics (required)' : 'Lyrics'}>
+        <Field label="Lyrics" hint={mustSing ? 'required' : undefined}>
           <Textarea
             value={lyrics}
             onChange={(e) => setLyrics(e.target.value)}
             placeholder={'[verse]\nthe city hums awake\n\n[chorus]\n…'}
             className="min-h-[120px] resize-none font-mono text-xs"
           />
-          <div className="flex flex-wrap gap-1.5">
-            {LYRIC_TAGS.map((tag) => (
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {[...LYRIC_TAGS, 'duet'].map((tag) => (
               <button
                 key={tag}
                 type="button"
-                onClick={() => insertLyricTag(tag)}
-                className="rounded border px-2 py-0.5 font-mono text-[11px] text-muted-foreground hover:bg-muted hover:text-foreground"
+                onClick={() =>
+                  tag === 'duet'
+                    ? setLyrics(DUET_SKELETON)
+                    : insertLyricTag(tag)
+                }
+                className="rounded-md border border-border px-2 py-0.5 font-mono text-[11px] text-muted-foreground hover:text-foreground"
               >
                 {tag}
               </button>
             ))}
-            <button
-              type="button"
-              onClick={() => setLyrics(DUET_SKELETON)}
-              className="rounded border px-2 py-0.5 text-[11px] text-muted-foreground hover:bg-muted hover:text-foreground"
-            >
-              duet
-            </button>
           </div>
           {lyricsMissing && (
-            <p className="text-[11px] text-amber-500">
+            <p className="mt-2 text-xs text-muted-foreground">
               {model?.name} needs words before it will run.
             </p>
           )}
-        </Step>
+        </Field>
       )}
 
-      <Step n={step()} label="Length">
+      <Field
+        label="Length"
+        aside={
+          durationMode !== 'model' && (
+            <span className="text-sm tabular-nums text-muted-foreground">
+              {durationMode === 'cap' && 'up to '}
+              {fmt(boundedDuration)}
+            </span>
+          )
+        }
+      >
         {durationMode === 'model' ? (
           <p className="text-sm text-muted-foreground">
             {model?.name} chooses the length itself — up to {fmt(maxDuration)}.
           </p>
         ) : (
           <>
-            <div className="flex gap-1.5">
-              {DURATION_PRESETS.filter(
+            <Segmented
+              size="sm"
+              className="mb-3"
+              options={DURATION_PRESETS.filter(
                 (p) => p >= minDuration && p <= maxDuration,
-              ).map((preset) => (
-                <button
-                  key={preset}
-                  type="button"
-                  onClick={() => setDuration(preset)}
-                  className={`flex-1 rounded border px-2 py-1 text-xs ${
-                    boundedDuration === preset
-                      ? 'border-primary bg-primary/10 text-primary'
-                      : 'text-muted-foreground hover:bg-muted'
-                  }`}
-                >
-                  {fmt(preset)}
-                </button>
-              ))}
-            </div>
+              ).map((p) => ({ value: p, label: fmt(p) }))}
+              value={boundedDuration}
+              onChange={setDuration}
+            />
             <Slider
               value={[boundedDuration]}
               min={minDuration}
@@ -249,17 +286,9 @@ export function CreatePanel({ models, busy, onGenerate }: CreatePanelProps) {
               step={5}
               onValueChange={(v) => setDuration(v[0])}
             />
-            <span className="text-xs tabular-nums text-muted-foreground">
-              {fmt(boundedDuration)}
-              {durationMode === 'cap' && (
-                <span className="ml-1.5 normal-case">
-                  at most — it may resolve the song earlier
-                </span>
-              )}
-            </span>
           </>
         )}
-      </Step>
+      </Field>
 
       <div>
         <button
@@ -270,130 +299,52 @@ export function CreatePanel({ models, busy, onGenerate }: CreatePanelProps) {
           {advancedOpen ? '− Advanced' : '+ Advanced'}
         </button>
         {advancedOpen && (
-          <div className="mt-3 flex flex-col gap-3">
-            <label className="flex flex-col gap-1 text-xs">
-              <span className="text-muted-foreground">Title (optional)</span>
-              <input
+          <div className="mt-3 space-y-4">
+            <Field label="Title" hint="optional">
+              <Input
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="Main theme"
-                className="rounded border bg-background px-2 py-1 text-sm"
               />
-            </label>
+            </Field>
 
             {model?.supportsSeed && (
-              <label className="flex flex-col gap-1 text-xs">
-                <span className="text-muted-foreground">Seed</span>
-                <div className="flex gap-1">
-                  <input
+              <Field label="Seed">
+                <div className="flex gap-2">
+                  <Input
                     value={seed}
                     onChange={(e) => setSeed(e.target.value)}
                     placeholder="random"
-                    className="flex-1 rounded border bg-background px-2 py-1 text-sm tabular-nums"
+                    className="tabular-nums"
                   />
                   <Button
-                    variant="outline"
+                    variant="secondary"
                     size="icon"
-                    className="h-8 w-8"
                     onClick={() =>
                       setSeed(String(Math.floor(Math.random() * 1_000_000)))
                     }
                     title="Roll a seed"
                   >
-                    <Dices className="h-3.5 w-3.5" />
+                    <Dices className="h-4 w-4" />
                   </Button>
                 </div>
-              </label>
+              </Field>
             )}
 
             {model?.supportsNegativePrompt && (
-              <label className="flex flex-col gap-1 text-xs">
-                <span className="text-muted-foreground">Negative prompt</span>
-                <input
+              <Field label="Negative prompt">
+                <Input
                   value={negativePrompt}
                   onChange={(e) => setNegativePrompt(e.target.value)}
                   placeholder="low quality, distortion"
-                  className="rounded border bg-background px-2 py-1 text-sm"
                 />
-              </label>
+              </Field>
             )}
           </div>
         )}
       </div>
 
-      <Button
-        className="mt-auto w-full"
-        onClick={submit}
-        disabled={!canGenerate}
-      >
-        {busy ? (
-          <>
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            Generating…
-          </>
-        ) : (
-          <>
-            <Sparkles className="mr-2 h-4 w-4" />
-            Generate track
-          </>
-        )}
-      </Button>
-    </aside>
-  )
-}
-
-// =============================================================================
-// Bits
-// =============================================================================
-
-function Step({
-  n,
-  label,
-  children,
-}: {
-  n: number
-  label: string
-  children: React.ReactNode
-}) {
-  return (
-    <section className="flex flex-col gap-2">
-      <div className="flex items-center gap-2">
-        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-[10px] font-semibold text-primary">
-          {n}
-        </span>
-        <h3 className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
-          {label}
-        </h3>
-      </div>
-      {children}
-    </section>
-  )
-}
-
-function SegButton({
-  active,
-  onClick,
-  label,
-  disabled,
-}: {
-  active: boolean
-  onClick: () => void
-  label: string
-  disabled?: boolean
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className={`flex flex-1 items-center justify-center gap-1.5 rounded px-2 py-1.5 text-xs transition-colors ${
-        active
-          ? 'bg-primary/10 text-primary'
-          : 'text-muted-foreground hover:bg-muted disabled:opacity-40'
-      }`}
-    >
-      <Music2 className="h-3 w-3" />
-      {label}
-    </button>
+      {error && <FieldError>{error}</FieldError>}
+    </LabPanel>
   )
 }

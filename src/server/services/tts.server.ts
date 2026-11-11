@@ -11,7 +11,7 @@
 
 import { uploadFromUrl } from './bunny.server'
 import type { BunnyConfig } from './bunny.server'
-import { AUDIO_MODELS, DEFAULT_MODELS, getModelById } from './types'
+import { AUDIO_MODELS, DEFAULT_MODELS, TTS_VOICES, getModelById } from './types'
 
 const MOCK_TTS = process.env.MOCK_GENERATION === 'true'
 const FAL_API_URL = 'https://queue.fal.run'
@@ -44,6 +44,24 @@ export interface SpeechGenerationInput {
   stability?: number // 0-1 (default: 0.5)
   similarityBoost?: number // 0-1 (default: 0.75)
   speed?: number // Ignored: Eleven v4 has no speed control
+  seed?: number
+}
+
+/**
+ * The body we send to an ElevenLabs TTS endpoint. Fields are the ones in
+ * eleven-v4's schema; the live schema test checks every TTS model with it.
+ */
+export function buildSpeechPayload(
+  input: SpeechGenerationInput,
+): Record<string, unknown> {
+  return {
+    text: input.text,
+    voice: input.voice || 'Rachel',
+    stability: input.stability ?? 0.5,
+    similarity_boost: input.similarityBoost ?? 0.75,
+    ...(input.seed !== undefined && { seed: input.seed }),
+    timestamps: true, // Always request timestamps for karaoke sync
+  }
 }
 
 export interface WordTimestamp {
@@ -89,18 +107,7 @@ interface FalStatusResponse {
 // Default Voices (ElevenLabs voices available through Fal.ai)
 // =============================================================================
 
-export const DEFAULT_VOICES: Array<Voice> = [
-  { name: 'Rachel', description: 'Calm, young female voice' },
-  { name: 'Sarah', description: 'Soft, young female voice' },
-  { name: 'Antoni', description: 'Well-rounded male voice' },
-  { name: 'Arnold', description: 'Crisp, middle-aged male voice' },
-  { name: 'Adam', description: 'Deep, middle-aged male voice' },
-  { name: 'Aria', description: 'Expressive female voice' },
-  { name: 'Domi', description: 'Strong female voice' },
-  { name: 'Elli', description: 'Emotional female voice' },
-  { name: 'Josh', description: 'Deep male voice' },
-  { name: 'Sam', description: 'Raspy male voice' },
-]
+export const DEFAULT_VOICES: Array<Voice> = TTS_VOICES.map((v) => ({ ...v }))
 
 // =============================================================================
 // Main Service Functions
@@ -130,8 +137,6 @@ export async function generateSpeech(
     throw new Error(`Unknown speech model: ${modelId}`)
   }
 
-  const voice = input.voice || 'Rachel'
-
   // Submit to Fal.ai queue
   const submitResponse = await fetch(`${FAL_API_URL}/${modelId}`, {
     method: 'POST',
@@ -139,13 +144,7 @@ export async function generateSpeech(
       Authorization: `Key ${apiKey}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({
-      text: input.text,
-      voice,
-      stability: input.stability ?? 0.5,
-      similarity_boost: input.similarityBoost ?? 0.75,
-      timestamps: true, // Always request timestamps for karaoke sync
-    }),
+    body: JSON.stringify(buildSpeechPayload(input)),
   })
 
   if (!submitResponse.ok) {

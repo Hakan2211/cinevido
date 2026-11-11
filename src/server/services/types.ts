@@ -596,6 +596,8 @@ export interface VideoModelConfig extends ModelConfig {
   durations: Array<number> // Available duration options in seconds
   aspectRatios?: Array<string> // e.g., ['16:9', '9:16', '1:1']
   resolutions?: Array<string> // e.g., ['720p', '1080p', '4k']
+  /** the endpoint's own default (from its fal schema) — what `pricing.usd` is quoted at */
+  defaultResolution?: string
   supportsAudio?: boolean // Native audio generation
   supportsEndFrame?: boolean // For I2V models that support end frame (keyframes)
   // Field name mappings (models use different field names)
@@ -628,6 +630,7 @@ export const VIDEO_MODELS: Array<VideoModelConfig> = [
     durations: [5, 8, 10, 15, 20],
     aspectRatios: ['16:9', '9:16', '1:1', '21:9'],
     resolutions: ['720p'],
+    defaultResolution: '720p',
   },
   {
     id: 'kling/v4/flash/image-to-video',
@@ -640,6 +643,7 @@ export const VIDEO_MODELS: Array<VideoModelConfig> = [
     capabilities: ['image-to-video'],
     durations: [5, 8, 10, 15, 20],
     resolutions: ['720p'],
+    defaultResolution: '720p',
     fieldMappings: { imageUrl: 'start_image_url' },
   },
   {
@@ -657,6 +661,7 @@ export const VIDEO_MODELS: Array<VideoModelConfig> = [
     durations: [5, 8, 10, 15, 20, 30],
     aspectRatios: ['16:9', '9:16', '1:1', '21:9'],
     resolutions: ['720p', '1080p'],
+    defaultResolution: '1080p',
   },
   {
     id: 'kling/v4/image-to-video',
@@ -673,6 +678,7 @@ export const VIDEO_MODELS: Array<VideoModelConfig> = [
     capabilities: ['image-to-video', 'keyframes'],
     durations: [5, 8, 10, 15, 20, 30],
     resolutions: ['720p', '1080p'],
+    defaultResolution: '1080p',
     supportsEndFrame: true,
     fieldMappings: {
       imageUrl: 'start_image_url',
@@ -704,6 +710,7 @@ export const VIDEO_MODELS: Array<VideoModelConfig> = [
     durations: [4, 6, 8, 10, 15],
     aspectRatios: ['16:9', '9:16'],
     resolutions: ['360p', '720p', '1080p', '4k'],
+    defaultResolution: '720p',
   },
   {
     id: 'google/gemini-omni-flash/v1.2/image-to-video',
@@ -726,6 +733,7 @@ export const VIDEO_MODELS: Array<VideoModelConfig> = [
     durations: [4, 6, 8, 10, 15],
     aspectRatios: ['16:9', '9:16'],
     resolutions: ['360p', '720p', '1080p', '4k'],
+    defaultResolution: '720p',
     supportsEndFrame: true,
     fieldMappings: {
       imageUrl: 'image_url',
@@ -751,6 +759,7 @@ export const VIDEO_MODELS: Array<VideoModelConfig> = [
     durations: [5, 6, 8, 10, 15],
     aspectRatios: ['16:9', '9:16', '1:1', '21:9'],
     resolutions: ['480P', '768P', '1080P'],
+    defaultResolution: '768P',
     supportsSeed: true,
   },
   {
@@ -767,6 +776,7 @@ export const VIDEO_MODELS: Array<VideoModelConfig> = [
     capabilities: ['image-to-video', 'keyframes'],
     durations: [5, 6, 8, 10, 15],
     resolutions: ['480P', '768P', '1080P'],
+    defaultResolution: '768P',
     supportsEndFrame: true,
     supportsSeed: true,
     fieldMappings: {
@@ -789,6 +799,7 @@ export const VIDEO_MODELS: Array<VideoModelConfig> = [
     durations: [5, 6, 8, 10, 15],
     aspectRatios: ['16:9', '9:16', '1:1', '21:9'],
     resolutions: ['480P', '768P', '1080P'],
+    defaultResolution: '768P',
     supportsSeed: true,
   },
   {
@@ -805,6 +816,7 @@ export const VIDEO_MODELS: Array<VideoModelConfig> = [
     capabilities: ['image-to-video', 'keyframes'],
     durations: [5, 6, 8, 10, 15],
     resolutions: ['480P', '768P', '1080P'],
+    defaultResolution: '768P',
     supportsEndFrame: true,
     supportsSeed: true,
     fieldMappings: {
@@ -832,6 +844,7 @@ export const VIDEO_MODELS: Array<VideoModelConfig> = [
     durations: [5, 8, 10, 15, 20, 30],
     aspectRatios: ['16:9', '9:16', '1:1', '21:9'],
     resolutions: ['480p', '720p', '1080p'],
+    defaultResolution: '720p',
     supportsAudio: true,
   },
   {
@@ -849,6 +862,7 @@ export const VIDEO_MODELS: Array<VideoModelConfig> = [
     capabilities: ['image-to-video', 'keyframes'],
     durations: [5, 8, 10, 15, 20, 30],
     resolutions: ['480p', '720p', '1080p'],
+    defaultResolution: '720p',
     supportsAudio: true,
     supportsEndFrame: true,
     fieldMappings: {
@@ -876,6 +890,7 @@ export const VIDEO_MODELS: Array<VideoModelConfig> = [
     durations: [4, 6, 8],
     aspectRatios: ['16:9', '9:16'],
     resolutions: ['720p', '1080p', '4k'],
+    defaultResolution: '720p',
     supportsAudio: true,
     supportsSeed: true,
     supportsNegativePrompt: true,
@@ -896,6 +911,7 @@ export const VIDEO_MODELS: Array<VideoModelConfig> = [
     durations: [4, 6, 8],
     aspectRatios: ['16:9', '9:16'],
     resolutions: ['720p', '1080p', '4k'],
+    defaultResolution: '720p',
     supportsAudio: true,
     supportsSeed: true,
     supportsNegativePrompt: true,
@@ -917,6 +933,7 @@ export const VIDEO_MODELS: Array<VideoModelConfig> = [
     durations: [4, 6, 8],
     aspectRatios: ['16:9', '9:16'],
     resolutions: ['720p', '1080p', '4k'],
+    defaultResolution: '720p',
     supportsAudio: true,
     supportsSeed: true,
     supportsNegativePrompt: true,
@@ -937,6 +954,7 @@ export const VIDEO_MODELS: Array<VideoModelConfig> = [
     durations: [4, 6, 8],
     aspectRatios: ['16:9', '9:16'],
     resolutions: ['720p', '1080p', '4k'],
+    defaultResolution: '720p',
     supportsAudio: true,
     supportsSeed: true,
     supportsNegativePrompt: true,
@@ -958,6 +976,7 @@ export const VIDEO_MODELS: Array<VideoModelConfig> = [
     durations: [4, 6, 8],
     aspectRatios: ['16:9', '9:16'],
     resolutions: ['720p', '1080p', '4k'],
+    defaultResolution: '720p',
     supportsAudio: true,
     supportsSeed: true,
     supportsNegativePrompt: true,
@@ -1000,6 +1019,69 @@ export const AUDIO_MODELS: Array<ModelConfig> = [
     pricing: { kind: 'perKChars', usd: 0.04 },
   },
 ]
+
+/**
+ * The voices the Voice tab offers. fal's ElevenLabs endpoints take a premade
+ * voice by name; these are the names in eleven-v4's schema (`voice` examples)
+ * plus Rachel (its default) and Adam (the Director's male narrator).
+ */
+export const TTS_VOICES: ReadonlyArray<{ name: string; description: string }> =
+  [
+    { name: 'Rachel', description: 'Female · default' },
+    { name: 'Aria', description: 'Female' },
+    { name: 'Sarah', description: 'Female' },
+    { name: 'Laura', description: 'Female' },
+    { name: 'Charlotte', description: 'Female' },
+    { name: 'Alice', description: 'Female · British' },
+    { name: 'Matilda', description: 'Female' },
+    { name: 'Jessica', description: 'Female' },
+    { name: 'Lily', description: 'Female · British' },
+    { name: 'River', description: 'Neutral' },
+    { name: 'Adam', description: 'Male' },
+    { name: 'Roger', description: 'Male' },
+    { name: 'Charlie', description: 'Male · Australian' },
+    { name: 'George', description: 'Male · British' },
+    { name: 'Callum', description: 'Male' },
+    { name: 'Liam', description: 'Male' },
+    { name: 'Will', description: 'Male' },
+    { name: 'Eric', description: 'Male' },
+    { name: 'Chris', description: 'Male' },
+    { name: 'Brian', description: 'Male' },
+    { name: 'Daniel', description: 'Male · British' },
+    { name: 'Bill', description: 'Male' },
+  ]
+
+// =============================================================================
+// Sound-effect Models (text-to-SFX via fal.ai)
+// =============================================================================
+
+export interface SfxModelConfig extends ModelConfig {
+  /** the engine's length range; no duration = it picks one from the prompt */
+  minDurationSec: number
+  maxDurationSec: number
+  /** the prompt's max length in characters */
+  maxPromptChars: number
+  supportsLoop: boolean
+}
+
+export const SFX_MODELS: Array<SfxModelConfig> = [
+  {
+    id: 'elevenlabs/sound-effects/v3',
+    name: 'ElevenLabs Sound Effects v3',
+    provider: 'fal',
+    description:
+      'Foley, ambience and trailer hits from a description, 0.5–30s, optionally seamless loops.',
+    pricing: { kind: 'perSecond', usd: 0.002 },
+    minDurationSec: 0.5,
+    maxDurationSec: 30,
+    maxPromptChars: 450,
+    supportsLoop: true,
+  },
+]
+
+export function getSfxModelById(modelId: string): SfxModelConfig | undefined {
+  return SFX_MODELS.find((m) => m.id === modelId)
+}
 
 // =============================================================================
 // Music Models (text-to-music via fal.ai)
@@ -1341,6 +1423,9 @@ export const VIDEO_UPSCALE_MODELS: Array<VideoUpscaleModelConfig> = [
     name: 'SeedVR2',
     provider: 'fal',
     description: 'Temporal consistency, flexible output formats',
+    tier: 'standard',
+    // fal: $0.001 per megapixel of output, counted width × height × frames
+    pricing: { kind: 'perMegapixel', usd: 0.001 },
     maxScale: 10,
     supportsTargetResolution: true,
     outputFormats: SEEDVR_VIDEO_OUTPUT_FORMATS.map((f) => f.id),
@@ -1351,7 +1436,12 @@ export const VIDEO_UPSCALE_MODELS: Array<VideoUpscaleModelConfig> = [
     provider: 'fal',
     description: 'Professional-grade, frame interpolation support',
     tier: 'hero',
-    pricing: { kind: 'perSecond', usd: 0.01 },
+    // fal: per second by OUTPUT size (≤720p / ≤1080p / above); 60fps doubles
+    pricing: {
+      kind: 'perSecond',
+      usd: 0.02,
+      byResolution: { '720p': 0.01, '1080p': 0.02, '4k': 0.08 },
+    },
     maxScale: 8,
     supportsFrameInterpolation: true,
   },
@@ -1361,7 +1451,12 @@ export const VIDEO_UPSCALE_MODELS: Array<VideoUpscaleModelConfig> = [
     provider: 'fal',
     description: 'Simple resolution targeting (1080p/2k/4k)',
     tier: 'standard',
-    pricing: { kind: 'perSecond', usd: 0.0072 },
+    // fal: per second by target size at 30fps; 60fps doubles
+    pricing: {
+      kind: 'perSecond',
+      usd: 0.0072,
+      byResolution: { '1080p': 0.0072, '2k': 0.0144, '4k': 0.0288 },
+    },
     targetResolutions: BYTEDANCE_VIDEO_TARGET_RESOLUTIONS.map((r) => r.id),
   },
 ]
@@ -1427,6 +1522,9 @@ export interface Model3DConfig extends ModelConfig {
 // Text-to-3D Models
 // =============================================================================
 
+/** Hunyuan3D's own default; sending any other face count bills +$0.15 */
+export const HUNYUAN_DEFAULT_FACE_COUNT = 500000
+
 export const TEXT_TO_3D_MODELS: Array<Model3DConfig> = [
   {
     id: 'hunyuan3d-v3-text',
@@ -1437,6 +1535,12 @@ export const TEXT_TO_3D_MODELS: Array<Model3DConfig> = [
     type: 'text-to-3d',
     endpoint: 'fal-ai/hunyuan3d-v3/text-to-3d',
     tier: 'standard',
+    pricing: {
+      kind: 'flat',
+      usd: 0.375,
+      byQuality: { Normal: 0.375, LowPoly: 0.45, Geometry: 0.225 },
+      addOns: { pbr: 0.15, faceCount: 0.15, multiView: 0.15 },
+    },
     supportsPBR: true,
     outputFormats: ['glb', 'obj'],
   },
@@ -1450,7 +1554,12 @@ export const TEXT_TO_3D_MODELS: Array<Model3DConfig> = [
     type: 'text-to-3d',
     endpoint: 'meshy/v7.1/text-to-3d',
     tier: 'hero',
-    pricing: { kind: 'flat', usd: 0.8 },
+    // $0.80 untextured, $1.20 textured — the endpoints texture by default
+    pricing: {
+      kind: 'flat',
+      usd: 1.2,
+      byQuality: { textured: 1.2, untextured: 0.8 },
+    },
     supportsPBR: true,
     outputFormats: ['glb', 'fbx', 'obj', 'usdz'],
   },
@@ -1471,6 +1580,12 @@ export const IMAGE_TO_3D_MODELS: Array<Model3DConfig> = [
     type: 'image-to-3d',
     endpoint: 'fal-ai/hunyuan3d-v3/image-to-3d',
     tier: 'standard',
+    pricing: {
+      kind: 'flat',
+      usd: 0.375,
+      byQuality: { Normal: 0.375, LowPoly: 0.45, Geometry: 0.225 },
+      addOns: { pbr: 0.15, faceCount: 0.15, multiView: 0.15 },
+    },
     supportsMultipleImages: true,
     maxImages: 4,
     supportsPBR: true,
@@ -1486,7 +1601,12 @@ export const IMAGE_TO_3D_MODELS: Array<Model3DConfig> = [
     type: 'image-to-3d',
     endpoint: 'meshy/v7.1/image-to-3d',
     tier: 'hero',
-    pricing: { kind: 'flat', usd: 0.8 },
+    // $0.80 untextured, $1.20 textured — the endpoints texture by default
+    pricing: {
+      kind: 'flat',
+      usd: 1.2,
+      byQuality: { textured: 1.2, untextured: 0.8 },
+    },
     supportsPBR: true,
     outputFormats: ['glb', 'fbx', 'obj', 'usdz'],
   },
@@ -1499,7 +1619,12 @@ export const IMAGE_TO_3D_MODELS: Array<Model3DConfig> = [
     type: 'image-to-3d',
     endpoint: 'meshy/v7.1/multi-image-to-3d',
     tier: 'hero',
-    pricing: { kind: 'flat', usd: 0.8 },
+    // $0.80 untextured, $1.20 textured — the endpoints texture by default
+    pricing: {
+      kind: 'flat',
+      usd: 1.2,
+      byQuality: { textured: 1.2, untextured: 0.8 },
+    },
     supportsMultipleImages: true,
     maxImages: 4,
     supportsPBR: true,
@@ -1521,16 +1646,6 @@ export const IMAGE_TO_3D_MODELS: Array<Model3DConfig> = [
     outputFormats: ['glb', 'usdz', 'fbx', 'obj', 'stl'],
   },
   {
-    id: 'seed3d',
-    name: 'Bytedance Seed3D',
-    provider: 'bytedance',
-    description: 'Simple, fast generation',
-    dropdownDescription: 'Simple, fast generation from single image.',
-    type: 'image-to-3d',
-    endpoint: 'fal-ai/bytedance/seed3d/image-to-3d',
-    outputFormats: ['glb'],
-  },
-  {
     id: 'sam3d-objects',
     name: 'SAM 3D Objects',
     provider: 'meta',
@@ -1539,6 +1654,7 @@ export const IMAGE_TO_3D_MODELS: Array<Model3DConfig> = [
       'Segment and reconstruct specific objects from photos. Use prompts or masks to select objects.',
     type: 'image-to-3d',
     endpoint: 'fal-ai/sam-3/3d-objects',
+    pricing: { kind: 'flat', usd: 0.02 },
     outputFormats: ['glb'],
   },
   {
@@ -1550,6 +1666,7 @@ export const IMAGE_TO_3D_MODELS: Array<Model3DConfig> = [
       'Human body reconstruction from photos. Outputs mesh with 3D keypoints.',
     type: 'image-to-3d',
     endpoint: 'fal-ai/sam-3/3d-body',
+    pricing: { kind: 'flat', usd: 0.02 },
     outputFormats: ['glb'],
   },
 ]
@@ -1664,7 +1781,10 @@ export function getMotionControlModelById(
 }
 
 export function getDefaultMotionControlModel(): MotionControlModelConfig {
-  return MOTION_CONTROL_MODELS[0] // Default to Pro
+  return (
+    MOTION_CONTROL_MODELS.find((m) => m.id === DEFAULT_MODELS.motionControl) ??
+    MOTION_CONTROL_MODELS[0]
+  )
 }
 
 // =============================================================================
@@ -1684,6 +1804,8 @@ export const DEFAULT_MODELS = {
   imageToVideo: 'kling/v4/flash/image-to-video',
   keyframes: 'kling/v4/image-to-video',
   tts: 'elevenlabs/tts/eleven-v4',
+  sfx: 'elevenlabs/sound-effects/v3',
+  motionControl: 'fal-ai/kling-video/v3/pro/motion-control',
 } as const
 
 /**

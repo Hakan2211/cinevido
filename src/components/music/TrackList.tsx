@@ -1,15 +1,21 @@
 /**
- * The centre column: every track the user has made, newest first, with the
- * jobs still rendering shown as cards in place rather than a separate queue —
- * a track that is being written is still a track.
+ * The results column of the Audio lab: every track (or voice clip, or sound
+ * effect) the user has made, newest first, with the jobs still rendering shown
+ * in place rather than in a separate queue — a track being written is still a
+ * track.
  */
 
 import { Loader2, Music, Pause, Play } from 'lucide-react'
 import { TrackWaveform } from './TrackWaveform'
 import { KIND } from '../studio/timeline/shared'
+import type { AudioTab } from './panel-tabs'
 
-/** the same green the Music lane uses, so a track looks the same in both places */
-const WAVE_COLOR = KIND.music.wave
+/** the timeline lane each tab's clips land on — rows use the lane's colour */
+export const LANE_FOR_TAB = {
+  music: 'music',
+  voice: 'voice',
+  sfx: 'sfx',
+} as const
 
 /** "fal-ai/ace-step" -> "ace-step"; the vendor prefix is noise in a list */
 const engineName = (model: string | null) =>
@@ -29,6 +35,10 @@ export interface MusicTrack {
   durationSeconds: number | null
   projectId: string | null
   createdAt: Date | string
+  /** voice clips: the ElevenLabs voice */
+  voice?: string | null
+  /** sound effects: rendered as a seamless loop */
+  loop?: boolean
 }
 
 export interface PendingTrack {
@@ -43,6 +53,10 @@ export interface PendingTrack {
 }
 
 interface TrackListProps {
+  kind: AudioTab
+  /** the estimated cost of a row, e.g. "$0.12" */
+  costOf?: (track: MusicTrack) => string | null
+  emptyText: string
   tracks: Array<MusicTrack>
   pending: Array<PendingTrack>
   selectedId: string | null
@@ -57,6 +71,9 @@ const fmt = (sec: number | null) =>
     : `${Math.floor(sec / 60)}:${String(Math.round(sec % 60)).padStart(2, '0')}`
 
 export function TrackList({
+  kind,
+  costOf,
+  emptyText,
   tracks,
   pending,
   selectedId,
@@ -66,18 +83,18 @@ export function TrackList({
 }: TrackListProps) {
   if (tracks.length === 0 && pending.length === 0) {
     return (
-      <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
-        <Music className="h-10 w-10 text-muted-foreground/40" />
-        <p className="max-w-xs text-sm text-muted-foreground">
-          No tracks yet. Describe the music you want on the left — a score for a
-          scene, a bed under a voiceover — and it lands here.
+      <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border py-28 text-center">
+        <Music className="h-10 w-10 text-muted-foreground/50" />
+        <p className="mt-5 max-w-sm text-sm text-muted-foreground">
+          {emptyText}
         </p>
       </div>
     )
   }
 
+  const waveColor = KIND[LANE_FOR_TAB[kind]].wave
   return (
-    <div className="flex-1 overflow-y-auto p-4">
+    <div>
       <div className="flex flex-col gap-2">
         {/*
           A job in flight is still a track, so it keeps the row shape: the
@@ -87,7 +104,7 @@ export function TrackList({
         {pending.map((job) => (
           <div
             key={job.jobId}
-            className="flex items-center gap-3 rounded-lg border border-dashed p-3"
+            className="flex items-center gap-3 rounded-xl border border-dashed border-border p-3"
           >
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10">
               <Loader2 className="h-4 w-4 animate-spin text-primary" />
@@ -97,7 +114,7 @@ export function TrackList({
                 {job.title || 'Generating…'}
               </p>
               <p className="truncate text-xs text-muted-foreground">
-                {engineName(job.model)} · Generating
+                {engineName(job.model)} · Rendering
               </p>
             </div>
             <div className="h-1 min-w-0 flex-1 overflow-hidden rounded-full bg-primary/10">
@@ -112,6 +129,13 @@ export function TrackList({
         {tracks.map((track) => {
           const active = track.id === selectedId
           const playing = track.id === playingId
+          const cost = costOf?.(track)
+          const sub =
+            kind === 'voice' && track.voice
+              ? track.voice
+              : kind === 'sfx' && track.loop
+                ? 'loop'
+                : engineName(track.model)
           return (
             <div
               key={track.id}
@@ -121,8 +145,10 @@ export function TrackList({
               onKeyDown={(e) => {
                 if (e.key === 'Enter') onSelect(track)
               }}
-              className={`flex items-center gap-3 rounded-lg border p-3 transition-colors ${
-                active ? 'border-primary bg-primary/5' : 'hover:bg-muted/50'
+              className={`flex cursor-pointer items-center gap-3 rounded-xl border p-3 transition-colors ${
+                active
+                  ? 'border-primary/60 bg-primary/[0.06]'
+                  : 'border-border hover:bg-accent/40'
               }`}
             >
               <button
@@ -144,19 +170,19 @@ export function TrackList({
               <div className="w-40 shrink-0">
                 <p className="truncate text-sm font-medium">{track.title}</p>
                 <p className="truncate text-xs text-muted-foreground">
-                  {fmt(track.durationSeconds)} · {engineName(track.model)}
+                  {fmt(track.durationSeconds)} · {sub}
                 </p>
               </div>
 
               <TrackWaveform
                 url={track.url}
-                color={WAVE_COLOR}
+                color={waveColor}
                 height={30}
                 className="min-w-0 flex-1"
               />
 
-              <span className="w-10 shrink-0 text-right text-xs tabular-nums text-muted-foreground">
-                {fmt(track.durationSeconds)}
+              <span className="w-14 shrink-0 text-right text-xs tabular-nums text-muted-foreground">
+                {cost ?? fmt(track.durationSeconds)}
               </span>
             </div>
           )

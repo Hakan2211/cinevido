@@ -1,25 +1,21 @@
-'use client'
-
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Globe, Loader2 } from 'lucide-react'
+import { Globe } from 'lucide-react'
 import { toast } from 'sonner'
 import { MultiImagePicker } from './MultiImagePicker'
 import type { SelectedImage } from './MultiImagePicker'
-import { cn } from '@/lib/utils'
-import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Field, GenerateButton, LabPanel } from '@/components/generate'
+import { formatRate } from '@/lib/pricing'
 import { IMAGE_TO_WORLD_MODELS } from '@/server/services/types'
+import { format3DCost } from './cost'
+import type { Model3DPanelTabs } from './tabs'
 
 // NOTE: Server functions are dynamically imported in queryFn/mutationFn
 // to prevent Prisma and other server-only code from being bundled into the client.
 // See: https://tanstack.com/router/latest/docs/framework/react/start/server-functions
 
-interface ImageToWorldPanelProps {
-  className?: string
-}
-
-export function ImageToWorldPanel({ className }: ImageToWorldPanelProps) {
+export function ImageToWorldPanel(tabs: Model3DPanelTabs) {
   const queryClient = useQueryClient()
 
   // Form state - Hunyuan World is the only model
@@ -115,56 +111,17 @@ export function ImageToWorldPanel({ className }: ImageToWorldPanelProps) {
   }
 
   return (
-    <div className={cn('space-y-4', className)}>
-      {/* Image picker and labels side by side */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Image picker */}
-        <div className="space-y-2">
-          <MultiImagePicker
-            images={images}
-            onChange={setImages}
-            maxImages={1}
-            galleryImages={galleryImages}
-            onUpload={handleUpload}
-          />
-        </div>
-
-        {/* Labels */}
-        <div className="space-y-3">
-          <Input
-            id="labels-fg1"
-            value={labelsFg1}
-            onChange={(e) => setLabelsFg1(e.target.value)}
-            placeholder="Foreground 1: tree, grass, sky"
-            className="rounded-xl border-border/50 bg-background/50 focus:border-primary/50 focus:ring-primary/20 placeholder:text-muted-foreground/60"
-          />
-          <Input
-            id="labels-fg2"
-            value={labelsFg2}
-            onChange={(e) => setLabelsFg2(e.target.value)}
-            placeholder="Foreground 2: mountain, water"
-            className="rounded-xl border-border/50 bg-background/50 focus:border-primary/50 focus:ring-primary/20 placeholder:text-muted-foreground/60"
-          />
-          <Input
-            id="classes"
-            value={classes}
-            onChange={(e) => setClasses(e.target.value)}
-            placeholder="Scene classes: nature, landscape"
-            className="rounded-xl border-border/50 bg-background/50 focus:border-primary/50 focus:ring-primary/20 placeholder:text-muted-foreground/60"
-          />
-        </div>
-      </div>
-
-      {/* Settings Row - Premium Styling */}
-      <div className="flex flex-wrap items-center gap-4">
-        {/* Info text */}
-        <p className="text-xs text-muted-foreground">
-          Transform images into explorable 3D panoramas
-        </p>
-
-        {/* Generate button */}
-        <Button
-          onClick={handleGenerate}
+    <LabPanel
+      title="Image to World"
+      subtitle="Turn a picture into an explorable 3D panorama."
+      {...tabs}
+      footer={
+        <GenerateButton
+          label="Generate world"
+          icon={Globe}
+          busy={generateMutation.isPending}
+          busyLabel="Starting…"
+          costLabel={format3DCost(modelConfig)}
           disabled={
             generateMutation.isPending ||
             images.length === 0 ||
@@ -172,19 +129,47 @@ export function ImageToWorldPanel({ className }: ImageToWorldPanelProps) {
             !labelsFg2.trim() ||
             !classes.trim()
           }
-          className="rounded-xl bg-primary hover:bg-primary/90 btn-primary-glow transition-all duration-200"
-          size="default"
-        >
-          {generateMutation.isPending ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <>
-              <Globe className="mr-2 h-4 w-4" />
-              Generate World
-            </>
-          )}
-        </Button>
-      </div>
-    </div>
+          onClick={handleGenerate}
+          hint="Billed to your fal account · worlds take a few minutes"
+        />
+      }
+    >
+      <Field label="Image">
+        <MultiImagePicker
+          images={images}
+          onChange={setImages}
+          maxImages={1}
+          galleryImages={galleryImages}
+          onUpload={handleUpload}
+        />
+      </Field>
+
+      <Field label="Foreground layer 1" hint="what sits closest">
+        <Input
+          value={labelsFg1}
+          onChange={(e) => setLabelsFg1(e.target.value)}
+          placeholder="tree, grass, rocks"
+        />
+      </Field>
+      <Field label="Foreground layer 2">
+        <Input
+          value={labelsFg2}
+          onChange={(e) => setLabelsFg2(e.target.value)}
+          placeholder="mountain, water"
+        />
+      </Field>
+      <Field label="Scene classes">
+        <Input
+          value={classes}
+          onChange={(e) => setClasses(e.target.value)}
+          placeholder="nature, landscape"
+        />
+      </Field>
+
+      <p className="text-xs text-muted-foreground">
+        {modelConfig.name} · {formatRate(modelConfig.pricing)}. The labels tell
+        it which objects to separate into depth layers.
+      </p>
+    </LabPanel>
   )
 }

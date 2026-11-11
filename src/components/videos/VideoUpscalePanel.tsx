@@ -1,13 +1,16 @@
 /**
- * VideoUpscalePanel - Premium bottom panel for video upscaling
+ * VideoUpscalePanel — the video lab's Upscale tab (its fields; the Upscale
+ * button with the run's cost sits in the panel footer, see videos/index.tsx).
  *
- * Adaptive UI based on selected model:
- * - SeedVR2: Target resolution mode OR factor mode (up to 10x), noise scale, output format/quality
- * - Topaz: Scale factor (up to 8x), frame interpolation (target FPS), H.264 output
- * - Bytedance: Simple resolution targeting (1080p/2k/4k), FPS selection (30/60)
+ * Adaptive to the model:
+ * - SeedVR2: factor (up to 10×) or target resolution, noise, output format/quality
+ * - Topaz: factor (up to 8×), frame interpolation, H.264 output
+ * - Bytedance: target resolution (1080p/2K/4K), 30/60 fps
+ *
+ * The source clip is measured here (size, length) so the cost can be estimated.
  */
 
-import { ArrowUpCircle, Film, Loader2, Upload } from 'lucide-react'
+import { Library } from 'lucide-react'
 import type {
   BytedanceVideoTargetFps,
   BytedanceVideoTargetResolution,
@@ -15,10 +18,16 @@ import type {
   SeedvrVideoOutputFormat,
   SeedvrVideoOutputQuality,
 } from '@/server/services/types'
+import type { UpscaleSource } from '@/lib/video-upscale-cost'
+import {
+  Field,
+  FieldError,
+  ModelRadioList,
+  Segmented,
+} from '@/components/generate'
 import { Button } from '@/components/ui/button'
 import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
-import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import {
   Select,
@@ -27,7 +36,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { ModelSelect } from '@/components/ui/model-select'
 import {
   BYTEDANCE_VIDEO_TARGET_FPS,
   BYTEDANCE_VIDEO_TARGET_RESOLUTIONS,
@@ -36,36 +44,31 @@ import {
   SEEDVR_VIDEO_OUTPUT_QUALITIES,
   VIDEO_UPSCALE_MODELS,
 } from '@/server/services/types'
-import { cn } from '@/lib/utils'
 
-// SeedVR scale options (1-10)
 const SEEDVR_SCALE_OPTIONS = [2, 3, 4, 6, 8, 10] as const
-
-// Topaz scale options (1-8)
 const TOPAZ_SCALE_OPTIONS = [2, 4, 8] as const
 
 interface VideoUpscalePanelProps {
-  // Model selection
   model: string
   onModelChange: (model: string) => void
 
-  // Video source
   videoUrl: string
   onVideoUrlChange: (url: string) => void
   onSelectFromLibrary: () => void
-  selectedVideoName?: string
+  /** the measured source clip, for the cost estimate */
+  onSourceChange: (source: UpscaleSource | null) => void
+  source: UpscaleSource | null
 
-  // Common options
   upscaleFactor: number
   onUpscaleFactorChange: (factor: number) => void
 
-  // Topaz specific
+  // Topaz
   targetFps?: number
   onTargetFpsChange: (fps: number | undefined) => void
   h264Output: boolean
   onH264OutputChange: (enabled: boolean) => void
 
-  // SeedVR specific
+  // SeedVR
   upscaleMode: 'factor' | 'target'
   onUpscaleModeChange: (mode: 'factor' | 'target') => void
   seedvrTargetResolution: SeedvrTargetResolution
@@ -77,7 +80,7 @@ interface VideoUpscalePanelProps {
   outputQuality: SeedvrVideoOutputQuality
   onOutputQualityChange: (quality: SeedvrVideoOutputQuality) => void
 
-  // Bytedance specific
+  // Bytedance
   bytedanceTargetResolution: BytedanceVideoTargetResolution
   onBytedanceTargetResolutionChange: (
     resolution: BytedanceVideoTargetResolution,
@@ -85,380 +88,235 @@ interface VideoUpscalePanelProps {
   bytedanceTargetFps: BytedanceVideoTargetFps
   onBytedanceTargetFpsChange: (fps: BytedanceVideoTargetFps) => void
 
-  // Actions
-  onUpscale: () => void
-  isUpscaling: boolean
-  hasVideo: boolean
   error?: string | null
-  className?: string
 }
 
-export function VideoUpscalePanel({
-  model,
-  onModelChange,
-  videoUrl,
-  onVideoUrlChange,
-  onSelectFromLibrary,
-  selectedVideoName,
-  upscaleFactor,
-  onUpscaleFactorChange,
-  targetFps,
-  onTargetFpsChange,
-  h264Output,
-  onH264OutputChange,
-  upscaleMode,
-  onUpscaleModeChange,
-  seedvrTargetResolution,
-  onSeedvrTargetResolutionChange,
-  noiseScale,
-  onNoiseScaleChange,
-  outputFormat,
-  onOutputFormatChange,
-  outputQuality,
-  onOutputQualityChange,
-  bytedanceTargetResolution,
-  onBytedanceTargetResolutionChange,
-  bytedanceTargetFps,
-  onBytedanceTargetFpsChange,
-  onUpscale,
-  isUpscaling,
-  hasVideo,
-  error,
-  className,
-}: VideoUpscalePanelProps) {
-  const canUpscale = hasVideo && !isUpscaling
-
+export function VideoUpscalePanel(props: VideoUpscalePanelProps) {
+  const { model, videoUrl, source } = props
   const isSeedVR = model.includes('seedvr')
   const isTopaz = model.includes('topaz')
   const isBytedance = model.includes('bytedance')
 
-  // Get the display text for the upscale button
-  const getUpscaleButtonText = () => {
-    if (isSeedVR && upscaleMode === 'target') {
-      return `Upscale to ${seedvrTargetResolution}`
-    }
-    if (isBytedance) {
-      return `Upscale to ${bytedanceTargetResolution}`
-    }
-    return `Upscale ${upscaleFactor}x`
-  }
-
   return (
-    <div className={cn('space-y-4', className)}>
-      {/* Video Source Row */}
-      <div className="flex items-center gap-3">
-        <div className="flex-1">
+    <>
+      <Field
+        label="Source clip"
+        aside={
+          source && (
+            <span className="text-xs tabular-nums text-muted-foreground">
+              {source.width}×{source.height} · {source.durationSec.toFixed(1)}s
+            </span>
+          )
+        }
+      >
+        {videoUrl ? (
+          <div className="overflow-hidden rounded-xl border border-border bg-black">
+            <video
+              key={videoUrl}
+              src={videoUrl}
+              className="aspect-video w-full object-contain"
+              muted
+              loop
+              autoPlay
+              playsInline
+              onLoadedMetadata={(e) => {
+                const v = e.currentTarget
+                props.onSourceChange(
+                  v.videoWidth && Number.isFinite(v.duration)
+                    ? {
+                        width: v.videoWidth,
+                        height: v.videoHeight,
+                        durationSec: v.duration,
+                      }
+                    : null,
+                )
+              }}
+              onError={() => props.onSourceChange(null)}
+            />
+          </div>
+        ) : null}
+        <div className="mt-2 flex gap-2">
           <Input
-            placeholder="Enter video URL or select from library..."
+            placeholder="Paste a video URL…"
             value={videoUrl}
-            onChange={(e) => onVideoUrlChange(e.target.value)}
-            className="rounded-xl border-border/50 bg-background/50"
+            onChange={(e) => props.onVideoUrlChange(e.target.value)}
           />
+          <Button variant="secondary" onClick={props.onSelectFromLibrary}>
+            <Library className="h-4 w-4" />
+            Library
+          </Button>
         </div>
-        <Button
-          variant="outline"
-          onClick={onSelectFromLibrary}
-          className="rounded-xl border-border/50"
-        >
-          <Upload className="mr-2 h-4 w-4" />
-          Library
-        </Button>
-        {selectedVideoName && (
-          <span className="text-sm text-muted-foreground truncate max-w-[200px]">
-            {selectedVideoName}
-          </span>
-        )}
-      </div>
+      </Field>
 
-      {/* Main controls row */}
-      <div className="flex flex-wrap items-center gap-4">
-        {/* Model selector */}
-        <ModelSelect
-          value={model}
-          onValueChange={onModelChange}
+      <Field label="Model">
+        <ModelRadioList
           models={VIDEO_UPSCALE_MODELS}
-          showDescription={true}
-          showProvider={true}
+          value={model}
+          onChange={props.onModelChange}
+          footnote="Billed on the output: its size, length and frame rate."
         />
+      </Field>
 
-        {/* SeedVR Controls */}
-        {isSeedVR && (
-          <>
-            {/* Mode toggle: Factor / Target */}
-            <div className="flex rounded-xl border border-border/50 bg-background/50 p-1">
-              <button
-                onClick={() => onUpscaleModeChange('factor')}
-                className={cn(
-                  'px-3 py-1.5 text-sm font-medium transition-all duration-200 rounded-lg',
-                  upscaleMode === 'factor'
-                    ? 'bg-primary text-primary-foreground active-glow'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-muted/50',
-                )}
-              >
-                Factor
-              </button>
-              <button
-                onClick={() => onUpscaleModeChange('target')}
-                className={cn(
-                  'px-3 py-1.5 text-sm font-medium transition-all duration-200 rounded-lg',
-                  upscaleMode === 'target'
-                    ? 'bg-primary text-primary-foreground active-glow'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-muted/50',
-                )}
-              >
-                Target
-              </button>
-            </div>
-
-            {upscaleMode === 'factor' ? (
-              /* Scale selector for factor mode */
-              <div className="flex rounded-xl border border-border/50 bg-background/50 p-1">
-                {SEEDVR_SCALE_OPTIONS.map((s) => (
-                  <button
-                    key={s}
-                    onClick={() => onUpscaleFactorChange(s)}
-                    className={cn(
-                      'px-2.5 py-1.5 text-sm font-medium transition-all duration-200 rounded-lg',
-                      upscaleFactor === s
-                        ? 'bg-primary text-primary-foreground active-glow'
-                        : 'text-muted-foreground hover:text-foreground hover:bg-muted/50',
-                    )}
-                  >
-                    {s}x
-                  </button>
-                ))}
-              </div>
+      {isSeedVR && (
+        <>
+          <Field label="Scale">
+            <Segmented
+              className="mb-2"
+              options={[
+                { value: 'factor', label: 'By factor' },
+                { value: 'target', label: 'To resolution' },
+              ]}
+              value={props.upscaleMode}
+              onChange={props.onUpscaleModeChange}
+            />
+            {props.upscaleMode === 'factor' ? (
+              <Segmented
+                size="sm"
+                options={SEEDVR_SCALE_OPTIONS.map((s) => ({
+                  value: s,
+                  label: `${s}×`,
+                }))}
+                value={props.upscaleFactor}
+                onChange={props.onUpscaleFactorChange}
+              />
             ) : (
-              /* Target resolution dropdown */
+              <Segmented
+                size="sm"
+                options={SEEDVR_TARGET_RESOLUTIONS.map((r) => ({
+                  value: r.id,
+                  label: r.id === '2160p' ? '4K' : r.name,
+                }))}
+                value={props.seedvrTargetResolution}
+                onChange={props.onSeedvrTargetResolutionChange}
+              />
+            )}
+          </Field>
+          <Field
+            label="Noise"
+            aside={
+              <span className="text-sm tabular-nums text-muted-foreground">
+                {Math.round(props.noiseScale * 100)}%
+              </span>
+            }
+          >
+            <Slider
+              value={[props.noiseScale * 100]}
+              onValueChange={([v]) => props.onNoiseScaleChange(v / 100)}
+              min={0}
+              max={100}
+              step={5}
+            />
+          </Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Format">
               <Select
-                value={seedvrTargetResolution}
+                value={props.outputFormat}
                 onValueChange={(v) =>
-                  onSeedvrTargetResolutionChange(v as SeedvrTargetResolution)
+                  props.onOutputFormatChange(v as SeedvrVideoOutputFormat)
                 }
               >
-                <SelectTrigger className="h-9 w-32 rounded-xl border-border/50 bg-background/50">
+                <SelectTrigger className="w-full">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="rounded-xl">
-                  {SEEDVR_TARGET_RESOLUTIONS.map((r) => (
-                    <SelectItem key={r.id} value={r.id}>
-                      {r.name}
+                <SelectContent>
+                  {SEEDVR_VIDEO_OUTPUT_FORMATS.map((f) => (
+                    <SelectItem key={f.id} value={f.id}>
+                      {f.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-            )}
-
-            {/* Noise scale slider */}
-            <div className="flex items-center gap-3 rounded-xl border border-border/50 bg-background/50 px-3 py-2">
-              <span className="text-xs text-muted-foreground whitespace-nowrap">
-                Noise
-              </span>
-              <Slider
-                value={[noiseScale * 100]}
-                onValueChange={([value]) => onNoiseScaleChange(value / 100)}
-                min={0}
-                max={100}
-                step={5}
-                className="w-20"
-              />
-              <span className="text-sm font-medium text-primary w-8">
-                {Math.round(noiseScale * 100)}%
-              </span>
-            </div>
-          </>
-        )}
-
-        {/* Topaz Controls */}
-        {isTopaz && (
-          <>
-            {/* Scale selector (2-8x) */}
-            <div className="flex rounded-xl border border-border/50 bg-background/50 p-1">
-              {TOPAZ_SCALE_OPTIONS.map((s) => (
-                <button
-                  key={s}
-                  onClick={() => onUpscaleFactorChange(s)}
-                  className={cn(
-                    'px-3 py-1.5 text-sm font-medium transition-all duration-200 rounded-lg',
-                    upscaleFactor === s
-                      ? 'bg-primary text-primary-foreground active-glow'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-muted/50',
-                  )}
-                >
-                  {s}x
-                </button>
-              ))}
-            </div>
-
-            {/* Frame interpolation (target FPS) */}
-            <div className="flex items-center gap-2 rounded-xl border border-border/50 bg-background/50 px-3 py-2">
-              <Film className="h-4 w-4 text-muted-foreground" />
-              <span className="text-xs text-muted-foreground whitespace-nowrap">
-                Target FPS
-              </span>
-              <Input
-                type="number"
-                placeholder="Auto"
-                value={targetFps || ''}
-                onChange={(e) =>
-                  onTargetFpsChange(
-                    e.target.value ? parseInt(e.target.value) : undefined,
-                  )
+            </Field>
+            <Field label="Quality">
+              <Select
+                value={props.outputQuality}
+                onValueChange={(v) =>
+                  props.onOutputQualityChange(v as SeedvrVideoOutputQuality)
                 }
-                min={24}
-                max={120}
-                className="h-7 w-16 rounded-lg border-0 bg-transparent text-center text-sm"
-              />
-            </div>
-
-            {/* H.264 output toggle */}
-            <div className="flex items-center gap-2 rounded-xl border border-border/50 bg-background/50 px-3 py-2">
-              <Switch
-                id="h264-output"
-                checked={h264Output}
-                onCheckedChange={onH264OutputChange}
-              />
-              <Label
-                htmlFor="h264-output"
-                className="text-xs text-muted-foreground cursor-pointer"
               >
-                H.264 (more compatible)
-              </Label>
-            </div>
-          </>
-        )}
-
-        {/* Bytedance Controls */}
-        {isBytedance && (
-          <>
-            {/* Target resolution pills */}
-            <div className="flex rounded-xl border border-border/50 bg-background/50 p-1">
-              {BYTEDANCE_VIDEO_TARGET_RESOLUTIONS.map((r) => (
-                <button
-                  key={r.id}
-                  onClick={() => onBytedanceTargetResolutionChange(r.id)}
-                  className={cn(
-                    'px-3 py-1.5 text-sm font-medium transition-all duration-200 rounded-lg',
-                    bytedanceTargetResolution === r.id
-                      ? 'bg-primary text-primary-foreground active-glow'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-muted/50',
-                  )}
-                >
-                  {r.name}
-                </button>
-              ))}
-            </div>
-
-            {/* Target FPS toggle */}
-            <div className="flex rounded-xl border border-border/50 bg-background/50 p-1">
-              {BYTEDANCE_VIDEO_TARGET_FPS.map((f) => (
-                <button
-                  key={f.id}
-                  onClick={() => onBytedanceTargetFpsChange(f.id)}
-                  className={cn(
-                    'px-3 py-1.5 text-sm font-medium transition-all duration-200 rounded-lg',
-                    bytedanceTargetFps === f.id
-                      ? 'bg-primary text-primary-foreground active-glow'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-muted/50',
-                  )}
-                >
-                  {f.name}
-                </button>
-              ))}
-            </div>
-          </>
-        )}
-
-        {/* Upscale button */}
-        <Button
-          className="ml-auto rounded-xl bg-primary hover:bg-primary/90 btn-primary-glow transition-all duration-200"
-          onClick={onUpscale}
-          disabled={!canUpscale}
-        >
-          {isUpscaling ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : (
-            <ArrowUpCircle className="mr-2 h-4 w-4" />
-          )}
-          {getUpscaleButtonText()}
-        </Button>
-      </div>
-
-      {/* SeedVR Output Options Row */}
-      {isSeedVR && (
-        <div className="flex flex-wrap items-center gap-4 rounded-xl border border-border/50 bg-background/30 p-3">
-          {/* Output format */}
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground">Format:</span>
-            <Select
-              value={outputFormat}
-              onValueChange={(v) =>
-                onOutputFormatChange(v as SeedvrVideoOutputFormat)
-              }
-            >
-              <SelectTrigger className="h-8 w-36 rounded-lg border-border/50 bg-background/50">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="rounded-xl">
-                {SEEDVR_VIDEO_OUTPUT_FORMATS.map((f) => (
-                  <SelectItem key={f.id} value={f.id}>
-                    {f.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {SEEDVR_VIDEO_OUTPUT_QUALITIES.map((q) => (
+                    <SelectItem key={q.id} value={q.id}>
+                      {q.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
           </div>
-
-          {/* Output quality */}
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground">Quality:</span>
-            <Select
-              value={outputQuality}
-              onValueChange={(v) =>
-                onOutputQualityChange(v as SeedvrVideoOutputQuality)
-              }
-            >
-              <SelectTrigger className="h-8 w-28 rounded-lg border-border/50 bg-background/50">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="rounded-xl">
-                {SEEDVR_VIDEO_OUTPUT_QUALITIES.map((q) => (
-                  <SelectItem key={q.id} value={q.id}>
-                    {q.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
+        </>
       )}
 
-      {/* Info row */}
-      <div className="flex items-center justify-between">
-        <span className="text-xs text-muted-foreground">
-          {isSeedVR &&
-            (upscaleMode === 'target'
-              ? `Will upscale to ${seedvrTargetResolution} resolution with temporal consistency`
-              : noiseScale < 0.2
-                ? 'Low noise: Cleaner output, preserves original frames'
-                : noiseScale > 0.5
-                  ? 'High noise: More AI enhancement, may alter details'
-                  : 'Balanced noise level for video upscaling')}
-          {isTopaz &&
-            (targetFps
-              ? `Frame interpolation enabled: Output at ${targetFps} FPS`
-              : 'Professional-grade video upscaling with optional frame interpolation')}
-          {isBytedance &&
-            `Simple ${bytedanceTargetResolution} upscaling at ${bytedanceTargetFps === '30fps' ? '30' : '60'} FPS`}
-        </span>
-      </div>
-
-      {/* Error Display */}
-      {error && (
-        <div className="rounded-xl bg-destructive/10 border border-destructive/20 px-4 py-2">
-          <p className="text-sm text-destructive">{error}</p>
-        </div>
+      {isTopaz && (
+        <>
+          <Field label="Scale">
+            <Segmented
+              options={TOPAZ_SCALE_OPTIONS.map((s) => ({
+                value: s,
+                label: `${s}×`,
+              }))}
+              value={props.upscaleFactor}
+              onChange={props.onUpscaleFactorChange}
+            />
+          </Field>
+          <Field label="Frame rate">
+            <Segmented
+              options={[
+                { value: 0, label: 'Original' },
+                { value: 30, label: '30 fps' },
+                { value: 60, label: '60 fps · ×2' },
+              ]}
+              value={props.targetFps ?? 0}
+              onChange={(v) => props.onTargetFpsChange(v || undefined)}
+            />
+            <p className="mt-2 text-xs text-muted-foreground">
+              Higher rates interpolate new frames; 60 fps doubles the price.
+            </p>
+          </Field>
+          <div className="flex items-center justify-between gap-4 rounded-xl border border-border px-4 py-3">
+            <div>
+              <p className="text-sm font-medium">H.264 output</p>
+              <p className="text-xs text-muted-foreground">
+                Plays everywhere; slightly larger files
+              </p>
+            </div>
+            <Switch
+              checked={props.h264Output}
+              onCheckedChange={props.onH264OutputChange}
+            />
+          </div>
+        </>
       )}
-    </div>
+
+      {isBytedance && (
+        <>
+          <Field label="Target resolution">
+            <Segmented
+              options={BYTEDANCE_VIDEO_TARGET_RESOLUTIONS.map((r) => ({
+                value: r.id,
+                label: r.name,
+              }))}
+              value={props.bytedanceTargetResolution}
+              onChange={props.onBytedanceTargetResolutionChange}
+            />
+          </Field>
+          <Field label="Frame rate">
+            <Segmented
+              options={BYTEDANCE_VIDEO_TARGET_FPS.map((f) => ({
+                value: f.id,
+                label: f.id === '60fps' ? '60 fps · ×2' : '30 fps',
+              }))}
+              value={props.bytedanceTargetFps}
+              onChange={props.onBytedanceTargetFpsChange}
+            />
+          </Field>
+        </>
+      )}
+
+      {props.error && <FieldError>{props.error}</FieldError>}
+    </>
   )
 }

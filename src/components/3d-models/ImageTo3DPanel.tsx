@@ -1,33 +1,27 @@
-'use client'
-
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Loader2, Sparkles } from 'lucide-react'
+import { Sparkles } from 'lucide-react'
 import { toast } from 'sonner'
-import { Model3DModelSelect } from './Model3DModelSelect'
 import { MeshSettingsPanel } from './MeshSettingsPanel'
 import { MultiImagePicker } from './MultiImagePicker'
 import type { MeshSettings } from './MeshSettingsPanel'
 import type { SelectedImage } from './MultiImagePicker'
-import { cn } from '@/lib/utils'
-import { Button } from '@/components/ui/button'
-import { Textarea } from '@/components/ui/textarea'
 import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/components/ui/collapsible'
+  Field,
+  GenerateButton,
+  LabPanel,
+  ModelRadioList,
+  PromptBox,
+} from '@/components/generate'
 import { IMAGE_TO_3D_MODELS, get3DModelById } from '@/server/services/types'
+import { format3DCost } from './cost'
+import type { Model3DPanelTabs } from './tabs'
 
 // NOTE: Server functions are dynamically imported in queryFn/mutationFn
 // to prevent Prisma and other server-only code from being bundled into the client.
 // See: https://tanstack.com/router/latest/docs/framework/react/start/server-functions
 
-interface ImageTo3DPanelProps {
-  className?: string
-}
-
-export function ImageTo3DPanel({ className }: ImageTo3DPanelProps) {
+export function ImageTo3DPanel(tabs: Model3DPanelTabs) {
   const queryClient = useQueryClient()
 
   // Form state
@@ -178,10 +172,44 @@ export function ImageTo3DPanel({ className }: ImageTo3DPanelProps) {
     generateMutation.mutate()
   }
 
+  const meshType = isHunyuan
+    ? 'hunyuan'
+    : isMeshy
+      ? 'meshy'
+      : modelId === 'rodin-v2'
+        ? 'rodin'
+        : null
+  const costLabel = format3DCost(modelConfig, {
+    mesh: meshSettings,
+    imageCount: images.length,
+  })
+
   return (
-    <div className={cn('space-y-4', className)}>
-      {/* Image picker */}
-      <div className="space-y-2">
+    <LabPanel
+      title="Image to 3D"
+      subtitle="Lift an object or a person out of a photo."
+      {...tabs}
+      footer={
+        <GenerateButton
+          label="Generate"
+          icon={Sparkles}
+          busy={generateMutation.isPending}
+          busyLabel="Starting…"
+          costLabel={costLabel}
+          disabled={
+            generateMutation.isPending ||
+            images.length === 0 ||
+            (!!requiresPrompt && !prompt.trim())
+          }
+          onClick={handleGenerate}
+          hint="Billed to your fal account · models take 1–5 minutes"
+        />
+      }
+    >
+      <Field
+        label={getMaxImages() > 1 ? 'Images' : 'Image'}
+        hint={getMaxImages() > 1 ? `up to ${getMaxImages()}` : undefined}
+      >
         <MultiImagePicker
           images={images}
           onChange={setImages}
@@ -190,89 +218,64 @@ export function ImageTo3DPanel({ className }: ImageTo3DPanelProps) {
           galleryImages={galleryImages}
           onUpload={handleUpload}
         />
-        {modelConfig?.supportsMultipleImages && (
-          <p className="text-xs text-muted-foreground">
-            {modelConfig.dropdownDescription}
+        {modelId === 'hunyuan3d-v3-image' && (
+          <p className="mt-2 text-xs text-muted-foreground">
+            Back / left / right views are optional; adding any costs $0.15.
           </p>
         )}
-      </div>
+      </Field>
 
-      {/* Prompt input (for models that require/support it) */}
       {(requiresPrompt || isSketch) && (
-        <Textarea
-          id="prompt"
-          value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
-          placeholder={
-            isSketch
-              ? 'Describe the 3D model attributes (color, material, etc.)'
-              : 'Describe the object...'
-          }
-          className="min-h-[60px] resize-none text-base rounded-xl border-border/50 bg-background/50 focus:border-primary/50 focus:ring-primary/20 placeholder:text-muted-foreground/60"
-        />
+        <Field
+          label="Description"
+          hint={requiresPrompt ? undefined : 'optional'}
+        >
+          <PromptBox
+            value={prompt}
+            onChange={setPrompt}
+            rows={3}
+            max={1024}
+            placeholder={
+              isSketch
+                ? 'Describe the attributes (color, material, etc.)'
+                : 'Describe the object…'
+            }
+          />
+        </Field>
       )}
 
-      {/* Settings Row - Premium Styling */}
-      <div className="flex flex-wrap items-center gap-4">
-        {/* Model Selector */}
-        <Model3DModelSelect
-          mode="image-to-3d"
+      <Field label="Model">
+        <ModelRadioList
+          models={IMAGE_TO_3D_MODELS}
           value={modelId}
           onChange={(id) => {
             setModelId(id)
-            // Reset images when changing models
+            // slot layouts differ per model (Hunyuan views vs Rodin's 5)
             setImages([])
           }}
+          footnote="Rates are fal's prices per model at default settings."
         />
+      </Field>
 
-        {/* Advanced Settings Toggle */}
-        <Collapsible open={showAdvanced} onOpenChange={setShowAdvanced}>
-          <CollapsibleTrigger asChild>
-            <button
-              className={cn(
-                'text-xs font-medium transition-colors rounded-lg px-3 py-1.5',
-                showAdvanced
-                  ? 'text-primary bg-primary/10'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-muted/50',
-              )}
-            >
-              {showAdvanced ? '- Advanced' : '+ Advanced'}
-            </button>
-          </CollapsibleTrigger>
-        </Collapsible>
-
-        {/* Generate button */}
-        <Button
-          onClick={handleGenerate}
-          disabled={
-            generateMutation.isPending ||
-            images.length === 0 ||
-            (requiresPrompt && !prompt.trim())
-          }
-          className="rounded-xl bg-primary hover:bg-primary/90 btn-primary-glow transition-all duration-200"
-          size="default"
-        >
-          {generateMutation.isPending ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <>
-              <Sparkles className="mr-2 h-4 w-4" />
-              Generate
-            </>
+      {meshType && (
+        <div>
+          <button
+            type="button"
+            onClick={() => setShowAdvanced((v) => !v)}
+            className="text-xs text-muted-foreground hover:text-foreground"
+          >
+            {showAdvanced ? '− Mesh settings' : '+ Mesh settings'}
+          </button>
+          {showAdvanced && (
+            <MeshSettingsPanel
+              className="mt-4"
+              settings={meshSettings}
+              onChange={setMeshSettings}
+              modelType={meshType}
+            />
           )}
-        </Button>
-      </div>
-
-      {/* Advanced settings content */}
-      <Collapsible open={showAdvanced} onOpenChange={setShowAdvanced}>
-        <CollapsibleContent className="pt-2">
-          <MeshSettingsPanel
-            settings={meshSettings}
-            onChange={setMeshSettings}
-            modelType={isHunyuan ? 'hunyuan' : isMeshy ? 'meshy' : 'generic'}
-          />
-        </CollapsibleContent>
-      </Collapsible>
-    </div>
+        </div>
+      )}
+    </LabPanel>
   )
 }

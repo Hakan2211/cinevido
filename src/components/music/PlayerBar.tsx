@@ -6,7 +6,6 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { Pause, Play, SkipBack, SkipForward, Volume2 } from 'lucide-react'
-import { KIND } from '../studio/timeline/shared'
 import type { MusicTrack } from './TrackList'
 
 interface PlayerBarProps {
@@ -53,7 +52,7 @@ export function PlayerBar({
   if (!track) return null
 
   return (
-    <div className="flex h-16 shrink-0 items-center gap-4 border-t bg-muted/30 px-4">
+    <div className="flex h-16 shrink-0 items-center gap-4 border-t border-border bg-card/60 px-4">
       <audio
         ref={audioRef}
         onTimeUpdate={(e) => setPosition(e.currentTarget.currentTime)}
@@ -66,8 +65,8 @@ export function PlayerBar({
         <button
           type="button"
           onClick={() => onStep(-1)}
-          className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-          title="Previous track"
+          className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+          title="Previous"
         >
           <SkipBack className="h-4 w-4" />
         </button>
@@ -86,8 +85,8 @@ export function PlayerBar({
         <button
           type="button"
           onClick={() => onStep(1)}
-          className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-          title="Next track"
+          className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+          title="Next"
         >
           <SkipForward className="h-4 w-4" />
         </button>
@@ -112,10 +111,7 @@ export function PlayerBar({
           setPosition(next)
           if (audioRef.current) audioRef.current.currentTime = next
         }}
-        // green, not the app accent: this bar belongs to the music, and it is
-        // the same green the Music lane and every waveform here already use
-        style={{ accentColor: KIND.music.accent }}
-        className="h-1 min-w-0 flex-1"
+        className="h-1 min-w-0 flex-1 accent-primary"
         title="Seek"
       />
 
@@ -128,8 +124,7 @@ export function PlayerBar({
           step={0.05}
           value={volume}
           onChange={(e) => setVolume(Number(e.target.value))}
-          style={{ accentColor: KIND.music.accent }}
-          className="h-1 w-20"
+          className="h-1 w-20 accent-primary"
           title={`Volume ${Math.round(volume * 100)}%`}
         />
       </div>

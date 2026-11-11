@@ -60,8 +60,8 @@ the real thing or leave it out — never ship a control that does nothing.
 6. **The user's own key.** Server code that calls fal on a user's behalf uses
    `getUserFalApiKey(userId)`; store fal's `status_url`/`response_url` on the
    job and poll those (never rebuild queue URLs from a model id).
-7. **Done means:** `npx tsc --noEmit -p .` adds no errors (3 known pre-existing:
-   `ModeToggle.tsx`, `VideoModeToggle.tsx`, `vite-plugin-server-only.ts`),
+7. **Done means:** `npx tsc --noEmit -p .` adds no errors (1 known pre-existing:
+   `vite-plugin-server-only.ts`),
    `npm run test` is green, and the screen was looked at in the running app.
    Don't press Generate in tests — generation is live and costs money.
 
@@ -84,19 +84,17 @@ the real thing or leave it out — never ship a control that does nothing.
 - [x] `AppTopbar` replaces the sidebar: wordmark · Home / Projects / Create · lab switcher on Create pages · credit pill · account menu; mobile sheet
 - [x] Home (`/dashboard`, mockup 2): prompt → creates a project, hands the brief to the Director (via `sessionStorage`), opens Studio; recipe chips; recent projects + creations
 
-### Phase 3 — Generate labs (mockup 3)
+### Phase 3 — Generate labs (mockup 3) ✅ (2026-11-11)
 - [x] **Video lab** (`src/routes/_app/videos/index.tsx`): left settings panel, mode inferred from frames (none → T2V, start → I2V, start+end → keyframes), tiered model radio list with rates, duration slider, aspect cards, audio switch, Generate · ≈ $X; results grid with model + cost per clip; Upscale as a tab
-- [ ] **Image lab** (`src/routes/_app/images/index.tsx`, ~2,100 lines) — same layout:
-  - Left panel tabs: **Create / Edit / Upscale** (replaces `ModeToggle`)
-  - Create: prompt, model radio list (reuse/extract `ModelRadioList` from the video lab into `src/components/generate/`), aspect cards, batch count (only if `supportsNumImages`), GPT quality + format only for GPT models, negative prompt only if `supportsNegativePrompt`
-  - Edit: reference images (up to the model's `maxImages`), prompt, model list
-  - Results: masonry/grid with model + cost; hover actions Animate (→ video lab start frame via `sessionStorage.animateImage`), Edit, Upscale, Download, Delete
-  - Add `'/_app/images/'` to `FULL_BLEED_ROUTES` in `src/routes/_app.tsx`
-  - Extract shared pieces first: `Field`, `ModelRadioList`, `FrameSlot`, result card shell → `src/components/generate/`
-- [ ] **Audio lab** (`/music`, top-bar "Audio"): bring Music into the same panel layout; add a **Voice** tab (Eleven v4 / v4 Turbo, voice picker, cost per 1k chars) and an **SFX** tab (ElevenLabs Sound Effects v3, `elevenlabs/sound-effects/v3`, $0.002/s — add to catalog + schema test)
-- [ ] **3D** and **Motion** labs: restyle into the same layout (logic stays)
-- [ ] Delete `VideoModeToggle.tsx` / `ModeToggle.tsx` once unused (also clears 2 of the 3 known TS errors)
-- [ ] Resolution picker in the video lab: add `defaultResolution` to `VideoModelConfig`, show a segmented control when `resolutions.length > 1`, pass to `estimateCost` (pricing tables already have `byResolution`)
+- [x] **Image lab** (`src/routes/_app/images/index.tsx`): same layout; panel tabs **Create / Edit / Upscale** (`?mode=`); Create shows batch only if `supportsNumImages`, GPT quality + format only for GPT models, negative prompt only if `supportsNegativePrompt`; Edit takes up to the model's `maxImages` numbered references; Upscale prices output megapixels; results grid with model + cost, hover Animate / Edit / Upscale / Download / Delete; edit/upscale results open a before/after from the "Compare" toast
+- [x] Shared pieces extracted to `src/components/generate/` (`Field`, `Segmented`, `ModelRadioList`, `FrameSlot`, `AspectCards`, `PromptBox`, `LabShell`/`LabPanel`/`LabResults`, `GenerateButton`, `ResultCard`/`PendingCard`, `ImagePickerDialog`); video lab moved onto them
+- [x] **Audio lab** (`/music`, top-bar "Audio"): tabs **Music / Voice / SFX** (`?tab=`) on the lab layout, one transport across the bottom, inspector on the right, cost per row. Voice = Eleven v4 / v4 Turbo, 22 premade voices (`TTS_VOICES`), stability, cost per 1k chars. SFX = `elevenlabs/sound-effects/v3` ($0.002/s, `SFX_MODELS`), auto or 0.5–30s length, loop, prompt influence; assets of type `sfx` land on the SFX lane. TTS + SFX payloads are in the live schema test
+- [x] **3D** (`?mode=` Text / Image / World) and **Motion** labs on the same layout and cards; old `Model3DModeToggle`, `Model3DModelSelect`, `MotionControlPanel` deleted
+  - 3D prices: Hunyuan3D V3 by generate type + $0.15 add-ons (PBR, custom face count, multi-view); Meshy $1.20 textured (the default) / $0.80 untextured — was $0.80; SAM 3D $0.02; Seed3D removed (deprecated on fal)
+  - Motion: the endpoint has no `duration` (output follows the reference clip, ≤30s match-video / ≤10s match-image) and no audio fields — those were sent before; now `buildMotionControlPayload` (live-schema-checked), real `keep_original_sound` switch, priced at the measured clip length
+  - Video lab Upscale tab rebuilt too, with a cost (`src/lib/video-upscale-cost.ts`: SeedVR per output MP×frames, Topaz/Bytedance per second by output size, 60fps ×2)
+- [x] Deleted `VideoModeToggle.tsx` / `ModeToggle.tsx` (plus the old bottom-bar `EditPanel` / `UpscalePanel`); 1 known TS error left (`vite-plugin-server-only.ts`)
+- [x] Resolution picker in the video lab: `defaultResolution` on every `VideoModelConfig` with resolutions (from fal schemas; a test pins that `pricing.usd` is quoted at it), segmented control when there are >1, priced via `estimateCost`; result cards price clips at the resolution/audio they were rendered with
 
 **Done when:** all five labs share one layout and component set, every Generate button shows a cost, and nothing references the old bottom-bar layout.
 
@@ -164,5 +162,17 @@ assemble on the timeline — without typing a second message.
 - **2026-11-11** — Video lab infers mode from frames instead of mode tabs.
 - **2026-11-11** — List rates show the default-resolution, audio-on price
   (what Generate charges), not the cheapest setting.
+- **2026-11-11** — Image lab: results are a square-cropped grid (newest first),
+  not CSS-column masonry, which would read top-to-bottom per column. Edit on a
+  card *adds* a reference while you're on the Edit tab, otherwise starts a new edit.
 - **2026-11-11** — Home hands the brief to Studio through `sessionStorage`, not
   the URL, so prompts stay out of browser history.
+- **2026-11-11** — Audio lab: voice and SFX generate synchronously (seconds), so
+  they show a local pending row instead of a polled job. Music stays queued.
+- **2026-11-11** — Price rules: `flat` gained `byQuality` (modes) and `addOns`
+  (surcharges) for 3D. Unit rates under a cent show two significant digits
+  ("$0.0002/s") instead of "<$0.01".
+- **2026-11-11** — When a cost depends on something unknown until run time (SFX
+  auto length, Motion before the clip loads) Generate shows the ceiling: "≤ $0.06".
+- **2026-11-11** — Motion: no image-URL paste any more (character comes from the
+  library picker, which uploads); the motion clip can still be a pasted URL.

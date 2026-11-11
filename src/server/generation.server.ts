@@ -21,7 +21,7 @@ import {
 } from './services/index.server'
 import { getUserStorageConfig } from './storage-config.server'
 import { getUserFalApiKey } from './byok.server'
-import { DEFAULT_MODELS } from './services/types'
+import { DEFAULT_MODELS, resolveModelId } from './services/types'
 
 // =============================================================================
 // Schemas
@@ -47,6 +47,7 @@ const createAudioJobSchema = z.object({
   text: z.string().min(1).max(5000),
   voice: z.string().optional(), // Voice name like "Rachel", "Adam" (defaults to "Rachel")
   model: z.string().optional(), // TTS model (defaults to Eleven v4)
+  stability: z.number().min(0).max(1).optional(),
   projectId: z.string().optional(),
 })
 
@@ -209,7 +210,7 @@ export const createAudioJobFn = createServerFn({ method: 'POST' })
   .middleware([authMiddleware])
   .inputValidator(createAudioJobSchema)
   .handler(async ({ data, context }) => {
-    const modelId = data.model || DEFAULT_MODELS.tts
+    const modelId = resolveModelId(data.model, AUDIO_MODELS, DEFAULT_MODELS.tts)
 
     const voice = data.voice || 'Rachel'
 
@@ -238,6 +239,7 @@ export const createAudioJobFn = createServerFn({ method: 'POST' })
           text: data.text,
           voice,
           model: modelId,
+          stability: data.stability,
         },
         await getUserFalApiKey(context.user.id),
         storageConfig,

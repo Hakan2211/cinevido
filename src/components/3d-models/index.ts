@@ -11,9 +11,9 @@ export {
   preloadModel,
 } from './Model3DViewer'
 
-// Mode & Model Selection
-export { Model3DModeToggle } from './Model3DModeToggle'
-export { Model3DModelSelect } from './Model3DModelSelect'
+// Lab tabs
+export { MODEL_3D_TABS, type Model3DPanelTabs } from './tabs'
+export { format3DCost } from './cost'
 
 // Generation Panels
 export { TextTo3DPanel } from './TextTo3DPanel'

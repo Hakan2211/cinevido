@@ -289,6 +289,8 @@ export const getVideoJobStatusFn = createServerFn({ method: 'GET' })
               firstFrameUrl: inputData.firstFrameUrl,
               lastFrameUrl: inputData.lastFrameUrl,
               aspectRatio: inputData.aspectRatio,
+              resolution: inputData.resolution,
+              generateAudio: inputData.generateAudio,
               duration: inputData.duration || 5,
             }),
           },

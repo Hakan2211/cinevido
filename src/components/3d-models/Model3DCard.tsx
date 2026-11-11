@@ -1,27 +1,10 @@
-'use client'
-
 import { useState } from 'react'
-import {
-  AlertCircle,
-  Box,
-  Download,
-  Eye,
-  Loader2,
-  MoreVertical,
-  Trash2,
-} from 'lucide-react'
+import { AlertCircle, Box, Download, Eye, Loader2, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { cn } from '@/lib/utils'
 import { downloadFile } from '@/lib/download'
-import { Button } from '@/components/ui/button'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import { Badge } from '@/components/ui/badge'
+import { PendingCard, ResultCard } from '@/components/generate'
+import type { CardAction } from '@/components/generate'
+import { format3DCost } from './cost'
 import { get3DModelById } from '@/server/services/types'
 
 interface Model3DCardProps {
@@ -43,12 +26,7 @@ interface Model3DCardProps {
   className?: string
 }
 
-export function Model3DCard({
-  asset,
-  onView,
-  onDelete,
-  className,
-}: Model3DCardProps) {
+export function Model3DCard({ asset, onView, onDelete }: Model3DCardProps) {
   const [imageError, setImageError] = useState(false)
   const [downloadingFormat, setDownloadingFormat] = useState<string | null>(
     null,
@@ -80,141 +58,86 @@ export function Model3DCard({
   }
 
   const availableFormats = asset.modelUrls
-    ? Object.entries(asset.modelUrls).filter(([_, url]) => url)
+    ? Object.entries(asset.modelUrls).filter(([, url]) => url)
     : []
 
+  const title = modelConfig?.name || asset.modelId
+  // the default-settings price: we do not store which options a run used
+  const cost = format3DCost(modelConfig)?.replace('≈ ', '')
+
+  if (isProcessing) {
+    return (
+      <PendingCard
+        aspect="square"
+        status={asset.status === 'processing' ? 'Building mesh…' : 'Queued…'}
+        eta="Usually 1–5 minutes"
+        progress={asset.progress ?? 0}
+        title={title}
+        cost={cost}
+      />
+    )
+  }
+
+  const menuActions: Array<CardAction> = [
+    ...(isCompleted && onView
+      ? [{ label: 'View model', icon: Eye, onClick: onView }]
+      : []),
+    ...availableFormats.map(([format, url]) => ({
+      label:
+        downloadingFormat === format
+          ? `Downloading .${format.toUpperCase()}…`
+          : `Download .${format.toUpperCase()}`,
+      icon: downloadingFormat === format ? Loader2 : Download,
+      disabled: downloadingFormat === format,
+      onClick: () => void handleDownload(url, format),
+    })),
+    ...(onDelete
+      ? [
+          {
+            label: 'Delete',
+            icon: Trash2,
+            onClick: onDelete,
+            destructive: true,
+          },
+        ]
+      : []),
+  ]
+
   return (
-    <div
-      className={cn(
-        'group relative rounded-lg border bg-card overflow-hidden',
-        'transition-all hover:border-primary/50 hover:shadow-md',
-        className,
-      )}
-    >
-      {/* Thumbnail / Preview */}
-      <div
-        className="relative aspect-square bg-muted cursor-pointer"
-        onClick={onView}
-      >
-        {asset.thumbnailUrl && !imageError ? (
-          <img
-            src={asset.thumbnailUrl}
-            alt={asset.prompt || 'Generated 3D model'}
-            className="w-full h-full object-cover"
-            onError={() => setImageError(true)}
-          />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center">
-            <Box className="h-12 w-12 text-muted-foreground" />
-          </div>
-        )}
-
-        {/* Processing overlay */}
-        {isProcessing && (
-          <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center gap-2">
-            <Loader2 className="h-8 w-8 animate-spin text-white" />
-            <span className="text-white text-sm">
-              {asset.progress ? `${asset.progress}%` : 'Processing...'}
-            </span>
-          </div>
-        )}
-
-        {/* Failed overlay */}
-        {isFailed && (
-          <div className="absolute inset-0 bg-destructive/20 flex flex-col items-center justify-center gap-2">
-            <AlertCircle className="h-8 w-8 text-destructive" />
-            <span className="text-destructive text-sm">Failed</span>
-          </div>
-        )}
-
-        {/* Hover overlay for completed */}
-        {isCompleted && (
-          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
-            <Button variant="secondary" size="sm" onClick={onView}>
-              <Eye className="h-4 w-4 mr-1" />
-              View
-            </Button>
-          </div>
-        )}
-
-        {/* Status badge */}
-        <Badge
-          variant={
-            isCompleted ? 'default' : isFailed ? 'destructive' : 'secondary'
-          }
-          className="absolute top-2 left-2 text-[10px]"
-        >
-          {asset.status}
-        </Badge>
-      </div>
-
-      {/* Info footer */}
-      <div className="p-3">
-        <div className="flex items-start justify-between gap-2">
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium truncate">
-              {modelConfig?.name || asset.modelId}
-            </p>
-            {asset.prompt && (
-              <p className="text-xs text-muted-foreground truncate mt-0.5">
-                {asset.prompt}
-              </p>
-            )}
-          </div>
-
-          {/* Actions menu */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
-                <MoreVertical className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              {isCompleted && onView && (
-                <DropdownMenuItem onClick={onView}>
-                  <Eye className="h-4 w-4 mr-2" />
-                  View Model
-                </DropdownMenuItem>
+    <ResultCard
+      aspect="square"
+      title={title}
+      cost={cost}
+      onSelect={() => onView?.()}
+      menuLabel="Model actions"
+      menuActions={menuActions}
+      media={
+        <>
+          {asset.thumbnailUrl && !imageError ? (
+            <img
+              src={asset.thumbnailUrl}
+              alt={asset.prompt || 'Generated 3D model'}
+              className="absolute inset-0 h-full w-full object-cover"
+              onError={() => setImageError(true)}
+            />
+          ) : (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <Box className="h-10 w-10 text-muted-foreground/60" />
+            </div>
+          )}
+          {isFailed && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-background/80 p-4 text-center">
+              <AlertCircle className="h-6 w-6 text-destructive" />
+              <span className="text-sm text-destructive">Failed</span>
+              {asset.error && (
+                <span className="line-clamp-2 text-xs text-muted-foreground">
+                  {asset.error}
+                </span>
               )}
-
-              {availableFormats.length > 0 && (
-                <>
-                  <DropdownMenuSeparator />
-                  {availableFormats.map(([format, url]) => (
-                    <DropdownMenuItem
-                      key={format}
-                      disabled={downloadingFormat === format}
-                      onClick={() => handleDownload(url, format)}
-                    >
-                      {downloadingFormat === format ? (
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      ) : (
-                        <Download className="h-4 w-4 mr-2" />
-                      )}
-                      {downloadingFormat === format
-                        ? `Downloading .${format.toUpperCase()}...`
-                        : `Download .${format.toUpperCase()}`}
-                    </DropdownMenuItem>
-                  ))}
-                </>
-              )}
-
-              {onDelete && (
-                <>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    onClick={onDelete}
-                    className="text-destructive focus:text-destructive"
-                  >
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Delete
-                  </DropdownMenuItem>
-                </>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </div>
-    </div>
+            </div>
+          )}
+        </>
+      }
+    />
   )
 }

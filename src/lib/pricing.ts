@@ -39,8 +39,16 @@ export type PriceRule =
   | { kind: 'perKChars'; usd: number }
   /** billed per minute of output audio */
   | { kind: 'perMinute'; usd: number }
-  /** one price per run, whatever the settings */
-  | { kind: 'flat'; usd: number }
+  /**
+   * one price per run; `byQuality` prices a mode (Hunyuan3D "Geometry", Meshy
+   * "untextured") and `addOns` are surcharges an option adds (PBR +$0.15)
+   */
+  | {
+      kind: 'flat'
+      usd: number
+      byQuality?: Record<string, number>
+      addOns?: Record<string, number>
+    }
   /** token-billed or otherwise unpredictable — we only show a typical range */
   | { kind: 'range'; min: number; max: number; per: 'image' | 'run' }
 
@@ -53,6 +61,8 @@ export interface CostParams {
   durationSec?: number
   audio?: boolean
   chars?: number
+  /** keys of a flat rule's `addOns` the run switches on */
+  addOns?: Array<string>
 }
 
 export interface CostEstimate {
@@ -102,8 +112,14 @@ export function estimateCost(
       return exact(rule.usd * Math.max(1, (params.chars ?? 0) / 1000))
     case 'perMinute':
       return exact(rule.usd * ((params.durationSec ?? 60) / 60))
-    case 'flat':
-      return exact(rule.usd)
+    case 'flat': {
+      const base = pick(rule.byQuality, params.quality, rule.usd)
+      const extras = (params.addOns ?? []).reduce(
+        (sum, key) => sum + (rule.addOns?.[key] ?? 0),
+        0,
+      )
+      return exact(base + extras)
+    }
     case 'range': {
       const n = rule.per === 'image' ? images : 1
       return { min: rule.min * n, max: rule.max * n }
@@ -132,30 +148,55 @@ export function formatEstimate(estimate: CostEstimate | null): string | null {
 }
 
 /** The model's headline rate for pickers: "$0.094/s", "$0.027/img", "$0.08/1k chars" */
+/** A unit rate: sub-cent rates keep two significant digits ("$0.0002") */
+function formatRateUsd(usd: number): string {
+  if (usd > 0 && usd < 0.01) return '$' + String(Number(usd.toPrecision(2)))
+  return formatUsd(usd)
+}
+
 export function formatRate(rule: PriceRule | undefined): string | null {
   if (!rule) return null
   switch (rule.kind) {
     case 'perImage': {
       const values = Object.values(rule.byQuality ?? rule.byResolution ?? {})
       if (values.length > 1) {
-        return `${formatUsd(Math.min(...values))}–${formatUsd(Math.max(...values)).replace('$', '')}/img`
+        return `${formatRateUsd(Math.min(...values))}–${formatRateUsd(Math.max(...values)).replace('$', '')}/img`
       }
-      return `${formatUsd(rule.usd)}/img`
+      return `${formatRateUsd(rule.usd)}/img`
     }
     case 'perMegapixel':
-      return `${formatUsd(rule.usd)}/MP`
+      return `${formatRateUsd(rule.usd)}/MP`
     case 'perSecond':
       // The default-resolution, audio-on rate — what Generate will charge
       // unless the user changes settings. (A "from" low would undersell
       // Seedance 2.5 by half.)
-      return `${formatUsd(rule.usd)}/s`
+      return `${formatRateUsd(rule.usd)}/s`
     case 'perKChars':
-      return `${formatUsd(rule.usd)}/1k chars`
+      return `${formatRateUsd(rule.usd)}/1k chars`
     case 'perMinute':
-      return `${formatUsd(rule.usd)}/min`
-    case 'flat':
-      return `${formatUsd(rule.usd)}/run`
+      return `${formatRateUsd(rule.usd)}/min`
+    case 'flat': {
+      const values = Object.values(rule.byQuality ?? {})
+      if (values.length > 1) {
+        return `${formatRateUsd(Math.min(...values))}–${formatRateUsd(Math.max(...values)).replace('$', '')}/run`
+      }
+      return `${formatRateUsd(rule.usd)}/run`
+    }
     case 'range':
-      return `${formatUsd(rule.min)}–${formatUsd(rule.max).replace('$', '')}/${rule.per === 'image' ? 'img' : 'run'}`
+      return `${formatRateUsd(rule.min)}–${formatRateUsd(rule.max).replace('$', '')}/${rule.per === 'image' ? 'img' : 'run'}`
   }
+}
+
+/**
+ * The rate at specific settings — "$0.157/s" for Kling 4 at 720p. For
+ * per-second rules this applies the resolution / audio tables; other rules
+ * fall back to their headline rate.
+ */
+export function formatRateAt(
+  rule: PriceRule | undefined,
+  params: Pick<CostParams, 'resolution' | 'audio'>,
+): string | null {
+  if (rule?.kind !== 'perSecond') return formatRate(rule)
+  const perSec = estimateCost(rule, { ...params, durationSec: 1 })
+  return perSec ? `${formatRateUsd(perSec.min)}/s` : null
 }

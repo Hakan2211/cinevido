@@ -1,15 +1,17 @@
 /**
- * Images Page - Unified Create, Edit, Upscale & Variations
+ * Image Lab — create, edit and upscale images.
  *
- * Professional image interface with mode switching:
- * - Generate: Create new images from text prompts
- * - Edit: Inpaint/outpaint existing images with mask drawing
- * - Upscale: Enhance image resolution with AI
- * - Variations: Create variations from reference images
+ * Left: one settings panel with Create / Edit / Upscale tabs (the tab is in
+ * the URL as ?mode=generate|edit|upscale). Models are grouped Draft /
+ * Workhorse / Hero / Specialists with their fal rate, controls appear only
+ * when the selected model takes them, and the primary button shows what the
+ * run will cost.
+ * Right: the library as a results grid, each image with its model and
+ * estimated cost; hover for Animate / Edit / Upscale / Download / Delete.
  */
 
-import { createFileRoute, useNavigate, useSearch } from '@tanstack/react-router'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   useInfiniteQuery,
   useMutation,
@@ -17,7 +19,7 @@ import {
   useQueryClient,
 } from '@tanstack/react-query'
 import {
-  AlertTriangle,
+  ArrowUpCircle,
   Calendar,
   Check,
   Copy,
@@ -29,29 +31,44 @@ import {
   MessageSquare,
   Paintbrush,
   Play,
-  Sparkles,
   Trash2,
   Wand2,
-  X,
   Zap,
 } from 'lucide-react'
 import { toast } from 'sonner'
-import type { ImageMode } from '@/components/images'
 import type {
+  EditModelConfig,
   GptImageOutputFormat,
   GptImageQuality,
+  ModelConfig,
   SeedvrTargetResolution,
   TopazModelType,
+  UpscaleModelConfig,
+} from '@/server/services/types'
+import {
+  DEFAULT_MODELS,
+  EDIT_MODELS,
+  GPT_IMAGE_CUSTOM_SIZE_LIMITS,
+  GPT_IMAGE_OUTPUT_FORMATS,
+  IMAGE_MODELS,
+  SEEDVR_TARGET_RESOLUTIONS,
+  TOPAZ_MODELS,
+  UPSCALE_MODELS,
+  aspectRatioToGptImageSize,
+  clampGptImageQuality,
+  gptImageQualityTiers,
+  isGptImageEditModel,
+  isGptImageModel,
+  snapGptImageDim,
+  validateGptImageCustomSize,
 } from '@/server/services/types'
 // NOTE: Server functions are dynamically imported in queryFn/mutationFn
 // to prevent Prisma and other server-only code from being bundled into the client.
-// See: https://tanstack.com/router/latest/docs/framework/react/start/server-functions
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import { Card } from '@/components/ui/card'
-import { Textarea } from '@/components/ui/textarea'
+import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Slider } from '@/components/ui/slider'
+import { Switch } from '@/components/ui/switch'
 import {
   Select,
   SelectContent,
@@ -59,88 +76,86 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { ModelSelect } from '@/components/ui/model-select'
 import {
   Sheet,
   SheetContent,
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip'
-import {
-  EditPanel,
-  ModeToggle,
-  UploadDropZone,
-  UpscalePanel,
-} from '@/components/images'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { BeforeAfterSlider } from '@/components/images/BeforeAfterSlider'
 import {
-  GPT_IMAGE_CUSTOM_SIZE_LIMITS,
-  GPT_IMAGE_OUTPUT_FORMATS,
-  DEFAULT_MODELS,
-  aspectRatioToGptImageSize,
-  clampGptImageQuality,
-  getEditModelById,
-  gptImageQualityTiers,
-  isGptImageEditModel,
-  isGptImageModel,
-  snapGptImageDim,
-  validateGptImageCustomSize,
-} from '@/server/services/types'
-import { Input } from '@/components/ui/input'
-import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+  AspectCards,
+  EmptyImageDrop,
+  Field,
+  FieldError,
+  FrameSlot,
+  GenerateButton,
+  ImagePickerDialog,
+  LabPanel,
+  LabResults,
+  LabShell,
+  Meta,
+  ModelRadioList,
+  PendingCard,
+  PromptBox,
+  ResultCard,
+  Segmented,
+} from '@/components/generate'
+import type { CardAction, SlotImage } from '@/components/generate'
 import { downloadFile, generateFilename } from '@/lib/download'
 import { estimateCost, formatEstimate } from '@/lib/pricing'
-import type { PriceRule } from '@/lib/pricing'
+import { cn } from '@/lib/utils'
 
-const IMAGE_MODE_IDS: Array<ImageMode> = ['generate', 'edit', 'upscale']
+type ImageMode = 'generate' | 'edit' | 'upscale'
+const MODES: ReadonlyArray<{ value: ImageMode; label: string }> = [
+  { value: 'generate', label: 'Create' },
+  { value: 'edit', label: 'Edit' },
+  { value: 'upscale', label: 'Upscale' },
+]
 
 export const Route = createFileRoute('/_app/images/')({
   component: ImagesPage,
-  validateSearch: (search: Record<string, unknown>) => ({
-    // Unknown modes (e.g. stale ?mode=aging links) fall back to generate
-    mode: IMAGE_MODE_IDS.includes(search.mode as ImageMode)
+  validateSearch: (search: Record<string, unknown>): { mode?: ImageMode } => ({
+    // Unknown modes (e.g. stale ?mode=aging links) fall back to Create
+    mode: MODES.some((m) => m.value === search.mode)
       ? (search.mode as ImageMode)
-      : 'generate',
+      : undefined,
   }),
 })
 
-// Aspect ratio presets
+const PROMPT_MAX = 4000
+const EDIT_PROMPT_MAX = 2000 // edit.server.ts caps edit prompts
+
+// Aspect ratio presets → the dimensions sent to the server
 const ASPECT_RATIOS = [
-  { id: '1:1', name: '1:1', width: 1024, height: 1024 },
-  { id: '3:4', name: '3:4', width: 768, height: 1024 },
-  { id: '4:3', name: '4:3', width: 1024, height: 768 },
-  { id: '16:9', name: '16:9', width: 1024, height: 576 },
-  { id: '9:16', name: '9:16', width: 576, height: 1024 },
+  { id: '1:1', width: 1024, height: 1024 },
+  { id: '3:4', width: 768, height: 1024 },
+  { id: '4:3', width: 1024, height: 768 },
+  { id: '16:9', width: 1024, height: 576 },
+  { id: '9:16', width: 576, height: 1024 },
 ]
 
-// Calculate aspect ratio from dimensions
-function getAspectRatio(width: number, height: number): string {
-  const gcd = (a: number, b: number): number => (b === 0 ? a : gcd(b, a % b))
-  const divisor = gcd(width, height)
-  const ratioW = width / divisor
-  const ratioH = height / divisor
-  // Simplify common ratios
-  if (ratioW === 16 && ratioH === 9) return '16:9'
-  if (ratioW === 9 && ratioH === 16) return '9:16'
-  if (ratioW === 4 && ratioH === 3) return '4:3'
-  if (ratioW === 3 && ratioH === 4) return '3:4'
-  if (ratioW === 1 && ratioH === 1) return '1:1'
-  if (ratioW === 21 && ratioH === 9) return '21:9'
-  if (ratioW === 9 && ratioH === 21) return '9:21'
-  // For other ratios, try to approximate to common ones
-  const ratio = width / height
-  if (Math.abs(ratio - 16 / 9) < 0.05) return '16:9'
-  if (Math.abs(ratio - 9 / 16) < 0.05) return '9:16'
-  if (Math.abs(ratio - 4 / 3) < 0.05) return '4:3'
-  if (Math.abs(ratio - 3 / 4) < 0.05) return '3:4'
-  if (Math.abs(ratio - 1) < 0.05) return '1:1'
-  return `${ratioW}:${ratioH}`
+const SEEDVR_SCALES = [2, 3, 4, 6, 8, 10] as const
+const TOPAZ_SCALES = [1, 2, 3, 4] as const
+const SUBJECTS = ['All', 'Foreground', 'Background'] as const
+type Subject = (typeof SUBJECTS)[number]
+
+/** SeedVR target heights, for the output-megapixel estimate */
+const TARGET_HEIGHT: Record<SeedvrTargetResolution, number> = {
+  '720p': 720,
+  '1080p': 1080,
+  '1440p': 1440,
+  '2160p': 2160,
+}
+
+interface ImageMetadata {
+  width?: number
+  height?: number
+  seed?: number
+  quality?: string
+  // set on edit/upscale results, for the before/after view
+  sourceAssetId?: string
 }
 
 interface GeneratedImage {
@@ -148,137 +163,211 @@ interface GeneratedImage {
   url: string
   prompt: string | null
   model: string | null
-  metadata: {
-    width?: number
-    height?: number
-    seed?: number
-    // Source tracking for before/after comparison
-    sourceAssetId?: string // For edit/upscale mode
-  } | null
+  metadata: ImageMetadata | null
   createdAt: Date
+}
+
+/** What the pending cards show while a job runs */
+interface PendingRun {
+  kind: ImageMode
+  count: number
+  title: string
+  cost: string | null
+  prompt: string | null
+  model: string
+  sourceAssetId?: string
+}
+
+// Every model an image in the library can have come from
+const MODEL_LOOKUP = new Map<string, { config: ModelConfig; kind: ImageMode }>([
+  ...IMAGE_MODELS.map((m) => [m.id, { config: m, kind: 'generate' }] as const),
+  ...EDIT_MODELS.map((m) => [m.id, { config: m, kind: 'edit' }] as const),
+  ...UPSCALE_MODELS.map((m) => [m.id, { config: m, kind: 'upscale' }] as const),
+])
+
+function modelTitle(modelId: string | null): string {
+  if (!modelId) return 'Upload'
+  const hit = MODEL_LOOKUP.get(modelId)
+  if (!hit) return modelId.split('/').slice(-2).join(' ')
+  const { config, kind } = hit
+  if (kind === 'upscale') return `${config.name} upscale`
+  if (kind === 'edit' && !/edit/i.test(config.name))
+    return `${config.name} edit`
+  return config.name
+}
+
+/** Estimated cost of one finished image (fal doesn't report it back) */
+function imageCost(image: GeneratedImage): string | null {
+  const hit = image.model ? MODEL_LOOKUP.get(image.model) : undefined
+  if (!hit) return null
+  const label = formatEstimate(
+    estimateCost(hit.config.pricing, {
+      width: image.metadata?.width,
+      height: image.metadata?.height,
+      quality: image.metadata?.quality,
+      resolution: '1K',
+    }),
+  )
+  return label?.replace('≈ ', '') ?? null
+}
+
+function getAspectRatio(width: number, height: number): string {
+  const ratio = width / height
+  const known: Array<[string, number]> = [
+    ['1:1', 1],
+    ['4:3', 4 / 3],
+    ['3:4', 3 / 4],
+    ['16:9', 16 / 9],
+    ['9:16', 9 / 16],
+    ['21:9', 21 / 9],
+    ['3:2', 3 / 2],
+    ['2:3', 2 / 3],
+  ]
+  const hit = known.find(([, r]) => Math.abs(ratio - r) < 0.03)
+  return hit ? hit[0] : `${ratio.toFixed(2)}:1`
 }
 
 function ImagesPage() {
   const navigate = useNavigate()
-  const { mode: searchMode } = useSearch({ from: '/_app/images/' })
+  const search = Route.useSearch()
+  const mode: ImageMode = search.mode ?? 'generate'
   const queryClient = useQueryClient()
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const promptRef = useRef<HTMLTextAreaElement>(null)
+  const editPromptRef = useRef<HTMLTextAreaElement>(null)
 
-  // Mode state
-  const [mode, setMode] = useState<ImageMode>(searchMode || 'generate')
-
-  // Generate form state
+  // ---- Create ----
   const [prompt, setPrompt] = useState('')
   const [model, setModel] = useState<string>(DEFAULT_MODELS.image)
   const [aspectRatio, setAspectRatio] = useState('1:1')
-  const [showNegativePrompt, setShowNegativePrompt] = useState(false)
   const [negativePrompt, setNegativePrompt] = useState('')
-
-  // Model-specific options
+  const [numImages, setNumImages] = useState(1)
   const [gptQuality, setGptQuality] = useState<GptImageQuality>('high')
   const [gptOutputFormat, setGptOutputFormat] =
     useState<GptImageOutputFormat>('png')
-  // GPT Image 2 custom dimensions (used when aspectRatio === 'custom')
   const [gptCustomWidth, setGptCustomWidth] = useState(1920)
   const [gptCustomHeight, setGptCustomHeight] = useState(1080)
-  const [numImages, setNumImages] = useState(1)
 
-  // GPT Image 2 edit options
+  // ---- Edit ----
+  const [editPrompt, setEditPrompt] = useState('')
+  const [editModel, setEditModel] = useState<string>(DEFAULT_MODELS.edit)
+  const [editRefs, setEditRefs] = useState<Array<SlotImage>>([])
   const [gptEditQuality, setGptEditQuality] = useState<GptImageQuality>('high')
   const [gptEditOutputFormat, setGptEditOutputFormat] =
     useState<GptImageOutputFormat>('png')
 
-  // Edit mode state (prompt-based, no masks!)
-  const [editPrompt, setEditPrompt] = useState('')
-  const [editModel, setEditModel] = useState<string>(DEFAULT_MODELS.edit)
-  // Multi-image selection for edit mode
-  const [selectedEditImages, setSelectedEditImages] = useState<
-    Array<{
-      id: string
-      url: string
-      prompt: string | null
-    }>
-  >([])
-
-  // Upscale mode state
-  const [upscaleModel, setUpscaleModel] = useState(
-    'fal-ai/seedvr/upscale/image',
+  // ---- Upscale ----
+  const [upscaleModel, setUpscaleModel] = useState<string>(
+    DEFAULT_MODELS.upscale,
   )
+  const [upscaleSource, setUpscaleSource] = useState<SlotImage | null>(null)
   const [upscaleScale, setUpscaleScale] = useState(2)
-
-  // SeedVR specific state
   const [upscaleMode, setUpscaleMode] = useState<'factor' | 'target'>('factor')
   const [targetResolution, setTargetResolution] =
     useState<SeedvrTargetResolution>('1080p')
   const [noiseScale, setNoiseScale] = useState(0.1)
-
-  // Topaz specific state
   const [topazModel, setTopazModel] = useState<TopazModelType>('Standard V2')
-  const [subjectDetection, setSubjectDetection] = useState<
-    'All' | 'Foreground' | 'Background'
-  >('All')
+  const [subjectDetection, setSubjectDetection] = useState<Subject>('All')
   const [faceEnhancement, setFaceEnhancement] = useState(true)
   const [faceEnhancementStrength, setFaceEnhancementStrength] = useState(0.8)
   const [faceEnhancementCreativity, setFaceEnhancementCreativity] = useState(0)
 
-  // UI state
+  // ---- UI ----
+  const [pickerFor, setPickerFor] = useState<'edit' | 'upscale' | null>(null)
   const [selectedImage, setSelectedImage] = useState<GeneratedImage | null>(
     null,
   )
   const [copiedPrompt, setCopiedPrompt] = useState(false)
-
-  // Generation state
-  const [currentJobId, setCurrentJobId] = useState<string | null>(null)
-  const [currentJobType, setCurrentJobType] = useState<
-    'generate' | 'edit' | 'upscale' | null
-  >(null)
-
-  // Completed result for before/after comparison in preview area
-  const [completedResult, setCompletedResult] = useState<{
-    sourceUrl: string // Empty string = no comparison, just show result
-    resultUrl: string
-    resultAssetId: string // Needed for delete/animate actions
-  } | null>(null)
-
-  // Delete confirmation dialog state
   const [deleteDialog, setDeleteDialog] = useState<{
     open: boolean
     imageId: string | null
-    onSuccess?: () => void
   }>({ open: false, imageId: null })
-
-  // Download state - track which image is downloading
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
 
-  // Pagination
-  const limit = 20
+  // ---- Job ----
+  const [currentJobId, setCurrentJobId] = useState<string | null>(null)
+  const [pending, setPending] = useState<PendingRun | null>(null)
+  // A failed job's message, shown on the tab that started it
+  const [jobError, setJobError] = useState<{
+    mode: ImageMode
+    message: string
+  } | null>(null)
+  const lastQueueToastRef = useRef<number | null>(null)
+
+  const limit = 24
   const loadMoreRef = useRef<HTMLDivElement>(null)
 
-  // Update URL when mode changes
-  const handleModeChange = useCallback(
-    (newMode: ImageMode) => {
-      setMode(newMode)
-      // Clear comparison when switching modes
-      setCompletedResult(null)
+  const setMode = useCallback(
+    (next: ImageMode) =>
       navigate({
         to: '/images',
-        search: { mode: newMode },
+        search: { mode: next === 'generate' ? undefined : next },
         replace: true,
-      })
-    },
+      }),
     [navigate],
   )
 
-  // Fetch models
-  const { data: modelsData } = useQuery({
-    queryKey: ['imageModels'],
-    queryFn: async () => {
-      const { getImageModelsFn } = await import('@/server/image.server')
-      return getImageModelsFn()
-    },
-  })
+  // ---- Selected models ----
+  const selectedModel = IMAGE_MODELS.find((m) => m.id === model)
+  const selectedEditModel: EditModelConfig | undefined = EDIT_MODELS.find(
+    (m) => m.id === editModel,
+  )
+  const selectedUpscaleModel: UpscaleModelConfig | undefined =
+    UPSCALE_MODELS.find((m) => m.id === upscaleModel)
+  const maxRefs = selectedEditModel?.maxImages ?? 1
 
-  // Fetch images with infinite scroll
+  const isGpt = isGptImageModel(model)
+  const isGptEdit = isGptImageEditModel(editModel)
+  const isCustomSize = isGpt && aspectRatio === 'custom'
+  const customSizeError = isCustomSize
+    ? validateGptImageCustomSize(gptCustomWidth, gptCustomHeight)
+    : null
+  const dims = isCustomSize
+    ? { width: gptCustomWidth, height: gptCustomHeight }
+    : (ASPECT_RATIOS.find((r) => r.id === aspectRatio) ?? ASPECT_RATIOS[0])
+  const batch = selectedModel?.supportsNumImages ? numImages : 1
+  const isSeedVR = upscaleModel.includes('seedvr')
+  const isTopaz = upscaleModel.includes('topaz')
+
+  // ---- Costs ----
+  const createCostOne = formatEstimate(
+    estimateCost(selectedModel?.pricing, {
+      width: dims.width,
+      height: dims.height,
+      quality: isGpt ? gptQuality : undefined,
+      resolution: '1K',
+    }),
+  )
+  const createCost = formatEstimate(
+    estimateCost(selectedModel?.pricing, {
+      numImages: batch,
+      width: dims.width,
+      height: dims.height,
+      quality: isGpt ? gptQuality : undefined,
+      resolution: '1K',
+    }),
+  )
+  // Edits are priced per output image; megapixel models assume ~1MP output
+  const editCost = formatEstimate(
+    estimateCost(selectedEditModel?.pricing, {
+      quality: isGptEdit ? gptEditQuality : undefined,
+      resolution: '1K',
+    }),
+  )
+  // Upscalers bill output megapixels
+  const upscaleOut = useMemo(() => {
+    const w = upscaleSource?.metadata?.width ?? 1024
+    const h = upscaleSource?.metadata?.height ?? 1024
+    if (isSeedVR && upscaleMode === 'target') {
+      const th = TARGET_HEIGHT[targetResolution]
+      return { width: Math.round((th * w) / h), height: th }
+    }
+    return { width: w * upscaleScale, height: h * upscaleScale }
+  }, [upscaleSource, isSeedVR, upscaleMode, targetResolution, upscaleScale])
+  const upscaleCost = formatEstimate(
+    estimateCost(selectedUpscaleModel?.pricing, upscaleOut),
+  )
+
+  // ---- Library ----
   const {
     data: imagesData,
     isLoading: imagesLoading,
@@ -296,17 +385,13 @@ function ImagesPage() {
       return loadedCount < lastPage.total ? allPages.length : undefined
     },
     initialPageParam: 0,
-    staleTime: 1000 * 60 * 5, // 5 minutes - data stays fresh
-    gcTime: 1000 * 60 * 30, // 30 minutes - keep in cache
-    refetchOnWindowFocus: false, // Prevent refetch on tab switch
+    staleTime: 1000 * 60 * 5,
+    refetchOnWindowFocus: false,
   })
-
-  const models = modelsData?.models || []
-  // Flatten all pages into single array
-  const images = imagesData?.pages.flatMap((page) => page.images) ?? []
+  const images: Array<GeneratedImage> =
+    imagesData?.pages.flatMap((page) => page.images) ?? []
   const total = imagesData?.pages[0]?.total ?? 0
 
-  // Intersection Observer for infinite scroll
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
@@ -316,314 +401,267 @@ function ImagesPage() {
       },
       { threshold: 0.1 },
     )
-
-    if (loadMoreRef.current) {
-      observer.observe(loadMoreRef.current)
-    }
-
+    if (loadMoreRef.current) observer.observe(loadMoreRef.current)
     return () => observer.disconnect()
   }, [hasNextPage, isFetchingNextPage, fetchNextPage])
 
-  // Generate mutation
+  // ---- Mutations ----
   const generateMutation = useMutation({
     mutationFn: async (input: { data: Record<string, unknown> }) => {
       const { generateImageFn } = await import('@/server/image.server')
       return generateImageFn(input as never)
     },
-    onSuccess: (result) => {
-      setCurrentJobId(result.jobId)
-      setCurrentJobType('generate')
-      // Clear prompts after successful submission
-      setPrompt('')
-      setNegativePrompt('')
-    },
+    onSuccess: (result) => setCurrentJobId(result.jobId),
+    onError: () => setPending(null),
   })
 
-  // Edit mutation (prompt-based, no masks!)
   const editMutation = useMutation({
     mutationFn: async (input: { data: Record<string, unknown> }) => {
       const { editImageFn } = await import('@/server/edit.server')
       return editImageFn(input as never)
     },
-    onSuccess: (result) => {
-      setCurrentJobId(result.jobId)
-      setCurrentJobType('edit')
-      // Clear edit prompt after successful submission
-      setEditPrompt('')
-    },
+    onSuccess: (result) => setCurrentJobId(result.jobId),
+    onError: () => setPending(null),
   })
 
-  // Upscale mutation
   const upscaleMutation = useMutation({
     mutationFn: async (input: { data: Record<string, unknown> }) => {
       const { upscaleImageFn } = await import('@/server/edit.server')
       return upscaleImageFn(input as never)
     },
-    onSuccess: (result) => {
-      setCurrentJobId(result.jobId)
-      setCurrentJobType('upscale')
-    },
+    onSuccess: (result) => setCurrentJobId(result.jobId),
+    onError: () => setPending(null),
   })
 
-  // Delete mutation
   const deleteMutation = useMutation({
     mutationFn: async (input: { data: { imageId: string } }) => {
       const { deleteImageFn } = await import('@/server/image.server')
       return deleteImageFn(input as never)
     },
-    onSuccess: () => {
+    onSuccess: (_result, input) => {
+      const id = input.data.imageId
       queryClient.invalidateQueries({ queryKey: ['images'] })
       setSelectedImage(null)
+      setEditRefs((refs) => refs.filter((r) => r.id !== id))
+      setUpscaleSource((src) => (src?.id === id ? null : src))
+      toast.success('Image deleted')
     },
   })
 
-  // Poll job status (for generate)
-  const { data: jobStatus, error: jobStatusError } = useQuery({
+  // ---- Job polling (generate jobs and edit/upscale jobs live in different tables) ----
+  const jobKind = pending?.kind
+  const pollGenerate = !!currentJobId && jobKind === 'generate'
+  const pollEdit = !!currentJobId && jobKind !== undefined && !pollGenerate
+
+  const { data: imageJob, error: imageJobError } = useQuery({
     queryKey: ['imageJob', currentJobId],
     queryFn: async () => {
       const { getImageJobStatusFn } = await import('@/server/image.server')
       return getImageJobStatusFn({ data: { jobId: currentJobId! } })
     },
-    enabled: !!currentJobId && currentJobType === 'generate',
+    enabled: pollGenerate,
     refetchInterval: (query) => {
       const status = query.state.data?.status
-      if (status === 'completed' || status === 'failed') {
-        return false
-      }
-      return 2000
+      return status === 'completed' || status === 'failed' ? false : 2000
     },
   })
 
-  // Poll edit job status (edit, upscale)
-  const { data: editJobStatus, error: editJobStatusError } = useQuery({
+  const { data: editJob, error: editJobError } = useQuery({
     queryKey: ['editJob', currentJobId],
     queryFn: async () => {
       const { getEditJobStatusFn } = await import('@/server/edit.server')
       return getEditJobStatusFn({ data: { jobId: currentJobId! } })
     },
-    enabled:
-      !!currentJobId &&
-      (currentJobType === 'edit' || currentJobType === 'upscale'),
+    enabled: pollEdit,
     refetchInterval: (query) => {
       const status = query.state.data?.status
-      if (status === 'completed' || status === 'failed') {
-        return false
-      }
-      return 2000
+      return status === 'completed' || status === 'failed' ? false : 2000
     },
   })
 
-  // Handle job completion or failure
+  const job = pollGenerate ? imageJob : pollEdit ? editJob : undefined
+  const jobQueryError = pollGenerate
+    ? imageJobError
+    : pollEdit
+      ? editJobError
+      : null
+  // only generate jobs report a queue position
+  const queuePosition = (job as { queuePosition?: number } | undefined)
+    ?.queuePosition
+
   useEffect(() => {
-    let status
-    let queryError: Error | null = null
-    if (currentJobType === 'generate') {
-      status = jobStatus
-      queryError = jobStatusError
-    } else {
-      status = editJobStatus
-      queryError = editJobStatusError
-    }
+    if (!currentJobId || !pending) return
 
-    // Handle completion
-    if (status?.status === 'completed') {
-      // Extract result URL and asset ID from output
-      const resultUrl =
-        status.output?.url || status.output?.images?.[0]?.url || null
-      const resultAssetId =
-        status.output?.assetId || status.output?.images?.[0]?.assetId || ''
-
-      if (resultUrl && currentJobType !== 'generate') {
-        // For edit/upscale - show comparison
-        const sourceUrl = selectedEditImages[0]?.url || ''
-        setCompletedResult({
-          sourceUrl,
-          resultUrl,
-          resultAssetId,
-        })
-      }
-
-      setCurrentJobId(null)
-      setCurrentJobType(null)
+    if (job?.status === 'completed') {
+      const resultUrl: string | undefined =
+        job.output?.url || job.output?.images?.[0]?.url
+      const resultId: string | undefined =
+        job.output?.assetId || job.output?.images?.[0]?.assetId
       queryClient.invalidateQueries({ queryKey: ['images'] })
-      // Auto-focus textarea for next prompt
-      textareaRef.current?.focus()
-    }
+      queryClient.invalidateQueries({ queryKey: ['falCredits'] })
 
-    // Handle failure - show toast and clear job state
-    if (status?.status === 'failed' || queryError) {
-      const errorMessage =
-        status?.error ||
-        (queryError instanceof Error ? queryError.message : 'Generation failed')
-      toast.error(errorMessage)
+      if (pending.kind !== 'generate' && resultUrl && resultId) {
+        const result: GeneratedImage = {
+          id: resultId,
+          url: resultUrl,
+          prompt: pending.prompt,
+          model: pending.model,
+          metadata: { sourceAssetId: pending.sourceAssetId },
+          createdAt: new Date(),
+        }
+        toast.success(
+          pending.kind === 'edit' ? 'Edit ready' : 'Upscale ready',
+          {
+            action: {
+              label: 'Compare',
+              onClick: () => setSelectedImage(result),
+            },
+          },
+        )
+      }
       setCurrentJobId(null)
-      setCurrentJobType(null)
+      setPending(null)
+    } else if (job?.status === 'failed' || jobQueryError) {
+      const message =
+        job?.error ||
+        (jobQueryError instanceof Error
+          ? jobQueryError.message
+          : 'Generation failed')
+      setJobError({ mode: pending.kind, message })
+      toast.error(message)
+      setCurrentJobId(null)
+      setPending(null)
     }
-  }, [
-    jobStatus,
-    editJobStatus,
-    jobStatusError,
-    editJobStatusError,
-    currentJobType,
-    queryClient,
-    selectedEditImages,
-  ])
+  }, [job, jobQueryError, currentJobId, pending, queryClient])
 
-  // Toast for high queue position
-  const lastQueueToastRef = useRef<number | null>(null)
   useEffect(() => {
-    const queuePosition = jobStatus?.queuePosition
-    // Only show toast if queue is high and we haven't shown it for this position range
     if (queuePosition && queuePosition >= 50) {
-      // Group by ranges to avoid spamming: 50-99, 100-199, 200+
       const range = queuePosition >= 200 ? 200 : queuePosition >= 100 ? 100 : 50
       if (lastQueueToastRef.current !== range) {
         lastQueueToastRef.current = range
         if (queuePosition >= 200) {
-          toast.error('fal.ai Overloaded', {
-            description: `Queue position: ${queuePosition}. Consider switching to a different model.`,
+          toast.error('fal.ai is overloaded', {
+            description: `Queue position ${queuePosition}. Consider switching to a different model.`,
             duration: 8000,
           })
         } else {
-          toast.warning('fal.ai High Demand', {
-            description: `Queue position: ${queuePosition}. Generation may take longer than usual.`,
+          toast.warning('fal.ai is busy', {
+            description: `Queue position ${queuePosition}. This may take longer than usual.`,
             duration: 6000,
           })
         }
       }
     } else if (!queuePosition) {
-      // Reset when no queue position (job completed or new job)
       lastQueueToastRef.current = null
     }
-  }, [jobStatus?.queuePosition])
+  }, [queuePosition])
 
-  // Cancel job handler
-  const handleCancelJob = useCallback(() => {
+  const isBusy =
+    generateMutation.isPending ||
+    editMutation.isPending ||
+    upscaleMutation.isPending ||
+    !!currentJobId
+
+  const handleStopWaiting = useCallback(() => {
     setCurrentJobId(null)
-    setCurrentJobType(null)
-    toast.info('Generation cancelled', {
-      description: 'Select a different model and try again.',
+    setPending(null)
+    lastQueueToastRef.current = null
+    toast.info('Stopped waiting for this image', {
+      description: 'Pick a different model and try again.',
     })
   }, [])
 
-  // Auto-resize textarea
-  const adjustTextareaHeight = useCallback(() => {
-    const textarea = textareaRef.current
-    if (textarea) {
-      textarea.style.height = 'auto'
-      const maxHeight = 120
-      textarea.style.height = `${Math.min(textarea.scrollHeight, maxHeight)}px`
-    }
-  }, [])
+  // ---- Actions ----
+  const canCreate =
+    !!prompt.trim() && !isBusy && !!selectedModel && !customSizeError
+  const canEdit =
+    editRefs.length > 0 && !!editPrompt.trim() && !isBusy && !!selectedEditModel
+  const canUpscale = !!upscaleSource && !isBusy
 
-  useEffect(() => {
-    adjustTextareaHeight()
-  }, [prompt, adjustTextareaHeight])
-
-  // Keyboard shortcuts
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (
-        e.key === 'Enter' &&
-        !e.shiftKey &&
-        document.activeElement === textareaRef.current
-      ) {
-        e.preventDefault()
-        handleGenerate()
-      }
-      if (e.key === 'Escape') {
-        setSelectedImage(null)
-      }
-    }
-
-    document.addEventListener('keydown', handleKeyDown)
-    return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [prompt, model, aspectRatio, negativePrompt])
-
-  const handleGenerate = () => {
-    if (!prompt.trim() || isGenerating) return
-
-    const isGptImage2 = isGptImageModel(model)
-    const isCustomGptSize = isGptImage2 && aspectRatio === 'custom'
-
-    // Block invalid custom sizes before firing the mutation
-    if (isCustomGptSize) {
-      const err = validateGptImageCustomSize(gptCustomWidth, gptCustomHeight)
-      if (err) {
-        toast.error(err)
-        return
-      }
-    }
-
-    const ratio = isCustomGptSize
-      ? { width: gptCustomWidth, height: gptCustomHeight }
-      : ASPECT_RATIOS.find((r) => r.id === aspectRatio) || ASPECT_RATIOS[0]
-
+  const handleCreate = () => {
+    if (!canCreate || !selectedModel) return
+    setJobError(null)
+    setPending({
+      kind: 'generate',
+      count: batch,
+      title: selectedModel.name,
+      cost: createCostOne,
+      prompt: prompt.trim(),
+      model,
+    })
     generateMutation.mutate({
       data: {
         prompt: prompt.trim(),
         model,
-        width: ratio.width,
-        height: ratio.height,
-        negativePrompt: negativePrompt.trim() || undefined,
-        numImages: numImages > 1 ? numImages : undefined,
-        // Model-specific options
-        quality: isGptImage2
-          ? clampGptImageQuality(model, gptQuality)
-          : undefined,
-        // GPT Image 2: send preset for known ratios; for custom let the server
-        // build image_size from width/height (omit imageSizePreset).
+        width: dims.width,
+        height: dims.height,
+        negativePrompt:
+          selectedModel.supportsNegativePrompt && negativePrompt.trim()
+            ? negativePrompt.trim()
+            : undefined,
+        numImages: batch > 1 ? batch : undefined,
+        quality: isGpt ? clampGptImageQuality(model, gptQuality) : undefined,
+        // GPT Image: a preset for known ratios; for custom the server builds
+        // image_size from width/height
         imageSizePreset:
-          isGptImage2 && !isCustomGptSize
+          isGpt && !isCustomSize
             ? aspectRatioToGptImageSize(aspectRatio)
             : undefined,
-        outputFormat: isGptImage2 ? gptOutputFormat : undefined,
+        outputFormat: isGpt ? gptOutputFormat : undefined,
       },
     })
   }
 
   const handleEdit = () => {
-    if (selectedEditImages.length === 0 || !editPrompt.trim() || isGenerating)
-      return
-
-    const isGptImage2Edit = isGptImageEditModel(editModel)
-
+    if (!canEdit || !selectedEditModel) return
+    setJobError(null)
+    setPending({
+      kind: 'edit',
+      count: 1,
+      title: modelTitle(editModel),
+      cost: editCost,
+      prompt: editPrompt.trim(),
+      model: editModel,
+      sourceAssetId: editRefs[0]?.id,
+    })
     editMutation.mutate({
       data: {
-        imageUrls: selectedEditImages.map((img) => img.url),
+        imageUrls: editRefs.map((img) => img.url),
         prompt: editPrompt.trim(),
         model: editModel,
-        sourceAssetIds: selectedEditImages.map((img) => img.id),
-        // GPT Image 2 edit specific options
-        quality: isGptImage2Edit
+        sourceAssetIds: editRefs.map((img) => img.id),
+        quality: isGptEdit
           ? clampGptImageQuality(editModel, gptEditQuality)
           : undefined,
-        outputFormat: isGptImage2Edit ? gptEditOutputFormat : undefined,
+        outputFormat: isGptEdit ? gptEditOutputFormat : undefined,
       },
     })
   }
 
   const handleUpscale = () => {
-    if (selectedEditImages.length === 0 || isGenerating) return
-
-    const isSeedVR = upscaleModel.includes('seedvr')
-    const isTopaz = upscaleModel.includes('topaz')
-
-    // Upscale only works with single image
+    if (!canUpscale || !upscaleSource) return
+    setJobError(null)
+    setPending({
+      kind: 'upscale',
+      count: 1,
+      title: modelTitle(upscaleModel),
+      cost: upscaleCost,
+      prompt: upscaleSource.prompt,
+      model: upscaleModel,
+      sourceAssetId: upscaleSource.id,
+    })
     upscaleMutation.mutate({
       data: {
-        imageUrl: selectedEditImages[0].url,
+        imageUrl: upscaleSource.url,
         model: upscaleModel,
         scale: upscaleScale,
-        sourceAssetId: selectedEditImages[0].id,
-        // SeedVR specific
+        sourceAssetId: upscaleSource.id,
         ...(isSeedVR && {
           upscaleMode,
           targetResolution:
             upscaleMode === 'target' ? targetResolution : undefined,
           noiseScale,
         }),
-        // Topaz specific
         ...(isTopaz && {
           topazModel,
           subjectDetection,
@@ -639,16 +677,118 @@ function ImagesPage() {
     })
   }
 
+  const runPrimary =
+    mode === 'generate'
+      ? handleCreate
+      : mode === 'edit'
+        ? handleEdit
+        : handleUpscale
+
+  // Ctrl/Cmd+Enter in a prompt runs the current tab; Esc closes the sheet
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (
+        e.key === 'Enter' &&
+        (e.metaKey || e.ctrlKey) &&
+        document.activeElement instanceof HTMLTextAreaElement
+      ) {
+        e.preventDefault()
+        runPrimary()
+      }
+      if (e.key === 'Escape') setSelectedImage(null)
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  })
+
+  const handleModelChange = (id: string) => {
+    setModel(id)
+    const next = IMAGE_MODELS.find((m) => m.id === id)
+    if (!next?.supportsNumImages) setNumImages(1)
+    else if (numImages > (next.maxNumImages ?? 4)) setNumImages(1)
+    if (!isGptImageModel(id) && aspectRatio === 'custom') setAspectRatio('1:1')
+    setGptQuality((q) => clampGptImageQuality(id, q))
+  }
+
+  const handleEditModelChange = (id: string) => {
+    setEditModel(id)
+    setGptEditQuality((q) => clampGptImageQuality(id, q))
+    const next = EDIT_MODELS.find((m) => m.id === id)
+    const max = next?.maxImages ?? 1
+    if (editRefs.length > max) {
+      setEditRefs(editRefs.slice(0, max))
+      toast.info(
+        `${next?.name ?? 'This model'} takes ${max} image${max === 1 ? '' : 's'} — kept the first ${max}.`,
+      )
+    }
+  }
+
+  const handleUpscaleModelChange = (id: string) => {
+    setUpscaleModel(id)
+    const next = UPSCALE_MODELS.find((m) => m.id === id)
+    if (next && upscaleScale > next.maxScale) setUpscaleScale(2)
+    if (id.includes('topaz') && !TOPAZ_SCALES.includes(upscaleScale as 1)) {
+      setUpscaleScale(2)
+    }
+    if (id.includes('seedvr') && !SEEDVR_SCALES.includes(upscaleScale as 2)) {
+      setUpscaleScale(2)
+    }
+  }
+
+  const toSlot = (image: GeneratedImage): SlotImage => ({
+    id: image.id,
+    url: image.url,
+    prompt: image.prompt,
+    metadata: image.metadata,
+  })
+
+  const handleAnimate = (image: GeneratedImage) => {
+    sessionStorage.setItem(
+      'animateImage',
+      JSON.stringify({ url: image.url, id: image.id }),
+    )
+    navigate({ to: '/videos' })
+  }
+
+  /** Edit from a card: on the Edit tab it adds a reference, otherwise starts one */
+  const handleEditImage = (image: GeneratedImage) => {
+    setSelectedImage(null)
+    if (mode === 'edit') {
+      if (editRefs.some((r) => r.id === image.id)) return
+      if (editRefs.length >= maxRefs) {
+        toast.info(`${selectedEditModel?.name} takes up to ${maxRefs} images`)
+        return
+      }
+      setEditRefs([...editRefs, toSlot(image)])
+    } else {
+      setEditRefs([toSlot(image)])
+      setMode('edit')
+    }
+    editPromptRef.current?.focus()
+  }
+
+  const handleUpscaleImage = (image: GeneratedImage) => {
+    setSelectedImage(null)
+    setUpscaleSource(toSlot(image))
+    setMode('upscale')
+  }
+
   const handleCopyPrompt = async (text: string) => {
     await navigator.clipboard.writeText(text)
     setCopiedPrompt(true)
     setTimeout(() => setCopiedPrompt(false), 2000)
   }
 
+  const handleUsePrompt = (text: string) => {
+    setPrompt(text)
+    setSelectedImage(null)
+    setMode('generate')
+    promptRef.current?.focus()
+  }
+
   const handleDownload = async (url: string, imageId?: string) => {
     const filename = generateFilename(url, 'image')
     const trackingId = imageId || url
-
     await downloadFile(url, filename, {
       onStart: () => {
         setDownloadingId(trackingId)
@@ -665,1166 +805,761 @@ function ImagesPage() {
     })
   }
 
-  const handleDelete = (imageId: string) => {
-    setDeleteDialog({ open: true, imageId, onSuccess: undefined })
-  }
-
-  const handleConfirmDelete = () => {
-    if (!deleteDialog.imageId) return
-
-    deleteMutation.mutate(
-      { data: { imageId: deleteDialog.imageId } },
-      {
-        onSuccess: () => {
-          deleteDialog.onSuccess?.()
-          toast.success('Image deleted')
-        },
-      },
-    )
-  }
-
-  const handleAnimate = (image: GeneratedImage) => {
-    sessionStorage.setItem(
-      'animateImage',
-      JSON.stringify({ url: image.url, id: image.id }),
-    )
-    navigate({ to: '/videos' })
-  }
-
-  const handleEditImage = (image: GeneratedImage) => {
-    setSelectedEditImages([
-      { id: image.id, url: image.url, prompt: image.prompt },
-    ])
-    setSelectedImage(null)
-    handleModeChange('edit')
-  }
-
-  // Handle ending comparison - set result as new selected image
-  const handleEndComparison = () => {
-    if (completedResult) {
-      // Set the result as the new selected image (so it can be edited/upscaled again)
-      setSelectedEditImages([
-        {
-          id: completedResult.resultAssetId,
-          url: completedResult.resultUrl,
-          prompt: null,
-        },
-      ])
-      setCompletedResult(null)
-    }
-  }
-
-  // Handle animating the selected/result image
-  const handleAnimateSelected = () => {
-    // Get current action image (result if comparing, otherwise selected)
-    const actionImage = completedResult
-      ? { id: completedResult.resultAssetId, url: completedResult.resultUrl }
-      : selectedEditImages.length === 1
-        ? { id: selectedEditImages[0].id, url: selectedEditImages[0].url }
+  const mutationError =
+    mode === 'generate'
+      ? generateMutation.error
+      : mode === 'edit'
+        ? editMutation.error
+        : upscaleMutation.error
+  const panelError =
+    mutationError instanceof Error
+      ? mutationError.message
+      : jobError?.mode === mode
+        ? jobError.message
         : null
 
-    if (!actionImage) return
+  // ---- Panel ----
+  const panelTitle =
+    mode === 'generate'
+      ? 'Generate Image'
+      : mode === 'edit'
+        ? 'Edit Image'
+        : 'Upscale Image'
+  const panelSubtitle =
+    mode === 'generate'
+      ? 'Describe it and pick a model.'
+      : mode === 'edit'
+        ? 'Change an image with words, or combine several.'
+        : 'Sharpen and enlarge an image.'
 
-    sessionStorage.setItem(
-      'animateImage',
-      JSON.stringify({
-        url: actionImage.url,
-        id: actionImage.id,
-      }),
+  const footer =
+    mode === 'generate' ? (
+      <GenerateButton
+        label={batch > 1 ? `Generate ${batch}` : 'Generate'}
+        icon={Wand2}
+        busy={isBusy}
+        busyLabel="Generating…"
+        costLabel={createCost}
+        disabled={!canCreate}
+        onClick={handleCreate}
+      />
+    ) : mode === 'edit' ? (
+      <GenerateButton
+        label="Edit"
+        icon={Paintbrush}
+        busy={isBusy}
+        busyLabel="Working…"
+        costLabel={editCost}
+        disabled={!canEdit}
+        onClick={handleEdit}
+      />
+    ) : (
+      <GenerateButton
+        label={
+          isSeedVR && upscaleMode === 'target'
+            ? `Upscale to ${targetResolution}`
+            : `Upscale ${upscaleScale}×`
+        }
+        icon={ArrowUpCircle}
+        busy={isBusy}
+        busyLabel="Upscaling…"
+        costLabel={upscaleCost}
+        disabled={!canUpscale}
+        onClick={handleUpscale}
+        hint="Billed to your fal account"
+      />
     )
-    navigate({ to: '/videos' })
-  }
-
-  // Handle deleting the selected/result image
-  const handleDeleteSelected = () => {
-    // Get current action image (result if comparing, otherwise selected)
-    const actionImage = completedResult
-      ? { id: completedResult.resultAssetId, url: completedResult.resultUrl }
-      : selectedEditImages.length === 1
-        ? { id: selectedEditImages[0].id, url: selectedEditImages[0].url }
-        : null
-
-    if (!actionImage?.id) return
-
-    setDeleteDialog({
-      open: true,
-      imageId: actionImage.id,
-      onSuccess: () => {
-        // Clear both states to reset preview area
-        setCompletedResult(null)
-        setSelectedEditImages([])
-      },
-    })
-  }
-
-  // Get current model's max images
-  const currentEditModelConfig = getEditModelById(editModel)
-  const maxImagesForModel = currentEditModelConfig?.maxImages || 1
-
-  // Handle selecting/deselecting images for edit mode
-  const handleSelectImageForEdit = (image: {
-    id: string
-    url: string
-    prompt: string | null
-  }) => {
-    // Clear comparison when selecting a new image
-    if (completedResult) {
-      setCompletedResult(null)
-    }
-
-    setSelectedEditImages((prev) => {
-      const isAlreadySelected = prev.some((img) => img.id === image.id)
-
-      if (isAlreadySelected) {
-        // Deselect: remove from array
-        return prev.filter((img) => img.id !== image.id)
-      }
-
-      // For single-image models, replace selection
-      if (maxImagesForModel === 1) {
-        return [image]
-      }
-
-      // For multi-image models, add if under limit
-      if (prev.length >= maxImagesForModel) {
-        toast.info(`Maximum ${maxImagesForModel} images for this model`)
-        return prev
-      }
-
-      return [...prev, image]
-    })
-  }
-
-  // Handle model change - trim selection if needed
-  const handleEditModelChange = (newModel: string) => {
-    const newModelConfig = getEditModelById(newModel)
-    const newMaxImages = newModelConfig?.maxImages || 1
-
-    setEditModel(newModel)
-    setGptEditQuality((q) => clampGptImageQuality(newModel, q))
-
-    // If current selection exceeds new model's limit, trim it
-    if (selectedEditImages.length > newMaxImages) {
-      const trimmed = selectedEditImages.slice(0, newMaxImages)
-      setSelectedEditImages(trimmed)
-      toast.info(
-        `${newModelConfig?.name || 'This model'} supports ${newMaxImages} image${newMaxImages === 1 ? '' : 's'}. Kept first ${newMaxImages}.`,
-      )
-    }
-  }
-
-  const isGenerating =
-    generateMutation.isPending ||
-    editMutation.isPending ||
-    upscaleMutation.isPending ||
-    !!(
-      currentJobId &&
-      (currentJobType === 'generate'
-        ? jobStatus?.status !== 'completed' &&
-          jobStatus?.status !== 'failed' &&
-          !jobStatusError
-        : editJobStatus?.status !== 'completed' &&
-          editJobStatus?.status !== 'failed' &&
-          !editJobStatusError)
-    )
-
-  const selectedModel = models.find((m) => m.id === model)
-  const progress =
-    currentJobType === 'generate'
-      ? jobStatus?.progress || 0
-      : editJobStatus?.progress || 0
-
-  const currentError =
-    generateMutation.error ||
-    editMutation.error ||
-    upscaleMutation.error ||
-    jobStatusError ||
-    editJobStatusError
-
-  // Get the current image to act on (result if comparing, otherwise selected single image)
-  const currentActionImage = completedResult
-    ? { id: completedResult.resultAssetId, url: completedResult.resultUrl }
-    : selectedEditImages.length === 1
-      ? { id: selectedEditImages[0].id, url: selectedEditImages[0].url }
-      : null
-
-  // Check if multi-image is selected (for tooltip on disabled buttons)
-  const isMultiImageSelected = selectedEditImages.length > 1
 
   return (
-    <div className="flex h-[calc(100vh-theme(spacing.16))] flex-col">
-      {/* Header with Mode Toggle */}
-      <div className="flex items-center justify-between px-2 pb-6">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Images</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            {total} image{total !== 1 ? 's' : ''} in your library
-          </p>
-        </div>
-        <ModeToggle mode={mode} onModeChange={handleModeChange} />
-      </div>
-
-      {/* Main Content Area */}
-      <div className="flex-1 overflow-y-auto pb-48">
-        {mode === 'generate' ? (
-          // Generate Mode: Gallery Grid
-          <GenerateGallery
-            images={images}
-            isLoading={imagesLoading}
-            isGenerating={isGenerating}
-            jobStatus={jobStatus}
-            progress={progress}
-            hasNextPage={hasNextPage}
-            isFetchingNextPage={isFetchingNextPage}
-            loadMoreRef={loadMoreRef}
-            numImages={numImages}
-            onSelect={setSelectedImage}
-            onDownload={handleDownload}
-            onAnimate={handleAnimate}
-            onCopyPrompt={handleCopyPrompt}
-            onDelete={handleDelete}
-            onEdit={handleEditImage}
-            downloadingId={downloadingId}
-            onCancelJob={handleCancelJob}
-          />
-        ) : (
-          // Edit/Upscale Mode: Premium Preview + Image Selector
-          <div className="grid gap-8 lg:grid-cols-2 px-2">
-            {/* Preview Area - Premium Styling */}
-            <div className="space-y-4">
-              <div className="aspect-square rounded-2xl border border-border/30 bg-card/30 overflow-hidden shadow-lg">
-                {completedResult ? (
-                  // Show comparison slider OR just result (no source image)
-                  completedResult.sourceUrl ? (
-                    <BeforeAfterSlider
-                      beforeImage={completedResult.sourceUrl}
-                      afterImage={completedResult.resultUrl}
-                      beforeLabel="Original"
-                      afterLabel="Result"
-                      className="h-full w-full"
-                    />
-                  ) : (
-                    // No source image - just show result
-                    <img
-                      src={completedResult.resultUrl}
-                      alt="Result"
-                      className="h-full w-full object-cover"
-                    />
-                  )
-                ) : selectedEditImages.length > 0 ? (
-                  selectedEditImages.length === 1 ? (
-                    // Single image preview - fills container
-                    <img
-                      src={selectedEditImages[0].url}
-                      alt="Selected"
-                      className="h-full w-full object-cover"
-                    />
-                  ) : (
-                    // Multi-image grid preview
-                    <div className="h-full w-full grid grid-cols-2 gap-2 p-2">
-                      {selectedEditImages.slice(0, 4).map((img, idx) => (
-                        <div
-                          key={img.id}
-                          className="relative overflow-hidden rounded-xl"
-                        >
-                          <img
-                            src={img.url}
-                            alt={`Selected ${idx + 1}`}
-                            className="h-full w-full object-cover"
-                          />
-                          <div className="absolute top-2 left-2 bg-primary text-primary-foreground text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center active-glow">
-                            {idx + 1}
-                          </div>
-                        </div>
-                      ))}
-                      {selectedEditImages.length > 4 && (
-                        <div className="absolute bottom-3 right-3 bg-black/80 backdrop-blur-sm text-white text-xs px-3 py-1.5 rounded-full">
-                          +{selectedEditImages.length - 4} more
-                        </div>
-                      )}
-                    </div>
-                  )
-                ) : (
-                  <div className="h-full flex flex-col items-center justify-center gap-4">
-                    <div className="rounded-2xl bg-gradient-to-br from-primary/10 to-accent/10 p-6 border border-primary/10">
-                      <ImageIcon className="h-12 w-12 text-primary/50" />
-                    </div>
-                    <p className="text-muted-foreground text-center">
-                      Select{' '}
-                      {mode === 'edit' && maxImagesForModel > 1
-                        ? 'image(s)'
-                        : 'an image'}{' '}
-                      to {mode}
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              {/* End Comparison button - ONLY shown during comparison */}
-              {completedResult && (
-                <Button
-                  variant="outline"
-                  className="w-full rounded-xl border-border/50 hover:bg-primary/10 hover:border-primary/30"
-                  onClick={handleEndComparison}
-                >
-                  End Comparison
-                </Button>
-              )}
-
-              {/* Action buttons - shown when there's a single image OR during comparison */}
-              {(currentActionImage || isMultiImageSelected) && (
-                <div className="grid grid-cols-3 gap-3">
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <span className="w-full">
-                          <Button
-                            variant="outline"
-                            className="w-full rounded-xl border-border/50 hover:bg-primary/10 hover:border-primary/30 disabled:opacity-50"
-                            disabled={
-                              isMultiImageSelected ||
-                              !!(
-                                currentActionImage &&
-                                downloadingId === currentActionImage.id
-                              )
-                            }
-                            onClick={() =>
-                              currentActionImage &&
-                              handleDownload(
-                                currentActionImage.url,
-                                currentActionImage.id,
-                              )
-                            }
-                          >
-                            {currentActionImage &&
-                            downloadingId === currentActionImage.id ? (
-                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            ) : (
-                              <Download className="mr-2 h-4 w-4" />
-                            )}
-                            {currentActionImage &&
-                            downloadingId === currentActionImage.id
-                              ? 'Downloading...'
-                              : 'Download'}
-                          </Button>
-                        </span>
-                      </TooltipTrigger>
-                      {isMultiImageSelected && (
-                        <TooltipContent>
-                          Select a single image for actions
-                        </TooltipContent>
-                      )}
-                    </Tooltip>
-                  </TooltipProvider>
-
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <span className="w-full">
-                          <Button
-                            variant="outline"
-                            className="w-full rounded-xl border-border/50 hover:bg-primary/10 hover:border-primary/30 disabled:opacity-50"
-                            disabled={isMultiImageSelected}
-                            onClick={handleAnimateSelected}
-                          >
-                            <Play className="mr-2 h-4 w-4" />
-                            Animate
-                          </Button>
-                        </span>
-                      </TooltipTrigger>
-                      {isMultiImageSelected && (
-                        <TooltipContent>
-                          Select a single image for actions
-                        </TooltipContent>
-                      )}
-                    </Tooltip>
-                  </TooltipProvider>
-
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <span className="w-full">
-                          <Button
-                            variant="outline"
-                            className="w-full rounded-xl border-destructive/50 text-destructive hover:bg-destructive/10 hover:border-destructive/30 disabled:opacity-50"
-                            disabled={isMultiImageSelected}
-                            onClick={handleDeleteSelected}
-                          >
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            Delete
-                          </Button>
-                        </span>
-                      </TooltipTrigger>
-                      {isMultiImageSelected && (
-                        <TooltipContent>
-                          Select a single image for actions
-                        </TooltipContent>
-                      )}
-                    </Tooltip>
-                  </TooltipProvider>
-                </div>
-              )}
-
-              {isGenerating && (
-                <div className="flex items-center gap-3 rounded-xl bg-primary/10 border border-primary/20 px-4 py-3">
-                  <Loader2 className="h-5 w-5 animate-spin text-primary" />
-                  <span className="text-sm font-medium">
-                    Processing... {progress > 0 && `${progress}%`}
-                  </span>
-                </div>
-              )}
-            </div>
-
-            {/* Image Selector Grid - Premium Styling */}
-            <div>
-              <h3 className="mb-4 text-lg font-semibold">
-                Select Image
-                {mode === 'edit' && maxImagesForModel > 1 ? 's' : ''}
-                {mode === 'edit' && maxImagesForModel > 1 && (
-                  <span className="ml-2 text-sm text-muted-foreground font-normal">
-                    (up to {maxImagesForModel})
-                  </span>
-                )}
-              </h3>
-
-              {/* Upload drop zone */}
-              <UploadDropZone
-                onUploadComplete={() => {
-                  queryClient.invalidateQueries({ queryKey: ['images'] })
-                }}
+    <LabShell>
+      {/* ================= Settings panel ================= */}
+      <LabPanel
+        title={panelTitle}
+        subtitle={panelSubtitle}
+        tabs={MODES}
+        tab={mode}
+        onTabChange={setMode}
+        footer={footer}
+      >
+        {mode === 'generate' && (
+          <>
+            <Field label="Prompt">
+              <PromptBox
+                textareaRef={promptRef}
+                value={prompt}
+                onChange={setPrompt}
+                max={PROMPT_MAX}
+                placeholder="Describe the image — subject, setting, light, style…"
               />
+            </Field>
 
-              <div className="grid grid-cols-3 md:grid-cols-4 gap-3 max-h-[450px] overflow-y-auto pr-2">
-                {images.map((image) => {
-                  const selectionIndex = selectedEditImages.findIndex(
-                    (img) => img.id === image.id,
-                  )
-                  const isSelected = selectionIndex !== -1
-                  return (
-                    <button
-                      key={image.id}
-                      onClick={() =>
-                        handleSelectImageForEdit({
-                          id: image.id,
-                          url: image.url,
-                          prompt: image.prompt,
-                        })
-                      }
-                      className={`relative aspect-square rounded-xl overflow-hidden border-2 transition-all duration-200 ${
-                        isSelected
-                          ? 'border-primary ring-2 ring-primary/30 shadow-lg shadow-primary/20'
-                          : 'border-border/30 hover:border-primary/30 hover:shadow-md'
-                      }`}
-                    >
-                      <img
-                        src={image.url}
-                        alt={image.prompt || 'Image'}
-                        className="absolute inset-0 h-full w-full object-cover"
-                        loading="lazy"
-                      />
-                      {isSelected && (
-                        <div className="absolute inset-0 bg-primary/20 backdrop-blur-[1px] flex items-center justify-center">
-                          {mode === 'edit' && maxImagesForModel > 1 ? (
-                            <div className="bg-primary text-primary-foreground text-sm font-bold w-8 h-8 rounded-full flex items-center justify-center active-glow">
-                              {selectionIndex + 1}
-                            </div>
-                          ) : (
-                            <div className="bg-primary rounded-full p-2 active-glow">
-                              <Check className="h-5 w-5 text-primary-foreground" />
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </button>
-                  )
-                })}
-              </div>
-              {images.length === 0 && (
-                <div className="text-center py-12">
-                  <p className="text-muted-foreground">
-                    No images yet. Generate some first!
+            <Field label="Model">
+              <ModelRadioList
+                models={IMAGE_MODELS}
+                value={model}
+                onChange={handleModelChange}
+                footnote="Rates are fal's prices at about 1 megapixel."
+              />
+            </Field>
+
+            <Field label="Aspect ratio">
+              <AspectCards
+                ratios={[
+                  ...ASPECT_RATIOS.map((r) => r.id),
+                  ...(isGpt ? ['custom'] : []),
+                ]}
+                value={aspectRatio}
+                onChange={setAspectRatio}
+                labels={{ custom: 'Custom' }}
+              />
+              {isCustomSize && (
+                <div className="mt-3 space-y-2">
+                  <div className="grid grid-cols-2 gap-2">
+                    <DimInput
+                      label="Width"
+                      value={gptCustomWidth}
+                      onChange={setGptCustomWidth}
+                    />
+                    <DimInput
+                      label="Height"
+                      value={gptCustomHeight}
+                      onChange={setGptCustomHeight}
+                    />
+                  </div>
+                  <p
+                    className={cn(
+                      'text-xs',
+                      customSizeError
+                        ? 'text-destructive'
+                        : 'text-muted-foreground',
+                    )}
+                  >
+                    {customSizeError ??
+                      `Multiples of ${GPT_IMAGE_CUSTOM_SIZE_LIMITS.multipleOf}, up to ${GPT_IMAGE_CUSTOM_SIZE_LIMITS.maxEdge}px, aspect up to ${GPT_IMAGE_CUSTOM_SIZE_LIMITS.maxAspect}:1`}
                   </p>
                 </div>
               )}
-            </div>
-          </div>
+            </Field>
+
+            {selectedModel?.supportsNumImages && (
+              <Field label="Images per run">
+                <Segmented
+                  options={Array.from(
+                    { length: selectedModel.maxNumImages ?? 4 },
+                    (_, i) => ({ value: i + 1, label: String(i + 1) }),
+                  )}
+                  value={numImages}
+                  onChange={setNumImages}
+                />
+              </Field>
+            )}
+
+            {isGpt && (
+              <GptOptions
+                modelId={model}
+                quality={gptQuality}
+                onQualityChange={setGptQuality}
+                format={gptOutputFormat}
+                onFormatChange={setGptOutputFormat}
+              />
+            )}
+
+            {selectedModel?.supportsNegativePrompt && (
+              <Field label="Negative prompt" hint="optional">
+                <textarea
+                  value={negativePrompt}
+                  onChange={(e) => setNegativePrompt(e.target.value)}
+                  placeholder="What to keep out of the image…"
+                  rows={2}
+                  className="block w-full resize-none rounded-xl border border-input bg-background px-3.5 py-2.5 text-sm outline-none transition-colors placeholder:text-muted-foreground/70 focus:border-muted-foreground/60"
+                />
+              </Field>
+            )}
+          </>
         )}
-      </div>
 
-      {/* Fixed Bottom Panel - Premium Floating Action Bar */}
-      <div className="fixed bottom-0 left-0 right-0 md:left-64 p-4 pb-6">
-        <div className="mx-auto max-w-4xl rounded-2xl border border-border/50 bg-card/95 backdrop-blur-xl shadow-2xl shadow-black/20 p-5">
-          {mode === 'generate' && (
-            <GeneratePanel
-              prompt={prompt}
-              onPromptChange={setPrompt}
-              textareaRef={textareaRef}
-              model={model}
-              onModelChange={(newModel) => {
-                setModel(newModel)
-                // Reset numImages to 1 if new model doesn't support it
-                const newModelConfig = models.find((m) => m.id === newModel)
-                if (!newModelConfig?.supportsNumImages) {
-                  setNumImages(1)
-                }
-                // 'custom' aspect ratio only applies to GPT Image models
-                if (!isGptImageModel(newModel) && aspectRatio === 'custom') {
-                  setAspectRatio('1:1')
-                }
-                // Drop 2.5-only quality tiers (xhigh/max/auto) on GPT Image 2
-                setGptQuality((q) => clampGptImageQuality(newModel, q))
-              }}
-              models={models}
-              aspectRatio={aspectRatio}
-              onAspectRatioChange={setAspectRatio}
-              showNegativePrompt={showNegativePrompt}
-              onToggleNegativePrompt={() =>
-                setShowNegativePrompt(!showNegativePrompt)
+        {mode === 'edit' && (
+          <>
+            <Field
+              label="Images"
+              aside={
+                <span className="text-xs tabular-nums text-muted-foreground">
+                  {editRefs.length} / {maxRefs}
+                </span>
               }
-              negativePrompt={negativePrompt}
-              onNegativePromptChange={setNegativePrompt}
-              onGenerate={handleGenerate}
-              isGenerating={isGenerating}
-              selectedModel={selectedModel}
-              error={currentError}
-              jobStatus={jobStatus}
-              // Model-specific options
-              gptQuality={gptQuality}
-              onGptQualityChange={setGptQuality}
-              gptOutputFormat={gptOutputFormat}
-              onGptOutputFormatChange={setGptOutputFormat}
-              gptCustomWidth={gptCustomWidth}
-              onGptCustomWidthChange={setGptCustomWidth}
-              gptCustomHeight={gptCustomHeight}
-              onGptCustomHeightChange={setGptCustomHeight}
-              numImages={numImages}
-              onNumImagesChange={setNumImages}
-            />
-          )}
+            >
+              {editRefs.length === 0 ? (
+                <EmptyImageDrop
+                  onPick={() => setPickerFor('edit')}
+                  title="Choose images to edit"
+                  hint={`Up to ${maxRefs} · upload or pick from your library`}
+                />
+              ) : (
+                <div className="grid grid-cols-4 gap-2">
+                  {editRefs.map((ref, i) => (
+                    <FrameSlot
+                      key={ref.id}
+                      image={ref}
+                      label={`Image ${i + 1}`}
+                      aspect="square"
+                      badge={i + 1}
+                      onPick={() => setPickerFor('edit')}
+                      onClear={() =>
+                        setEditRefs(editRefs.filter((r) => r.id !== ref.id))
+                      }
+                    />
+                  ))}
+                  {editRefs.length < maxRefs && (
+                    <FrameSlot
+                      image={null}
+                      label="Add"
+                      aspect="square"
+                      onPick={() => setPickerFor('edit')}
+                      onClear={() => {}}
+                    />
+                  )}
+                </div>
+              )}
+              <p className="mt-2 text-xs text-muted-foreground">
+                {editRefs.length > 1
+                  ? 'Refer to them by number in the prompt — “put the jacket from image 2 on the person in image 1”.'
+                  : 'Edit one image, or add more to combine them. Tip: hover a result and press Edit to add it.'}
+              </p>
+            </Field>
 
-          {mode === 'edit' && (
-            <EditPanel
-              prompt={editPrompt}
-              onPromptChange={setEditPrompt}
-              model={editModel}
-              onModelChange={handleEditModelChange}
-              onGenerate={handleEdit}
-              isGenerating={isGenerating}
-              selectedCount={selectedEditImages.length}
-              maxImages={maxImagesForModel}
-              gptEditQuality={gptEditQuality}
-              onGptEditQualityChange={setGptEditQuality}
-              gptEditOutputFormat={gptEditOutputFormat}
-              onGptEditOutputFormatChange={setGptEditOutputFormat}
-              error={
-                editMutation.error instanceof Error
-                  ? editMutation.error.message
-                  : editJobStatus?.error ||
-                    (editJobStatusError instanceof Error
-                      ? editJobStatusError.message
-                      : undefined)
-              }
-            />
-          )}
+            <Field label="Prompt">
+              <PromptBox
+                textareaRef={editPromptRef}
+                value={editPrompt}
+                onChange={setEditPrompt}
+                max={EDIT_PROMPT_MAX}
+                rows={4}
+                placeholder="Describe the change — “make it golden hour”, “remove the car”…"
+              />
+            </Field>
 
-          {mode === 'upscale' && (
-            <UpscalePanel
-              model={upscaleModel}
-              onModelChange={setUpscaleModel}
-              scale={upscaleScale}
-              onScaleChange={setUpscaleScale}
-              // SeedVR specific
-              upscaleMode={upscaleMode}
-              onUpscaleModeChange={setUpscaleMode}
-              targetResolution={targetResolution}
-              onTargetResolutionChange={setTargetResolution}
-              noiseScale={noiseScale}
-              onNoiseScaleChange={setNoiseScale}
-              // Topaz specific
-              topazModel={topazModel}
-              onTopazModelChange={setTopazModel}
-              subjectDetection={subjectDetection}
-              onSubjectDetectionChange={setSubjectDetection}
-              faceEnhancement={faceEnhancement}
-              onFaceEnhancementChange={setFaceEnhancement}
-              faceEnhancementStrength={faceEnhancementStrength}
-              onFaceEnhancementStrengthChange={setFaceEnhancementStrength}
-              faceEnhancementCreativity={faceEnhancementCreativity}
-              onFaceEnhancementCreativityChange={setFaceEnhancementCreativity}
-              // Actions
-              onUpscale={handleUpscale}
-              isUpscaling={isGenerating}
-              hasImage={selectedEditImages.length > 0}
-              error={
-                upscaleMutation.error instanceof Error
-                  ? upscaleMutation.error.message
-                  : editJobStatus?.error ||
-                    (editJobStatusError instanceof Error
-                      ? editJobStatusError.message
-                      : undefined)
-              }
-            />
-          )}
-        </div>
-      </div>
+            <Field label="Model">
+              <ModelRadioList
+                models={EDIT_MODELS}
+                value={editModel}
+                onChange={handleEditModelChange}
+                footnote="Rates are fal's prices per output image at about 1 megapixel."
+              />
+            </Field>
 
-      {/* Detail Panel */}
+            {isGptEdit && (
+              <GptOptions
+                modelId={editModel}
+                quality={gptEditQuality}
+                onQualityChange={setGptEditQuality}
+                format={gptEditOutputFormat}
+                onFormatChange={setGptEditOutputFormat}
+              />
+            )}
+          </>
+        )}
+
+        {mode === 'upscale' && (
+          <>
+            <Field label="Image">
+              {upscaleSource ? (
+                <FrameSlot
+                  image={upscaleSource}
+                  label="Source"
+                  onPick={() => setPickerFor('upscale')}
+                  onClear={() => setUpscaleSource(null)}
+                />
+              ) : (
+                <EmptyImageDrop onPick={() => setPickerFor('upscale')} />
+              )}
+              {upscaleSource?.metadata?.width &&
+                upscaleSource.metadata.height && (
+                  <p className="mt-2 text-xs tabular-nums text-muted-foreground">
+                    {upscaleSource.metadata.width} ×{' '}
+                    {upscaleSource.metadata.height} → {upscaleOut.width} ×{' '}
+                    {upscaleOut.height}
+                  </p>
+                )}
+            </Field>
+
+            <Field label="Model">
+              <ModelRadioList
+                models={UPSCALE_MODELS}
+                value={upscaleModel}
+                onChange={handleUpscaleModelChange}
+                footnote="Billed on the output image's megapixels."
+              />
+            </Field>
+
+            {isSeedVR && (
+              <>
+                <Field label="Size">
+                  <Segmented
+                    options={[
+                      { value: 'factor', label: 'By factor' },
+                      { value: 'target', label: 'To resolution' },
+                    ]}
+                    value={upscaleMode}
+                    onChange={setUpscaleMode}
+                  />
+                  <div className="mt-2">
+                    {upscaleMode === 'factor' ? (
+                      <Segmented
+                        options={SEEDVR_SCALES.map((s) => ({
+                          value: s,
+                          label: `${s}×`,
+                        }))}
+                        value={upscaleScale}
+                        onChange={setUpscaleScale}
+                      />
+                    ) : (
+                      <Segmented
+                        options={SEEDVR_TARGET_RESOLUTIONS.map((r) => ({
+                          value: r.id,
+                          label: r.id,
+                          title: r.description,
+                        }))}
+                        value={targetResolution}
+                        onChange={setTargetResolution}
+                      />
+                    )}
+                  </div>
+                </Field>
+                <Field
+                  label="Noise"
+                  aside={
+                    <span className="text-sm tabular-nums text-muted-foreground">
+                      {Math.round(noiseScale * 100)}%
+                    </span>
+                  }
+                >
+                  <Slider
+                    value={[noiseScale * 100]}
+                    onValueChange={([v]) => setNoiseScale(v / 100)}
+                    min={0}
+                    max={100}
+                    step={5}
+                  />
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    {noiseScale < 0.2
+                      ? 'Low: cleaner, stays close to the original.'
+                      : noiseScale > 0.5
+                        ? 'High: more invented detail, may change things.'
+                        : 'Balanced.'}
+                  </p>
+                </Field>
+              </>
+            )}
+
+            {isTopaz && (
+              <>
+                <Field label="Scale">
+                  <Segmented
+                    options={TOPAZ_SCALES.map((s) => ({
+                      value: s,
+                      label: `${s}×`,
+                    }))}
+                    value={upscaleScale}
+                    onChange={setUpscaleScale}
+                  />
+                </Field>
+                <Field label="Enhancement">
+                  <Select
+                    value={topazModel}
+                    onValueChange={(v) => setTopazModel(v as TopazModelType)}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {TOPAZ_MODELS.map((m) => (
+                        <SelectItem key={m.id} value={m.id}>
+                          <span className="flex items-center gap-2">
+                            {m.name}
+                            <span className="text-xs text-muted-foreground">
+                              {m.description}
+                            </span>
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
+                <Field label="Subject">
+                  <Segmented
+                    options={SUBJECTS.map((s) => ({ value: s, label: s }))}
+                    value={subjectDetection}
+                    onChange={setSubjectDetection}
+                  />
+                </Field>
+                <div className="space-y-4 rounded-xl border border-border px-4 py-3">
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <p className="text-sm font-medium">Face enhancement</p>
+                      <p className="text-xs text-muted-foreground">
+                        Recovers detail in faces
+                      </p>
+                    </div>
+                    <Switch
+                      checked={faceEnhancement}
+                      onCheckedChange={setFaceEnhancement}
+                    />
+                  </div>
+                  {faceEnhancement && (
+                    <>
+                      <PercentSlider
+                        label="Strength"
+                        value={faceEnhancementStrength}
+                        onChange={setFaceEnhancementStrength}
+                      />
+                      <PercentSlider
+                        label="Creativity"
+                        value={faceEnhancementCreativity}
+                        onChange={setFaceEnhancementCreativity}
+                      />
+                    </>
+                  )}
+                </div>
+              </>
+            )}
+          </>
+        )}
+
+        {panelError && <FieldError>{panelError}</FieldError>}
+      </LabPanel>
+
+      {/* ================= Results ================= */}
+      <LabResults count={total}>
+        {imagesLoading && images.length === 0 ? (
+          <div className={GRID}>
+            {Array.from({ length: 8 }).map((_, i) => (
+              <Skeleton key={i} className="aspect-square rounded-xl" />
+            ))}
+          </div>
+        ) : images.length === 0 && !pending ? (
+          <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border py-28 text-center">
+            <ImageIcon className="h-10 w-10 text-muted-foreground/50" />
+            <h3 className="mt-5 text-lg font-medium">No images yet</h3>
+            <p className="mt-2 max-w-sm text-sm text-muted-foreground">
+              Write a prompt on the left. Explore on a Draft model, then re-run
+              the keeper on a Hero model.
+            </p>
+          </div>
+        ) : (
+          <>
+            <div className={GRID}>
+              {pending &&
+                Array.from({ length: pending.count }).map((_, i) => (
+                  <PendingCard
+                    key={`pending-${i}`}
+                    aspect="square"
+                    status={
+                      job?.status === 'processing'
+                        ? pending.kind === 'upscale'
+                          ? 'Upscaling…'
+                          : 'Rendering…'
+                        : 'Queued…'
+                    }
+                    eta="Usually under a minute"
+                    progress={job?.progress ?? 0}
+                    queuePosition={queuePosition}
+                    onStopWaiting={handleStopWaiting}
+                    title={pending.title}
+                    cost={pending.cost}
+                  />
+                ))}
+
+              {images.map((image) => (
+                <ImageCard
+                  key={image.id}
+                  image={image}
+                  onSelect={() => setSelectedImage(image)}
+                  onAnimate={() => handleAnimate(image)}
+                  onEdit={() => handleEditImage(image)}
+                  onUpscale={() => handleUpscaleImage(image)}
+                  onDownload={() => handleDownload(image.url, image.id)}
+                  onCopyPrompt={
+                    image.prompt
+                      ? () => handleCopyPrompt(image.prompt!)
+                      : undefined
+                  }
+                  onDelete={() =>
+                    setDeleteDialog({ open: true, imageId: image.id })
+                  }
+                  isDownloading={downloadingId === image.id}
+                  editLabel={mode === 'edit' ? 'Add to edit' : 'Edit'}
+                />
+              ))}
+            </div>
+
+            <div ref={loadMoreRef} className="flex justify-center py-8">
+              {isFetchingNextPage && (
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              )}
+            </div>
+          </>
+        )}
+      </LabResults>
+
+      {/* Image picker (edit references / upscale source) */}
+      <ImagePickerDialog
+        open={pickerFor !== null}
+        onOpenChange={(open) => !open && setPickerFor(null)}
+        title={
+          pickerFor === 'edit'
+            ? `Choose up to ${maxRefs} image${maxRefs === 1 ? '' : 's'}`
+            : 'Choose an image to upscale'
+        }
+        multiple={pickerFor === 'edit' && maxRefs > 1}
+        max={pickerFor === 'edit' ? maxRefs : 1}
+        initial={pickerFor === 'edit' ? editRefs : []}
+        onPick={(picked) => {
+          if (pickerFor === 'edit') setEditRefs(picked.slice(0, maxRefs))
+          else if (picked[0]) setUpscaleSource(picked[0])
+        }}
+      />
+
+      {/* Detail sheet */}
       <Sheet open={!!selectedImage} onOpenChange={() => setSelectedImage(null)}>
-        <SheetContent className="w-full sm:max-w-xl overflow-y-auto p-0">
-          <SheetHeader className="px-6 pt-6 pb-4 border-b border-border/30">
-            <SheetTitle>Image Details</SheetTitle>
+        <SheetContent className="w-full overflow-y-auto p-0 sm:max-w-xl">
+          <SheetHeader className="border-b border-border px-6 pt-6 pb-4">
+            <SheetTitle>Image details</SheetTitle>
           </SheetHeader>
           {selectedImage && (
-            <ImageDetailPanel
+            <ImageDetail
               image={selectedImage}
               copiedPrompt={copiedPrompt}
               onCopyPrompt={handleCopyPrompt}
-              onDownload={handleDownload}
-              onAnimate={handleAnimate}
-              onDelete={handleDelete}
-              onEdit={handleEditImage}
-              onUsePrompt={(p) => {
-                setPrompt(p)
-                setSelectedImage(null)
-                textareaRef.current?.focus()
-              }}
+              onDownload={() =>
+                handleDownload(selectedImage.url, selectedImage.id)
+              }
+              onAnimate={() => handleAnimate(selectedImage)}
+              onEdit={() => handleEditImage(selectedImage)}
+              onUpscale={() => handleUpscaleImage(selectedImage)}
+              onUsePrompt={handleUsePrompt}
+              onDelete={() =>
+                setDeleteDialog({ open: true, imageId: selectedImage.id })
+              }
               isDownloading={downloadingId === selectedImage.id}
             />
           )}
         </SheetContent>
       </Sheet>
 
-      {/* Delete Confirmation Dialog */}
       <ConfirmDialog
         open={deleteDialog.open}
         onOpenChange={(open) => setDeleteDialog((prev) => ({ ...prev, open }))}
-        title="Delete Image?"
+        title="Delete image?"
         description="This action cannot be undone. The image will be permanently removed from your library."
         confirmText="Delete"
         variant="destructive"
-        onConfirm={handleConfirmDelete}
+        onConfirm={() =>
+          deleteDialog.imageId &&
+          deleteMutation.mutate({ data: { imageId: deleteDialog.imageId } })
+        }
         isLoading={deleteMutation.isPending}
+      />
+    </LabShell>
+  )
+}
+
+const GRID = 'grid grid-cols-2 gap-5 md:grid-cols-3 2xl:grid-cols-4'
+
+// =============================================================================
+// Pieces
+// =============================================================================
+
+function GptOptions({
+  modelId,
+  quality,
+  onQualityChange,
+  format,
+  onFormatChange,
+}: {
+  modelId: string
+  quality: GptImageQuality
+  onQualityChange: (q: GptImageQuality) => void
+  format: GptImageOutputFormat
+  onFormatChange: (f: GptImageOutputFormat) => void
+}) {
+  return (
+    <>
+      <Field label="Quality">
+        <Segmented
+          size="sm"
+          options={gptImageQualityTiers(modelId).map((t) => ({
+            value: t.id as GptImageQuality,
+            label: t.name,
+            title: t.description,
+          }))}
+          value={quality}
+          onChange={onQualityChange}
+        />
+      </Field>
+      <Field label="Format">
+        <Segmented
+          size="sm"
+          options={GPT_IMAGE_OUTPUT_FORMATS.map((f) => ({
+            value: f.id as GptImageOutputFormat,
+            label: f.name,
+            title: f.description,
+          }))}
+          value={format}
+          onChange={onFormatChange}
+        />
+      </Field>
+    </>
+  )
+}
+
+function DimInput({
+  label,
+  value,
+  onChange,
+}: {
+  label: string
+  value: number
+  onChange: (v: number) => void
+}) {
+  return (
+    <label className="flex items-center gap-2 text-xs text-muted-foreground">
+      {label}
+      <Input
+        type="number"
+        min={GPT_IMAGE_CUSTOM_SIZE_LIMITS.multipleOf}
+        max={GPT_IMAGE_CUSTOM_SIZE_LIMITS.maxEdge}
+        step={GPT_IMAGE_CUSTOM_SIZE_LIMITS.multipleOf}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value) || 0)}
+        onBlur={(e) => onChange(snapGptImageDim(Number(e.target.value)))}
+        className="h-9 tabular-nums"
+      />
+    </label>
+  )
+}
+
+function PercentSlider({
+  label,
+  value,
+  onChange,
+}: {
+  label: string
+  value: number
+  onChange: (v: number) => void
+}) {
+  return (
+    <div>
+      <div className="mb-2 flex items-center justify-between text-xs">
+        <span className="text-muted-foreground">{label}</span>
+        <span className="tabular-nums">{Math.round(value * 100)}%</span>
+      </div>
+      <Slider
+        value={[value * 100]}
+        onValueChange={([v]) => onChange(v / 100)}
+        min={0}
+        max={100}
+        step={5}
       />
     </div>
   )
 }
 
-// =============================================================================
-// Sub-components
-// =============================================================================
-
-interface GenerateGalleryProps {
-  images: Array<GeneratedImage>
-  isLoading: boolean
-  isGenerating: boolean
-  jobStatus:
-    | { status?: string; progress?: number; queuePosition?: number }
-    | undefined
-  progress: number
-  hasNextPage: boolean | undefined
-  isFetchingNextPage: boolean
-  loadMoreRef: React.RefObject<HTMLDivElement | null>
-  numImages: number
-  onSelect: (image: GeneratedImage) => void
-  onDownload: (url: string, imageId?: string) => void
-  onAnimate: (image: GeneratedImage) => void
-  onCopyPrompt: (text: string) => void
-  onDelete: (id: string) => void
-  onEdit: (image: GeneratedImage) => void
-  downloadingId: string | null
-  onCancelJob?: () => void
-}
-
-function GenerateGallery({
-  images,
-  isLoading,
-  isGenerating,
-  jobStatus,
-  progress,
-  hasNextPage,
-  isFetchingNextPage,
-  loadMoreRef,
-  numImages,
+function ImageCard({
+  image,
   onSelect,
-  onDownload,
   onAnimate,
+  onEdit,
+  onUpscale,
+  onDownload,
   onCopyPrompt,
   onDelete,
-  onEdit,
-  downloadingId,
-  onCancelJob,
-}: GenerateGalleryProps) {
-  if (isLoading && images.length === 0) {
-    return (
-      <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 px-2">
-        {[1, 2, 3, 4, 5, 6].map((i) => (
-          <Skeleton key={i} className="aspect-square rounded-2xl" />
-        ))}
-      </div>
-    )
-  }
-
-  if (images.length === 0 && !isGenerating) {
-    return (
-      <div className="flex flex-col items-center justify-center py-24">
-        <div className="rounded-2xl bg-gradient-to-br from-primary/20 to-accent/20 p-8 border border-primary/10">
-          <ImageIcon className="h-16 w-16 text-primary/70" />
-        </div>
-        <h3 className="mt-8 text-xl font-semibold">No images yet</h3>
-        <p className="mt-3 text-muted-foreground text-center max-w-md">
-          Describe your vision below and press Enter to create your first
-          AI-generated masterpiece
-        </p>
-      </div>
-    )
-  }
-
-  return (
-    <>
-      <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 px-2">
-        {isGenerating &&
-          Array.from({ length: numImages }).map((_, i) => (
-            <Card
-              key={`generating-${i}`}
-              className="aspect-square overflow-hidden rounded-2xl border-border/50 bg-card/50 p-0"
-            >
-              <div className="relative h-full w-full bg-gradient-to-br from-muted to-muted/50">
-                <div className="absolute inset-0 flex flex-col items-center justify-center p-4">
-                  <div className="rounded-full bg-primary/10 p-4">
-                    <Loader2 className="h-10 w-10 animate-spin text-primary" />
-                  </div>
-                  <p className="mt-4 text-sm font-medium text-foreground">
-                    {jobStatus?.status === 'processing'
-                      ? `Creating ${i + 1}/${numImages}...`
-                      : 'Starting...'}
-                  </p>
-                  {progress > 0 && (
-                    <div className="mt-4 w-32">
-                      <div className="h-2 overflow-hidden rounded-full bg-primary/20">
-                        <div
-                          className="h-full bg-primary transition-all duration-300 rounded-full"
-                          style={{ width: `${progress}%` }}
-                        />
-                      </div>
-                      <p className="text-xs text-muted-foreground text-center mt-2">
-                        {progress}%
-                      </p>
-                    </div>
-                  )}
-                  {/* Queue position warning */}
-                  {jobStatus?.queuePosition &&
-                    jobStatus.queuePosition >= 50 && (
-                      <Alert
-                        variant={
-                          jobStatus.queuePosition >= 200
-                            ? 'destructive'
-                            : 'default'
-                        }
-                        className="mt-4 w-full max-w-xs"
-                      >
-                        <AlertTriangle className="h-4 w-4" />
-                        <AlertTitle className="text-sm">
-                          {jobStatus.queuePosition >= 200
-                            ? 'fal.ai Overloaded'
-                            : 'High Demand'}
-                        </AlertTitle>
-                        <AlertDescription className="text-xs">
-                          Queue position: {jobStatus.queuePosition}
-                          {jobStatus.queuePosition >= 200 && onCancelJob && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="mt-2 w-full"
-                              onClick={onCancelJob}
-                            >
-                              <X className="h-3 w-3 mr-1" />
-                              Cancel & Switch Model
-                            </Button>
-                          )}
-                        </AlertDescription>
-                      </Alert>
-                    )}
-                </div>
-                <div className="absolute inset-0 -translate-x-full animate-[shimmer_2s_infinite] bg-gradient-to-r from-transparent via-white/5 to-transparent" />
-              </div>
-            </Card>
-          ))}
-
-        {images.map((image) => (
-          <ImageCard
-            key={image.id}
-            image={image}
-            onSelect={() => onSelect(image)}
-            onDownload={() => onDownload(image.url, image.id)}
-            onAnimate={() => onAnimate(image)}
-            onCopyPrompt={() => image.prompt && onCopyPrompt(image.prompt)}
-            onDelete={() => onDelete(image.id)}
-            onEdit={() => onEdit(image)}
-            isDownloading={downloadingId === image.id}
-          />
-        ))}
-      </div>
-
-      {/* Infinite scroll trigger */}
-      <div ref={loadMoreRef} className="col-span-full flex justify-center py-8">
-        {isFetchingNextPage && (
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-        )}
-        {!hasNextPage && images.length > 0 && (
-          <p className="text-sm text-muted-foreground">No more images</p>
-        )}
-      </div>
-    </>
-  )
-}
-
-interface GeneratePanelProps {
-  prompt: string
-  onPromptChange: (v: string) => void
-  textareaRef: React.RefObject<HTMLTextAreaElement | null>
-  model: string
-  onModelChange: (v: string) => void
-  models: Array<{
-    id: string
-    name: string
-    supportsNumImages?: boolean
-    maxNumImages?: number
-    pricing?: PriceRule
-  }>
-  aspectRatio: string
-  onAspectRatioChange: (v: string) => void
-  showNegativePrompt: boolean
-  onToggleNegativePrompt: () => void
-  negativePrompt: string
-  onNegativePromptChange: (v: string) => void
-  onGenerate: () => void
-  isGenerating: boolean
-  selectedModel:
-    | {
-        supportsNumImages?: boolean
-        maxNumImages?: number
-        supportsNegativePrompt?: boolean
-        pricing?: PriceRule
-      }
-    | undefined
-  error: Error | null
-  jobStatus: { status?: string; error?: string | null } | undefined
-  // Model-specific options
-  gptQuality: GptImageQuality
-  onGptQualityChange: (v: GptImageQuality) => void
-  gptOutputFormat: GptImageOutputFormat
-  onGptOutputFormatChange: (v: GptImageOutputFormat) => void
-  gptCustomWidth: number
-  onGptCustomWidthChange: (v: number) => void
-  gptCustomHeight: number
-  onGptCustomHeightChange: (v: number) => void
-  numImages: number
-  onNumImagesChange: (v: number) => void
-}
-
-function GeneratePanel({
-  prompt,
-  onPromptChange,
-  textareaRef,
-  model,
-  onModelChange,
-  models,
-  aspectRatio,
-  onAspectRatioChange,
-  showNegativePrompt,
-  onToggleNegativePrompt,
-  negativePrompt,
-  onNegativePromptChange,
-  onGenerate,
-  isGenerating,
-  selectedModel,
-  error,
-  jobStatus,
-  gptQuality,
-  onGptQualityChange,
-  gptOutputFormat,
-  onGptOutputFormatChange,
-  gptCustomWidth,
-  onGptCustomWidthChange,
-  gptCustomHeight,
-  onGptCustomHeightChange,
-  numImages,
-  onNumImagesChange,
-}: GeneratePanelProps) {
-  const supportsNumImages = selectedModel?.supportsNumImages ?? false
-  const maxNumImages = selectedModel?.maxNumImages ?? 4
-  const isGptImage2 = isGptImageModel(model)
-  const isCustomGptSize = isGptImage2 && aspectRatio === 'custom'
-  const gptCustomSizeError = isCustomGptSize
-    ? validateGptImageCustomSize(gptCustomWidth, gptCustomHeight)
-    : null
-  const dims = isCustomGptSize
-    ? { width: gptCustomWidth, height: gptCustomHeight }
-    : ASPECT_RATIOS.find((r) => r.id === aspectRatio) || ASPECT_RATIOS[0]
-  const costLabel = formatEstimate(
-    estimateCost(selectedModel?.pricing, {
-      numImages: supportsNumImages ? numImages : 1,
-      width: dims.width,
-      height: dims.height,
-      quality: gptQuality,
-      resolution: '1K',
-    }),
-  )
-  const supportsNegativePrompt = selectedModel?.supportsNegativePrompt ?? false
-  return (
-    <>
-      {/* Premium Textarea with Floating Generate Button */}
-      <div className="relative">
-        <Textarea
-          ref={textareaRef}
-          placeholder="Describe the image you want to create..."
-          value={prompt}
-          onChange={(e) => onPromptChange(e.target.value)}
-          disabled={isGenerating}
-          className="min-h-[80px] resize-none pr-44 text-base rounded-xl border-border/50 bg-background/50 focus:border-primary/50 focus:ring-primary/20 placeholder:text-muted-foreground/60 disabled:opacity-50 disabled:cursor-not-allowed"
-          rows={2}
-        />
-        <Button
-          size="default"
-          className="absolute bottom-3 right-3 rounded-xl bg-primary hover:bg-primary/90 btn-primary-glow transition-all duration-200"
-          onClick={onGenerate}
-          disabled={!prompt.trim() || isGenerating}
-        >
-          {isGenerating ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <>
-              <Sparkles className="mr-2 h-4 w-4" />
-              Generate
-              {costLabel && (
-                <span className="ml-2 border-l border-primary-foreground/30 pl-2 text-xs font-normal tabular-nums opacity-80">
-                  {costLabel}
-                </span>
-              )}
-            </>
-          )}
-        </Button>
-      </div>
-
-      {/* Settings Row - Premium Styling */}
-      <div className="mt-4 flex flex-wrap items-center gap-4">
-        {/* Model Selector with Icons */}
-        <ModelSelect
-          value={model}
-          onValueChange={onModelChange}
-          models={models}
-          showDescription={true}
-          showProvider={true}
-        />
-
-        {/* GPT Image Quality Selector */}
-        {isGptImage2 && (
-          <>
-            <Select value={gptQuality} onValueChange={onGptQualityChange}>
-              <SelectTrigger className="h-9 w-32 rounded-xl border-border/50 bg-background/50">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="rounded-xl">
-                {gptImageQualityTiers(model).map((tier) => (
-                  <SelectItem key={tier.id} value={tier.id}>
-                    <span className="flex items-center gap-2">
-                      {tier.name}
-                      <span className="text-xs text-muted-foreground">
-                        {tier.description}
-                      </span>
-                    </span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select
-              value={gptOutputFormat}
-              onValueChange={onGptOutputFormatChange}
-            >
-              <SelectTrigger className="h-9 w-28 rounded-xl border-border/50 bg-background/50">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="rounded-xl">
-                {GPT_IMAGE_OUTPUT_FORMATS.map((fmt) => (
-                  <SelectItem key={fmt.id} value={fmt.id}>
-                    <span className="flex items-center gap-2">
-                      {fmt.name}
-                      <span className="text-xs text-muted-foreground">
-                        {fmt.description}
-                      </span>
-                    </span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </>
-        )}
-
-        {/* Number of Images Slider - Premium Styling */}
-        {supportsNumImages && (
-          <div className="flex items-center gap-3 rounded-xl border border-border/50 bg-background/50 px-3 py-2">
-            <span className="text-xs text-muted-foreground whitespace-nowrap">
-              Batch
-            </span>
-            <Slider
-              value={[numImages]}
-              onValueChange={([value]) => onNumImagesChange(value)}
-              min={1}
-              max={maxNumImages}
-              step={1}
-              className="w-20"
-            />
-            <span className="text-sm font-medium w-4 text-primary">
-              {numImages}
-            </span>
-          </div>
-        )}
-
-        {/* Aspect Ratio Selector - Premium Pills */}
-        <div className="flex rounded-xl border border-border/50 bg-background/50 p-1">
-          {ASPECT_RATIOS.map((ratio) => (
-            <button
-              key={ratio.id}
-              onClick={() => onAspectRatioChange(ratio.id)}
-              className={`px-3 py-1.5 text-xs font-medium transition-all duration-200 rounded-lg ${
-                aspectRatio === ratio.id
-                  ? 'bg-primary text-primary-foreground active-glow'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
-              }`}
-            >
-              {ratio.name}
-            </button>
-          ))}
-          {isGptImage2 && (
-            <button
-              onClick={() => onAspectRatioChange('custom')}
-              className={`px-3 py-1.5 text-xs font-medium transition-all duration-200 rounded-lg ${
-                aspectRatio === 'custom'
-                  ? 'bg-primary text-primary-foreground active-glow'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
-              }`}
-            >
-              Custom
-            </button>
-          )}
-        </div>
-
-        {/* Negative Prompt Toggle — only for models that take one */}
-        {supportsNegativePrompt && (
-          <button
-            onClick={onToggleNegativePrompt}
-            className={`text-xs font-medium transition-colors rounded-lg px-3 py-1.5 ${
-              showNegativePrompt
-                ? 'text-primary bg-primary/10'
-                : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
-            }`}
-          >
-            {showNegativePrompt ? '- Negative' : '+ Negative'}
-          </button>
-        )}
-      </div>
-
-      {/* GPT Image 2 Custom Dimensions */}
-      {isCustomGptSize && (
-        <div className="mt-3 flex flex-wrap items-center gap-3 rounded-xl border border-border/50 bg-background/50 px-3 py-2">
-          <label className="flex items-center gap-2 text-xs text-muted-foreground">
-            Width
-            <Input
-              type="number"
-              min={GPT_IMAGE_CUSTOM_SIZE_LIMITS.multipleOf}
-              max={GPT_IMAGE_CUSTOM_SIZE_LIMITS.maxEdge}
-              step={GPT_IMAGE_CUSTOM_SIZE_LIMITS.multipleOf}
-              value={gptCustomWidth}
-              onChange={(e) =>
-                onGptCustomWidthChange(Number(e.target.value) || 0)
-              }
-              onBlur={(e) =>
-                onGptCustomWidthChange(snapGptImageDim(Number(e.target.value)))
-              }
-              className="h-8 w-24 rounded-lg"
-            />
-          </label>
-          <label className="flex items-center gap-2 text-xs text-muted-foreground">
-            Height
-            <Input
-              type="number"
-              min={GPT_IMAGE_CUSTOM_SIZE_LIMITS.multipleOf}
-              max={GPT_IMAGE_CUSTOM_SIZE_LIMITS.maxEdge}
-              step={GPT_IMAGE_CUSTOM_SIZE_LIMITS.multipleOf}
-              value={gptCustomHeight}
-              onChange={(e) =>
-                onGptCustomHeightChange(Number(e.target.value) || 0)
-              }
-              onBlur={(e) =>
-                onGptCustomHeightChange(snapGptImageDim(Number(e.target.value)))
-              }
-              className="h-8 w-24 rounded-lg"
-            />
-          </label>
-          <span
-            className={`text-xs ${
-              gptCustomSizeError ? 'text-destructive' : 'text-muted-foreground'
-            }`}
-          >
-            {gptCustomSizeError ??
-              `Multiples of 16, ≤ ${GPT_IMAGE_CUSTOM_SIZE_LIMITS.maxEdge}px, aspect ≤ ${GPT_IMAGE_CUSTOM_SIZE_LIMITS.maxAspect}:1`}
-          </span>
-        </div>
-      )}
-
-      {/* Negative Prompt Input */}
-      {supportsNegativePrompt && showNegativePrompt && (
-        <div className="mt-4">
-          <Textarea
-            placeholder="What to avoid in the image..."
-            value={negativePrompt}
-            onChange={(e) => onNegativePromptChange(e.target.value)}
-            className="h-16 resize-none text-sm rounded-xl border-border/50 bg-background/50"
-          />
-        </div>
-      )}
-
-      {/* Error Display */}
-      {(error || jobStatus?.status === 'failed') && (
-        <div className="mt-3 rounded-xl bg-destructive/10 border border-destructive/20 px-4 py-2">
-          <p className="text-sm text-destructive">
-            {error instanceof Error
-              ? error.message
-              : jobStatus?.error || 'Generation failed'}
-          </p>
-        </div>
-      )}
-    </>
-  )
-}
-
-interface ImageDetailPanelProps {
+  isDownloading,
+  editLabel,
+}: {
   image: GeneratedImage
-  copiedPrompt: boolean
-  onCopyPrompt: (text: string) => void
-  onDownload: (url: string, imageId?: string) => void
-  onAnimate: (image: GeneratedImage) => void
-  onDelete: (id: string) => void
-  onEdit: (image: GeneratedImage) => void
-  onUsePrompt: (prompt: string) => void
-  isDownloading?: boolean
+  onSelect: () => void
+  onAnimate: () => void
+  onEdit: () => void
+  onUpscale: () => void
+  onDownload: () => void
+  onCopyPrompt?: () => void
+  onDelete: () => void
+  isDownloading: boolean
+  editLabel: string
+}) {
+  const hoverActions: Array<CardAction> = [
+    { label: 'Animate', icon: Play, onClick: onAnimate },
+    { label: editLabel, icon: Paintbrush, onClick: onEdit },
+    { label: 'Upscale', icon: ArrowUpCircle, onClick: onUpscale },
+    {
+      label: 'Download',
+      icon: isDownloading ? Loader2 : Download,
+      onClick: onDownload,
+      disabled: isDownloading,
+    },
+    { label: 'Delete', icon: Trash2, onClick: onDelete, destructive: true },
+  ]
+  const menuActions: Array<CardAction> = [
+    { label: 'Animate', icon: Play, onClick: onAnimate },
+    { label: editLabel, icon: Paintbrush, onClick: onEdit },
+    { label: 'Upscale', icon: ArrowUpCircle, onClick: onUpscale },
+    ...(onCopyPrompt
+      ? [{ label: 'Copy prompt', icon: Copy, onClick: onCopyPrompt }]
+      : []),
+    {
+      label: 'Download',
+      icon: Download,
+      onClick: onDownload,
+      disabled: isDownloading,
+    },
+    { label: 'Delete', icon: Trash2, onClick: onDelete, destructive: true },
+  ]
+  return (
+    <ResultCard
+      aspect="square"
+      title={modelTitle(image.model)}
+      cost={imageCost(image)}
+      onSelect={onSelect}
+      hoverActions={hoverActions}
+      menuActions={menuActions}
+      menuLabel="Image actions"
+      media={
+        <img
+          src={image.url}
+          alt={image.prompt || 'Generated image'}
+          loading="lazy"
+          className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.02]"
+        />
+      }
+    />
+  )
 }
 
-function ImageDetailPanel({
+function ImageDetail({
   image,
   copiedPrompt,
   onCopyPrompt,
   onDownload,
   onAnimate,
-  onDelete,
   onEdit,
+  onUpscale,
   onUsePrompt,
-  isDownloading = false,
-}: ImageDetailPanelProps) {
-  // Get the source asset ID for before/after comparison
+  onDelete,
+  isDownloading,
+}: {
+  image: GeneratedImage
+  copiedPrompt: boolean
+  onCopyPrompt: (text: string) => void
+  onDownload: () => void
+  onAnimate: () => void
+  onEdit: () => void
+  onUpscale: () => void
+  onUsePrompt: (text: string) => void
+  onDelete: () => void
+  isDownloading: boolean
+}) {
+  // Edit/upscale results link back to their source for a before/after view
   const sourceAssetId = image.metadata?.sourceAssetId
-
-  // Fetch source image if this image was derived from another (edit/upscale)
   const { data: sourceImage } = useQuery({
     queryKey: ['sourceImage', sourceAssetId],
     queryFn: async () => {
@@ -1832,36 +1567,33 @@ function ImageDetailPanel({
       return getImageFn({ data: { imageId: sourceAssetId! } })
     },
     enabled: !!sourceAssetId,
-    staleTime: Infinity, // Source images don't change
+    staleTime: Infinity,
   })
-
-  const hasBeforeAfter = !!sourceAssetId && !!sourceImage?.url
+  const cost = imageCost(image)
 
   return (
-    <div className="space-y-6 px-6 pb-6">
-      {/* Image Preview - Before/After Slider or Single Image */}
-      {hasBeforeAfter ? (
+    <div className="space-y-5 p-6">
+      {sourceAssetId && sourceImage?.url ? (
         <BeforeAfterSlider
           beforeImage={sourceImage.url}
           afterImage={image.url}
           beforeLabel="Original"
           afterLabel="Result"
-          className="border border-primary/20 premium-glow"
+          className="rounded-xl border border-border"
         />
       ) : (
-        <div className="overflow-hidden rounded-2xl border border-primary/20 premium-glow aspect-square">
+        <div className="overflow-hidden rounded-xl border border-border bg-muted">
           <img
             src={image.url}
             alt={image.prompt || 'Generated image'}
-            className="h-full w-full object-cover"
+            className="w-full"
           />
         </div>
       )}
 
-      {/* Prompt Card */}
       {image.prompt && (
-        <div className="rounded-xl border border-border/30 bg-card/50 p-4">
-          <div className="flex items-center justify-between mb-2">
+        <div className="rounded-xl border border-border bg-card p-4">
+          <div className="mb-2 flex items-center justify-between">
             <div className="flex items-center gap-2 text-muted-foreground">
               <MessageSquare className="h-4 w-4" />
               <span className="text-sm font-medium">Prompt</span>
@@ -1869,13 +1601,13 @@ function ImageDetailPanel({
             <Button
               variant="ghost"
               size="sm"
-              className="h-7 px-2 text-xs hover:bg-primary/10 hover:text-primary"
+              className="h-7 px-2 text-xs"
               onClick={() => onCopyPrompt(image.prompt!)}
             >
               {copiedPrompt ? (
-                <Check className="mr-1 h-3 w-3" />
+                <Check className="h-3 w-3" />
               ) : (
-                <Copy className="mr-1 h-3 w-3" />
+                <Copy className="h-3 w-3" />
               )}
               {copiedPrompt ? 'Copied' : 'Copy'}
             </Button>
@@ -1884,281 +1616,84 @@ function ImageDetailPanel({
         </div>
       )}
 
-      {/* Metadata Card */}
-      <div className="rounded-xl border border-border/30 bg-card/50 p-4">
-        <div className="grid grid-cols-2 gap-4">
-          {image.model && (
-            <div className="flex items-start gap-3">
-              <div className="rounded-lg bg-primary/10 p-2">
-                <Zap className="h-4 w-4 text-primary" />
-              </div>
-              <div>
-                <span className="text-xs text-muted-foreground">Model</span>
-                <p className="text-sm font-medium">
-                  {image.model.split('/').pop()}
-                </p>
-              </div>
-            </div>
+      <div className="grid grid-cols-2 gap-3 rounded-xl border border-border bg-card p-4">
+        <Meta icon={Zap} label="Model">
+          {modelTitle(image.model)}
+          {cost && (
+            <span className="ml-1.5 font-normal text-muted-foreground tabular-nums">
+              {cost}
+            </span>
           )}
-          {image.metadata?.width && image.metadata?.height && (
-            <div className="flex items-start gap-3">
-              <div className="rounded-lg bg-primary/10 p-2">
-                <Maximize2 className="h-4 w-4 text-primary" />
-              </div>
-              <div>
-                <span className="text-xs text-muted-foreground">
-                  Dimensions
-                </span>
-                <p className="text-sm font-medium">
-                  {image.metadata.width} x {image.metadata.height}{' '}
-                  <span className="text-muted-foreground">
-                    (
-                    {getAspectRatio(
-                      image.metadata.width,
-                      image.metadata.height,
-                    )}
-                    )
-                  </span>
-                </p>
-              </div>
-            </div>
-          )}
-          <div className="flex items-start gap-3">
-            <div className="rounded-lg bg-primary/10 p-2">
-              <Calendar className="h-4 w-4 text-primary" />
-            </div>
-            <div>
-              <span className="text-xs text-muted-foreground">Created</span>
-              <p className="text-sm font-medium">
-                {new Date(image.createdAt).toLocaleDateString('en-US', {
-                  month: 'short',
-                  day: 'numeric',
-                  year: 'numeric',
-                })}
-              </p>
-            </div>
-          </div>
-          {image.metadata?.seed && (
-            <div className="flex items-start gap-3">
-              <div className="rounded-lg bg-primary/10 p-2">
-                <Hash className="h-4 w-4 text-primary" />
-              </div>
-              <div>
-                <span className="text-xs text-muted-foreground">Seed</span>
-                <p className="text-sm font-medium">{image.metadata.seed}</p>
-              </div>
-            </div>
-          )}
-        </div>
+        </Meta>
+        {image.metadata?.width && image.metadata.height && (
+          <Meta icon={Maximize2} label="Size">
+            {image.metadata.width} × {image.metadata.height}{' '}
+            <span className="font-normal text-muted-foreground">
+              ({getAspectRatio(image.metadata.width, image.metadata.height)})
+            </span>
+          </Meta>
+        )}
+        <Meta icon={Calendar} label="Created">
+          {new Date(image.createdAt).toLocaleDateString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric',
+          })}
+        </Meta>
+        {image.metadata?.seed !== undefined && (
+          <Meta icon={Hash} label="Seed">
+            {image.metadata.seed}
+          </Meta>
+        )}
       </div>
 
-      {/* Primary Action: Animate */}
-      <Button
-        className="w-full rounded-xl bg-primary hover:bg-primary/90 btn-primary-glow h-11"
-        onClick={() => onAnimate(image)}
-      >
-        <Play className="mr-2 h-4 w-4" />
+      <Button className="w-full" onClick={onAnimate}>
+        <Play className="h-4 w-4" />
         Animate
       </Button>
-
-      {/* Secondary Actions */}
-      <div className="grid grid-cols-2 gap-3">
-        <Button
-          variant="outline"
-          className="rounded-xl border-border/50 hover:bg-primary/10 hover:border-primary/30 hover:text-primary disabled:opacity-50"
-          disabled={isDownloading}
-          onClick={() => onDownload(image.url, image.id)}
-        >
-          {isDownloading ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : (
-            <Download className="mr-2 h-4 w-4" />
-          )}
-          {isDownloading ? 'Downloading...' : 'Download'}
-        </Button>
-        <Button
-          variant="outline"
-          className="rounded-xl border-border/50 hover:bg-primary/10 hover:border-primary/30 hover:text-primary"
-          onClick={() => onEdit(image)}
-        >
-          <Paintbrush className="mr-2 h-4 w-4" />
+      <div className="grid grid-cols-3 gap-3">
+        <Button variant="secondary" onClick={onEdit}>
+          <Paintbrush className="h-4 w-4" />
           Edit
         </Button>
-      </div>
-
-      {/* Use Prompt Button */}
-      {image.prompt && (
+        <Button variant="secondary" onClick={onUpscale}>
+          <ArrowUpCircle className="h-4 w-4" />
+          Upscale
+        </Button>
         <Button
           variant="secondary"
-          className="w-full rounded-xl hover:bg-primary/10 hover:text-primary"
+          disabled={isDownloading}
+          onClick={onDownload}
+        >
+          {isDownloading ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Download className="h-4 w-4" />
+          )}
+          Download
+        </Button>
+      </div>
+      {image.prompt && (
+        <Button
+          variant="ghost"
+          className="w-full"
           onClick={() => onUsePrompt(image.prompt!)}
         >
-          <Wand2 className="mr-2 h-4 w-4" />
+          <Wand2 className="h-4 w-4" />
           Use this prompt
         </Button>
       )}
 
-      {/* Delete Button - Separated at Bottom */}
-      <div className="pt-2 border-t border-border/30">
+      <div className="border-t border-border pt-3">
         <Button
           variant="ghost"
-          className="w-full rounded-xl text-destructive hover:bg-destructive/10 hover:text-destructive"
-          onClick={() => onDelete(image.id)}
+          className="w-full text-destructive hover:bg-destructive/10 hover:text-destructive"
+          onClick={onDelete}
         >
-          <Trash2 className="mr-2 h-4 w-4" />
-          Delete Image
+          <Trash2 className="h-4 w-4" />
+          Delete image
         </Button>
       </div>
     </div>
-  )
-}
-
-// Image Card Component - Premium Design
-interface ImageCardProps {
-  image: GeneratedImage
-  onSelect: () => void
-  onDownload: () => void
-  onAnimate: () => void
-  onCopyPrompt: () => void
-  onDelete: () => void
-  onEdit: () => void
-  isDownloading?: boolean
-}
-
-function ImageCard({
-  image,
-  onSelect,
-  onDownload,
-  onAnimate,
-  onCopyPrompt,
-  onDelete,
-  onEdit,
-  isDownloading = false,
-}: ImageCardProps) {
-  return (
-    <TooltipProvider delayDuration={300}>
-      <Card
-        className="group cursor-pointer overflow-hidden rounded-2xl border-border/30 bg-card/30 p-0 transition-all duration-300 hover:border-primary/30 hover:shadow-xl hover:shadow-primary/5"
-        onClick={onSelect}
-      >
-        <div className="relative aspect-square overflow-hidden">
-          <img
-            src={image.url}
-            alt={image.prompt || 'Generated image'}
-            className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.03]"
-            loading="lazy"
-          />
-
-          {/* Frosted glass overlay on hover */}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 transition-all duration-300 group-hover:opacity-100 backdrop-blur-[2px]">
-            {/* Action buttons - top right */}
-            <div className="absolute right-3 top-3 flex gap-2 translate-y-2 opacity-0 transition-all duration-300 group-hover:translate-y-0 group-hover:opacity-100">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    size="icon"
-                    variant="secondary"
-                    className="h-9 w-9 rounded-xl bg-white/10 backdrop-blur-md border-white/20 hover:bg-white/20 text-white disabled:opacity-50"
-                    disabled={isDownloading}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      onDownload()
-                    }}
-                  >
-                    {isDownloading ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Download className="h-4 w-4" />
-                    )}
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  {isDownloading ? 'Downloading...' : 'Download'}
-                </TooltipContent>
-              </Tooltip>
-
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    size="icon"
-                    variant="secondary"
-                    className="h-9 w-9 rounded-xl bg-white/10 backdrop-blur-md border-white/20 hover:bg-white/20 text-white"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      onEdit()
-                    }}
-                  >
-                    <Paintbrush className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Edit</TooltipContent>
-              </Tooltip>
-
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    size="icon"
-                    variant="secondary"
-                    className="h-9 w-9 rounded-xl bg-white/10 backdrop-blur-md border-white/20 hover:bg-white/20 text-white"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      onAnimate()
-                    }}
-                  >
-                    <Play className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Animate</TooltipContent>
-              </Tooltip>
-
-              {image.prompt && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      size="icon"
-                      variant="secondary"
-                      className="h-9 w-9 rounded-xl bg-white/10 backdrop-blur-md border-white/20 hover:bg-white/20 text-white"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        onCopyPrompt()
-                      }}
-                    >
-                      <Copy className="h-4 w-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Copy prompt</TooltipContent>
-                </Tooltip>
-              )}
-
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    size="icon"
-                    variant="secondary"
-                    className="h-9 w-9 rounded-xl bg-white/10 backdrop-blur-md border-white/20 hover:bg-destructive/80 text-white"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      onDelete()
-                    }}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Delete</TooltipContent>
-              </Tooltip>
-            </div>
-
-            {/* Prompt text at bottom */}
-            {image.prompt && (
-              <div className="absolute bottom-0 left-0 right-0 p-4 translate-y-2 opacity-0 transition-all duration-300 group-hover:translate-y-0 group-hover:opacity-100">
-                <p className="line-clamp-3 text-sm text-white/90 leading-relaxed">
-                  {image.prompt}
-                </p>
-              </div>
-            )}
-          </div>
-        </div>
-      </Card>
-    </TooltipProvider>
   )
 }

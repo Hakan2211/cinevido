@@ -16,17 +16,24 @@
 import { describe, expect, it } from 'vitest'
 import {
   build3DModelPayload,
+  buildMotionControlPayload,
   buildImagePayload,
   buildVideoPayload,
 } from './fal.server'
 import { buildEditPayload } from './edit.server'
 import { buildMusicPayload } from './music.server'
+import { buildSpeechPayload } from './tts.server'
+import { buildSoundEffectPayload } from './sfx.server'
 import {
+  AUDIO_MODELS,
   EDIT_MODELS,
   IMAGE_MODELS,
   IMAGE_TO_3D_MODELS,
+  MOTION_CONTROL_MODELS,
   MUSIC_MODELS,
+  SFX_MODELS,
   TEXT_TO_3D_MODELS,
+  TTS_VOICES,
   VIDEO_MODELS,
   aspectRatioToGptImageSize,
   isGptImageModel,
@@ -312,11 +319,77 @@ describe('catalog payloads match fal schemas', () => {
   )
 
   live(
-    '3D models we changed (Meshy 7.1)',
+    'speech models',
     async () => {
       const errors: Array<string> = []
-      const meshy = [...TEXT_TO_3D_MODELS, ...IMAGE_TO_3D_MODELS].filter((m) =>
-        m.id.startsWith('meshy-'),
+      for (const m of AUDIO_MODELS) {
+        for (const voice of [TTS_VOICES[0].name, 'Brian']) {
+          const payload = buildSpeechPayload({
+            text: '[calm] Hello there.',
+            voice,
+            model: m.id,
+            stability: 0.4,
+            seed: 3,
+          })
+          errors.push(...(await validate(m.id, payload)))
+        }
+      }
+      expect(errors).toEqual([])
+    },
+    TIMEOUT,
+  )
+
+  live(
+    'motion-control models',
+    async () => {
+      const errors: Array<string> = []
+      for (const m of MOTION_CONTROL_MODELS) {
+        for (const characterOrientation of ['video', 'image'] as const) {
+          const payload = buildMotionControlPayload({
+            imageUrl: IMG,
+            videoUrl: 'https://example.com/dance.mp4',
+            prompt: 'a man dancing',
+            model: m.id,
+            characterOrientation,
+            keepOriginalSound: false,
+          })
+          errors.push(...(await validate(m.id, payload)))
+        }
+      }
+      expect(errors).toEqual([])
+    },
+    TIMEOUT,
+  )
+
+  live(
+    'sound-effect models',
+    async () => {
+      const errors: Array<string> = []
+      for (const m of SFX_MODELS) {
+        for (const durationSec of [undefined, 0.5, 4, 30]) {
+          const payload = buildSoundEffectPayload(
+            {
+              prompt: 'a heavy door slams in a stone hall',
+              durationSec,
+              loop: durationSec === 4,
+              promptInfluence: 0.5,
+            },
+            m.id,
+          )
+          errors.push(...(await validate(m.id, payload)))
+        }
+      }
+      expect(errors).toEqual([])
+    },
+    TIMEOUT,
+  )
+
+  live(
+    '3D models we changed (Meshy 7.1, Hunyuan3D V3)',
+    async () => {
+      const errors: Array<string> = []
+      const meshy = [...TEXT_TO_3D_MODELS, ...IMAGE_TO_3D_MODELS].filter(
+        (m) => m.id.startsWith('meshy-') || m.id.startsWith('hunyuan3d'),
       )
       for (const m of meshy) {
         const payload = build3DModelPayload(
@@ -331,6 +404,8 @@ describe('catalog payloads match fal schemas', () => {
             shouldRemesh: true,
             symmetryMode: 'auto',
             enablePbr: true,
+            faceCount: 200000,
+            generateType: 'LowPoly',
           },
           m,
         )

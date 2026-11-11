@@ -1,5 +1,3 @@
-'use client'
-
 import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AlertCircle, Box, RefreshCw } from 'lucide-react'
@@ -140,18 +138,16 @@ export function Model3DGallery({
   const EmptyState = () => (
     <div
       className={cn(
-        'flex flex-col items-center justify-center py-24',
+        'flex flex-col items-center justify-center rounded-2xl border border-dashed border-border py-28 text-center',
         className,
       )}
     >
-      <div className="rounded-2xl bg-gradient-to-br from-primary/20 to-accent/20 p-8 border border-primary/10">
-        <Box className="h-16 w-16 text-primary/70" />
-      </div>
-      <h3 className="mt-8 text-xl font-semibold">
+      <Box className="h-10 w-10 text-muted-foreground/50" />
+      <h3 className="mt-5 text-lg font-medium">
         No {getModeLabel()} models yet
       </h3>
-      <p className="mt-3 text-muted-foreground text-center max-w-md">
-        Create your first {getModeLabel()} model using the panel below
+      <p className="mt-2 max-w-sm text-sm text-muted-foreground">
+        Set up your first {getModeLabel()} model on the left.
       </p>
     </div>
   )
@@ -173,7 +169,7 @@ export function Model3DGallery({
       <>
         <div
           className={cn(
-            'grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 px-2',
+            'grid grid-cols-1 gap-5 md:grid-cols-2 2xl:grid-cols-3',
             className,
           )}
         >
@@ -196,9 +192,7 @@ export function Model3DGallery({
             className,
           )}
         >
-          <div className="rounded-2xl bg-destructive/10 p-8 border border-destructive/20">
-            <AlertCircle className="h-16 w-16 text-destructive/70" />
-          </div>
+          <AlertCircle className="h-10 w-10 text-destructive/70" />
           <h3 className="mt-8 text-xl font-semibold">Something went wrong</h3>
           <p className="mt-3 text-muted-foreground text-center max-w-md">
             We couldn't load your 3D models. Please try again.
@@ -231,7 +225,7 @@ export function Model3DGallery({
     <>
       <div
         className={cn(
-          'grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 px-2',
+          'grid grid-cols-1 gap-5 md:grid-cols-2 2xl:grid-cols-3',
           className,
         )}
       >
