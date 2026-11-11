@@ -58,6 +58,9 @@ interface ChatPanelProps {
 // Component
 // =============================================================================
 
+/** sessionStorage key prefix for a brief waiting to be sent to a new project */
+export const BRIEF_STORAGE_PREFIX = 'cinevido:brief:'
+
 export function ChatPanel({
   projectId,
 
@@ -135,15 +138,14 @@ export function ChatPanel({
     }
   }
 
-  const handleSubmit = useCallback(
-    async (e: React.FormEvent) => {
-      e.preventDefault()
-      if (!input.trim() || isLoading) return
+  const sendMessage = useCallback(
+    async (text: string) => {
+      if (!text.trim() || isLoading) return
 
       const userMessage: ChatMessage = {
         id: Date.now().toString(),
         role: 'user',
-        content: input.trim(),
+        content: text.trim(),
         timestamp: new Date(),
       }
 
@@ -305,8 +307,25 @@ export function ChatPanel({
         abortControllerRef.current = null
       }
     },
-    [input, isLoading, projectId, currentToolCalls],
+    [isLoading, projectId, currentToolCalls],
   )
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    void sendMessage(input)
+  }
+
+  // A brief handed over from Home ("What are we making today?") starts the
+  // conversation. It travels in sessionStorage, not the URL, so prompts stay
+  // out of browser history; reading it removes it, so it is sent only once.
+  useEffect(() => {
+    const key = `${BRIEF_STORAGE_PREFIX}${projectId}`
+    const brief = sessionStorage.getItem(key)
+    if (!brief) return
+    sessionStorage.removeItem(key)
+    void sendMessage(brief)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId])
 
   const formatToolName = (name: string): string => {
     // Convert camelCase to Title Case with spaces

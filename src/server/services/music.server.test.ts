@@ -18,8 +18,8 @@ describe('the registry', () => {
     expect(MUSIC_MODELS.map((m) => m.id)).toEqual([
       'fal-ai/ace-step',
       'minimax/music-3',
-      'fal-ai/elevenlabs/music',
-      'fal-ai/lyria3/pro',
+      'elevenlabs/music/v2.5',
+      'google/lyria-3.5',
     ])
   })
 
@@ -79,8 +79,8 @@ describe('MiniMax Music 3', () => {
   })
 })
 
-describe('ElevenLabs Music', () => {
-  const id = 'fal-ai/elevenlabs/music'
+describe('ElevenLabs Music v2.5', () => {
+  const id = 'elevenlabs/music/v2.5'
 
   it('speaks milliseconds, not seconds', () => {
     const p = buildMusicPayload({ ...base, durationSec: 45 }, id)
@@ -95,8 +95,8 @@ describe('ElevenLabs Music', () => {
   })
 })
 
-describe('Lyria 3 Pro', () => {
-  const id = 'fal-ai/lyria3/pro'
+describe('Lyria 3.5', () => {
+  const id = 'google/lyria-3.5'
 
   it('takes a prompt and nothing else — extra fields are schema errors', () => {
     expect(
@@ -128,8 +128,8 @@ describe('clampDuration', () => {
   })
 
   it('holds each engine inside its own range', () => {
-    expect(clampDuration(900, 'fal-ai/elevenlabs/music')).toBe(600)
-    expect(clampDuration(1, 'fal-ai/elevenlabs/music')).toBe(3)
+    expect(clampDuration(900, 'elevenlabs/music/v2.5')).toBe(600)
+    expect(clampDuration(1, 'elevenlabs/music/v2.5')).toBe(3)
     expect(clampDuration(9999, 'fal-ai/ace-step')).toBe(240)
   })
 

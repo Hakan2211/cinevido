@@ -10,13 +10,7 @@ import { useSession } from '../lib/auth-client'
 // NOTE: Server functions are dynamically imported in beforeLoad and queryFn
 // to prevent Prisma and other server-only code from being bundled into the client.
 // See: https://tanstack.com/router/latest/docs/framework/react/start/server-functions
-import {
-  SidebarInset,
-  SidebarProvider,
-  SidebarTrigger,
-} from '../components/ui/sidebar'
-import { AppSidebar } from '../components/app-sidebar'
-import { Separator } from '../components/ui/separator'
+import { AppTopbar } from '../components/app-topbar'
 import { SetupBanner } from '../components/byok'
 
 // Type for the user from Better-Auth session
@@ -41,7 +35,7 @@ interface ByokStatus {
  * Protected App Layout
  * Requires authentication - redirects to login if not authenticated
  * Requires platform access - redirects to pricing if not paid
- * Includes sidebar navigation and user dropdown
+ * Includes the top bar (navigation, credit balance, account menu)
  */
 export const Route = createFileRoute('/_app')({
   beforeLoad: async () => {
@@ -87,8 +81,10 @@ function AppLayout() {
   const user = sessionUser ?? routeContext.user
 
   // Detect if we're on a studio/project workspace route (needs full-bleed layout)
-  const isStudioRoute = matches.some((match) =>
-    match.routeId.includes('/projects/$projectId'),
+  // Studio and the labs manage their own panels and scrolling (full-bleed)
+  const FULL_BLEED_ROUTES = ['/_app/projects/$projectId', '/_app/videos/']
+  const isFullBleed = matches.some((match) =>
+    FULL_BLEED_ROUTES.includes(match.routeId),
   )
 
   // Fetch BYOK status client-side only (avoids server import leak)
@@ -103,37 +99,29 @@ function AppLayout() {
   })
 
   // Show setup banner if user has platform access but no API key configured
+  // (admins without a key fall back to the server's FAL_KEY, so they can generate)
   const showSetupBanner =
-    currentByokStatus?.hasPlatformAccess && !currentByokStatus?.hasApiKey
+    currentByokStatus?.hasPlatformAccess &&
+    !currentByokStatus?.hasApiKey &&
+    user.role !== 'admin'
 
   return (
-    <SidebarProvider>
-      <AppSidebar user={user} />
-      <SidebarInset>
-        <div className="flex flex-1 flex-col overflow-hidden h-full">
-          {/* Setup Banner - shown when user needs to add API key */}
-          {showSetupBanner && <SetupBanner />}
+    <div className="flex h-svh flex-col overflow-hidden bg-background">
+      <AppTopbar user={user} />
 
-          {/* Header with Sidebar Trigger */}
-          <header className="flex h-16 shrink-0 items-center gap-2 border-b bg-background/60 backdrop-blur-md px-4 sticky top-0 z-10 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
-            <div className="flex items-center gap-2 px-4">
-              <SidebarTrigger className="-ml-1" />
-              <Separator orientation="vertical" className="mr-2 h-4" />
-            </div>
-          </header>
+      {/* Setup Banner - shown when user needs to add API key */}
+      {showSetupBanner && <SetupBanner />}
 
-          {/* Page Content */}
-          <main
-            className={
-              isStudioRoute
-                ? 'flex-1 min-w-0 w-full max-w-full overflow-hidden' // Studio: no padding, no scroll, full-bleed
-                : 'flex-1 overflow-auto bg-muted/5 p-6 md:p-8' // Normal pages
-            }
-          >
-            <Outlet />
-          </main>
-        </div>
-      </SidebarInset>
-    </SidebarProvider>
+      {/* Page Content */}
+      <main
+        className={
+          isFullBleed
+            ? 'flex-1 min-h-0 min-w-0 w-full max-w-full overflow-hidden' // full-bleed, page scrolls itself
+            : 'flex-1 min-h-0 overflow-auto px-4 py-6 md:px-8 md:py-8' // Normal pages
+        }
+      >
+        <Outlet />
+      </main>
+    </div>
   )
 }

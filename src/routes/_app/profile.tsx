@@ -17,6 +17,7 @@ import {
   Zap,
 } from 'lucide-react'
 import { useSession } from '../../lib/auth-client'
+import { FalCreditSection } from '../../components/byok'
 
 // NOTE: Server functions are dynamically imported in mutationFn
 // to prevent Prisma and other server-only code from being bundled into the client.
@@ -215,6 +216,9 @@ function ProfilePage() {
 
       {/* fal.ai Connection (BYOK) */}
       <FalApiKeySection />
+
+      {/* fal.ai credit balance (read-only billing key) */}
+      <FalCreditSection />
 
       {/* Bunny.net Storage Configuration */}
       <BunnyStorageSection />

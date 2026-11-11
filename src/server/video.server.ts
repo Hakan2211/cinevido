@@ -17,7 +17,7 @@ import {
 } from './services/fal.server'
 import { uploadBuffer, uploadFromUrl } from './services/bunny.server'
 import { getUserStorageConfig } from './storage-config.server'
-import { getVideoModelById } from './services/types'
+import { DEFAULT_MODELS, getVideoModelById } from './services/types'
 import type { FalVideoResult } from './services/fal.server'
 
 // =============================================================================
@@ -56,7 +56,9 @@ const generateVideoSchema = z.object({
   keyframeTransitions: z.array(keyframeTransitionSchema).optional(),
 
   // Generation settings
-  duration: z.number().min(4).max(15).optional(),
+  // Longest model in the catalog (Kling 4, Seedance 2.5) goes to 30s; each
+  // model's own list is enforced by the UI and its fal schema
+  duration: z.number().min(3).max(30).optional(),
   aspectRatio: z.string().optional(),
   resolution: z.string().optional(),
   generateAudio: z.boolean().optional(),
@@ -94,18 +96,12 @@ export const generateVideoFn = createServerFn({ method: 'POST' })
   .inputValidator(generateVideoSchema)
   .handler(async ({ data, context }) => {
     // Determine default model based on generation type
-    let defaultModelId: string
-    switch (data.generationType) {
-      case 'text-to-video':
-        defaultModelId = 'fal-ai/kling-video/o3/standard/text-to-video'
-        break
-      case 'image-to-video':
-        defaultModelId = 'fal-ai/kling-video/o3/standard/image-to-video'
-        break
-      case 'keyframes':
-        defaultModelId = 'fal-ai/veo3.1/first-last-frame-to-video'
-        break
-    }
+    const defaultModelId =
+      data.generationType === 'image-to-video'
+        ? DEFAULT_MODELS.imageToVideo
+        : data.generationType === 'keyframes'
+          ? DEFAULT_MODELS.keyframes
+          : DEFAULT_MODELS.textToVideo
 
     const modelId = data.model || defaultModelId
     const modelConfig = getVideoModelById(modelId)
@@ -118,6 +114,16 @@ export const generateVideoFn = createServerFn({ method: 'POST' })
     if (!modelConfig.capabilities.includes(data.generationType)) {
       throw new Error(
         `Model ${modelConfig.name} does not support ${data.generationType}`,
+      )
+    }
+
+    // Each model takes only its own set of lengths
+    if (
+      data.duration !== undefined &&
+      !modelConfig.durations.includes(data.duration)
+    ) {
+      throw new Error(
+        `${modelConfig.name} can make ${modelConfig.durations.join(', ')}s clips, not ${data.duration}s`,
       )
     }
 

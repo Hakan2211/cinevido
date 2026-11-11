@@ -4,13 +4,14 @@
  * A rich dropdown for selecting AI models with:
  * - Provider icons with colored backgrounds
  * - Model descriptions
- * - Credit cost badges
- * - Grouped by provider (optional)
+ * - Tier groups (Draft / Workhorse / Hero / Specialists) and fal prices
  */
 
 import * as SelectPrimitive from '@radix-ui/react-select'
 import { CheckIcon, ChevronDownIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { TIER_LABELS, formatRate } from '@/lib/pricing'
+import type { ModelTier, PriceRule } from '@/lib/pricing'
 import {
   ModelIcon,
   PROVIDER_NAMES,
@@ -24,6 +25,27 @@ interface ModelOption {
   maxImages?: number
   supportsNumImages?: boolean
   maxNumImages?: number
+  tier?: ModelTier
+  pricing?: PriceRule
+}
+
+const TIER_ORDER: Array<ModelTier | 'other'> = [
+  'draft',
+  'standard',
+  'hero',
+  'other',
+]
+
+/** Split into tier groups for display; a flat list when no model has a tier */
+function groupByTier(models: Array<ModelOption>) {
+  if (!models.some((m) => m.tier)) {
+    return [{ key: 'all', label: null as string | null, models }]
+  }
+  return TIER_ORDER.map((key) => ({
+    key,
+    label: key === 'other' ? 'Specialists' : TIER_LABELS[key],
+    models: models.filter((m) => (m.tier ?? 'other') === key),
+  })).filter((g) => g.models.length > 0)
 }
 
 interface ModelSelectProps {
@@ -74,9 +96,14 @@ export function ModelSelect({
             <ModelIcon modelId={selectedModel.id} size="sm" />
             <div className="flex flex-col items-start flex-1 min-w-0">
               <span className="truncate font-medium">{selectedModel.name}</span>
-              {showProvider && provider && (
-                <span className="text-xs text-muted-foreground">
-                  {PROVIDER_NAMES[provider]}
+              {(showProvider || selectedModel.pricing) && (
+                <span className="text-xs text-muted-foreground truncate">
+                  {[
+                    showProvider && provider ? PROVIDER_NAMES[provider] : null,
+                    formatRate(selectedModel.pricing),
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')}
                 </span>
               )}
             </div>
@@ -107,66 +134,81 @@ export function ModelSelect({
           sideOffset={8}
         >
           <SelectPrimitive.Viewport className="p-2 space-y-1">
-            {models.map((model) => {
-              const modelProvider = getProviderFromModelId(model.id)
-              return (
-                <SelectPrimitive.Item
-                  key={model.id}
-                  value={model.id}
-                  className={cn(
-                    // Base styles
-                    'relative flex items-start gap-3 rounded-lg px-3 py-3 cursor-pointer',
-                    'outline-none select-none transition-colors duration-150',
-                    // Hover/focus styles
-                    'focus:bg-accent/50 hover:bg-accent/50',
-                    'data-[state=checked]:bg-primary/10',
-                  )}
-                >
-                  <ModelIcon modelId={model.id} size="md" />
-
-                  <div className="flex-1 min-w-0 space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium text-foreground">
-                        {model.name}
-                      </span>
-                      {showProvider && (
-                        <span className="text-xs text-muted-foreground">
-                          {PROVIDER_NAMES[modelProvider]}
-                        </span>
+            {groupByTier(models).map((group) => (
+              <SelectPrimitive.Group key={group.key} className="space-y-1">
+                {group.label && (
+                  <SelectPrimitive.Label className="px-3 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+                    {group.label}
+                  </SelectPrimitive.Label>
+                )}
+                {group.models.map((model) => {
+                  const modelProvider = getProviderFromModelId(model.id)
+                  const rate = formatRate(model.pricing)
+                  return (
+                    <SelectPrimitive.Item
+                      key={model.id}
+                      value={model.id}
+                      className={cn(
+                        // Base styles
+                        'relative flex items-start gap-3 rounded-lg px-3 py-3 cursor-pointer',
+                        'outline-none select-none transition-colors duration-150',
+                        // Hover/focus styles
+                        'focus:bg-accent/50 hover:bg-accent/50',
+                        'data-[state=checked]:bg-primary/10',
                       )}
-                    </div>
+                    >
+                      <ModelIcon modelId={model.id} size="md" />
 
-                    {showDescription && model.description && (
-                      <p className="text-xs text-muted-foreground line-clamp-2">
-                        {model.description}
-                      </p>
-                    )}
+                      <div className="flex-1 min-w-0 space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-foreground">
+                            {model.name}
+                          </span>
+                          {showProvider && (
+                            <span className="text-xs text-muted-foreground">
+                              {PROVIDER_NAMES[modelProvider]}
+                            </span>
+                          )}
+                          {rate && (
+                            <span className="ml-auto mr-6 shrink-0 rounded-md bg-muted px-1.5 py-0.5 text-[11px] font-medium tabular-nums text-muted-foreground">
+                              {rate}
+                            </span>
+                          )}
+                        </div>
 
-                    {(model.maxImages && model.maxImages > 1) ||
-                    model.supportsNumImages ? (
-                      <div className="flex items-center gap-2 pt-0.5">
-                        {model.maxImages && model.maxImages > 1 && (
-                          <span className="text-xs text-muted-foreground">
-                            Up to {model.maxImages} images
-                          </span>
+                        {showDescription && model.description && (
+                          <p className="text-xs text-muted-foreground line-clamp-2">
+                            {model.description}
+                          </p>
                         )}
-                        {model.supportsNumImages && (
-                          <span className="text-xs text-muted-foreground">
-                            Batch: 1-{model.maxNumImages || 4}
-                          </span>
-                        )}
+
+                        {(model.maxImages && model.maxImages > 1) ||
+                        model.supportsNumImages ? (
+                          <div className="flex items-center gap-2 pt-0.5">
+                            {model.maxImages && model.maxImages > 1 && (
+                              <span className="text-xs text-muted-foreground">
+                                Up to {model.maxImages} images
+                              </span>
+                            )}
+                            {model.supportsNumImages && (
+                              <span className="text-xs text-muted-foreground">
+                                Batch: 1-{model.maxNumImages || 4}
+                              </span>
+                            )}
+                          </div>
+                        ) : null}
                       </div>
-                    ) : null}
-                  </div>
 
-                  <span className="absolute right-3 top-3 flex size-5 items-center justify-center">
-                    <SelectPrimitive.ItemIndicator>
-                      <CheckIcon className="size-4 text-primary" />
-                    </SelectPrimitive.ItemIndicator>
-                  </span>
-                </SelectPrimitive.Item>
-              )
-            })}
+                      <span className="absolute right-3 top-3 flex size-5 items-center justify-center">
+                        <SelectPrimitive.ItemIndicator>
+                          <CheckIcon className="size-4 text-primary" />
+                        </SelectPrimitive.ItemIndicator>
+                      </span>
+                    </SelectPrimitive.Item>
+                  )
+                })}
+              </SelectPrimitive.Group>
+            ))}
           </SelectPrimitive.Viewport>
         </SelectPrimitive.Content>
       </SelectPrimitive.Portal>

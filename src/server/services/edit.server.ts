@@ -11,6 +11,7 @@
  */
 
 import {
+  DEFAULT_MODELS,
   EDIT_MODELS,
   UPSCALE_MODELS,
   clampGptImageQuality,
@@ -118,7 +119,7 @@ export async function editImage(
   input: EditInput,
   userApiKey?: string,
 ): Promise<EditJob> {
-  const modelId = input.model || 'fal-ai/nano-banana-2/edit'
+  const modelId = input.model || DEFAULT_MODELS.edit
   const modelConfig = getEditModelById(modelId)
 
   console.log('[EDIT] editImage called:', {
@@ -421,46 +422,27 @@ export function getUpscaleModels() {
  * Build payload for prompt-based edit models
  * Each model has slightly different API parameters
  */
-function buildEditPayload(input: EditInput, modelId: string) {
+// Exported for the schema check in services/payloads.live.test.ts
+export function buildEditPayload(input: EditInput, modelId: string) {
+  const config = getEditModelById(modelId)
+  // Every edit model we offer takes a list of reference images
   const payload: Record<string, unknown> = {
     prompt: input.prompt,
+    image_urls: input.imageUrls,
   }
 
-  if (input.seed !== undefined) {
-    payload.seed = input.seed
-  }
-
-  // Model-specific payload structure
-  if (modelId === 'fal-ai/flux-pro/kontext') {
-    // Kontext Pro: single image, uses image_url
-    payload.image_url = input.imageUrls[0]
-  } else if (modelId.includes('nano-banana')) {
-    // Nano Banana models: multi-image, uses image_urls array
-    payload.image_urls = input.imageUrls
-    payload.num_images = 1
-  } else if (modelId === 'fal-ai/flux-2/edit') {
-    // Flux 2 Edit: multi-image, uses image_urls array
-    payload.image_urls = input.imageUrls
-  } else if (isGptImageEditModel(modelId)) {
-    // GPT Image 2 / 2.5: multi-image, supports quality/image_size/output_format/num_images
-    payload.image_urls = input.imageUrls
+  if (isGptImageEditModel(modelId)) {
+    // GPT Image 2.6: quality tiers, size preset (or auto), output format, batch
     payload.quality = clampGptImageQuality(modelId, input.quality)
     payload.image_size = input.imageSizePreset || 'auto'
     payload.output_format = input.outputFormat || 'png'
     if (input.numImages) payload.num_images = input.numImages
-  } else if (modelId.includes('seedream')) {
-    // Seedream 4.5: multi-image, uses image_urls array
-    payload.image_urls = input.imageUrls
-  } else if (modelId.includes('grok-imagine-image/edit')) {
-    // Grok Imagine Edit: single image, uses image_url
-    payload.image_url = input.imageUrls[0]
-  } else {
-    // Default: try image_urls for multi, image_url for single
-    if (input.imageUrls.length === 1) {
-      payload.image_url = input.imageUrls[0]
-    } else {
-      payload.image_urls = input.imageUrls
-    }
+  } else if (modelId.includes('nano-banana')) {
+    payload.num_images = 1
+  }
+
+  if (config?.supportsSeed && input.seed !== undefined) {
+    payload.seed = input.seed
   }
 
   return payload

@@ -46,6 +46,12 @@ model User {
   falApiKeyLastFour String?  // Last 4 chars for display (e.g., "...xxxx")
   falApiKeyAddedAt DateTime? // When the key was added/updated
 
+  // Optional second fal.ai key, read-only, used ONLY to show the credit
+  // balance (GET /v1/account/billing needs billing:usage:read). Encrypted
+  // like falApiKey. Never used to run generations.
+  falBillingKey         String?
+  falBillingKeyLastFour String?
+
   // User's Bunny.net storage config (encrypted API key) - BYOK Storage
   bunnyStorageZone    String?   // Storage zone name (e.g., "my-zone")
   bunnyApiKey         String?   // Encrypted API key (AES-256-GCM)

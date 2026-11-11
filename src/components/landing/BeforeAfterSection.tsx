@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion'
-import { Baby, Wand2 } from 'lucide-react'
+import { Wand2 } from 'lucide-react'
 import { BeforeAfterSlider } from '@/components/ui/before-after-slider'
 import { beforeAfterDemos } from '@/lib/showcase-assets'
 
@@ -28,44 +28,14 @@ export function BeforeAfterSection() {
           </p>
         </motion.div>
 
-        {/* Before/After Sliders Grid */}
-        <div className="grid md:grid-cols-2 gap-8 lg:gap-12">
-          {/* Baby Prediction Demo */}
-          <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            whileInView={{ opacity: 1, x: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.5, delay: 0.1 }}
-            className="space-y-4"
-          >
-            <div className="flex items-center gap-3 mb-4">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-pink-500/10">
-                <Baby className="h-5 w-5 text-pink-500" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-lg">
-                  {beforeAfterDemos.aging.label}
-                </h3>
-                <p className="text-sm text-muted-foreground">
-                  {beforeAfterDemos.aging.description}
-                </p>
-              </div>
-            </div>
-            <BeforeAfterSlider
-              beforeSrc={beforeAfterDemos.aging.before}
-              afterSrc={beforeAfterDemos.aging.after}
-              beforeLabel="Original"
-              afterLabel="Baby Prediction"
-              className="aspect-square md:aspect-[4/3]"
-            />
-          </motion.div>
-
+        {/* Before/After Slider */}
+        <div className="mx-auto max-w-2xl">
           {/* AI Edit Demo */}
           <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            whileInView={{ opacity: 1, x: 0 }}
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            transition={{ duration: 0.5, delay: 0.2 }}
+            transition={{ duration: 0.5, delay: 0.1 }}
             className="space-y-4"
           >
             <div className="flex items-center gap-3 mb-4">
@@ -100,8 +70,8 @@ export function BeforeAfterSection() {
           className="mt-12 text-center"
         >
           <p className="text-sm text-muted-foreground">
-            Also supports: Age progression/regression, face swap, background
-            removal, smart upscaling, and more.
+            Also supports: face swap, background removal, smart upscaling, and
+            more.
           </p>
         </motion.div>
       </div>

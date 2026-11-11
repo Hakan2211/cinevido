@@ -19,6 +19,7 @@ import sharp from 'sharp'
 import { uploadBuffer, uploadFromUrl } from './services/bunny.server'
 import { getUserStorageConfig } from './storage-config.server'
 import {
+  DEFAULT_MODELS,
   GPT_IMAGE_QUALITY_VALUES,
   IMAGE_MODELS,
   getModelById,
@@ -82,7 +83,7 @@ export const generateImageFn = createServerFn({ method: 'POST' })
       userId: context.user.id,
     })
 
-    const modelId = data.model || 'fal-ai/nano-banana-2'
+    const modelId = data.model || DEFAULT_MODELS.image
     const modelConfig = getModelById(modelId, IMAGE_MODELS)
 
     if (!modelConfig) {

@@ -35,6 +35,7 @@ export interface ByokStatus {
   hasApiKey: boolean
   apiKeyLastFour: string | null
   purchaseDate: Date | null
+  billingKeyLastFour: string | null
 }
 
 export interface FalUsage {
@@ -59,6 +60,7 @@ export const getByokStatusFn = createServerFn({ method: 'GET' })
       select: {
         hasPlatformAccess: true,
         falApiKeyLastFour: true,
+        falBillingKeyLastFour: true,
         platformPurchaseDate: true,
         role: true,
       },
@@ -77,6 +79,7 @@ export const getByokStatusFn = createServerFn({ method: 'GET' })
       hasApiKey: !!user.falApiKeyLastFour,
       apiKeyLastFour: user.falApiKeyLastFour,
       purchaseDate: user.platformPurchaseDate,
+      billingKeyLastFour: user.falBillingKeyLastFour,
     }
   })
 
@@ -377,3 +380,143 @@ export async function getUserFalApiKey(userId: string): Promise<string> {
   )
   return decryptedKey
 }
+
+// =============================================================================
+// fal.ai Credit Balance (read-only billing key)
+// =============================================================================
+//
+// GET /v1/account/billing?expand=credits needs a key with the
+// `billing:usage:read` permission. A normal generation key ("API" scope) gets
+// a 403, so users can add a second, read-only key (fal's READONLY or BILLING
+// preset) that is used for nothing but this balance.
+
+export type FalCredits =
+  | { status: 'ok'; balance: number; currency: string; checkedAt: string }
+  | { status: 'no-key' }
+  | { status: 'forbidden' } // the key lacks billing:usage:read
+  | { status: 'error'; message: string }
+
+const CREDITS_TTL_MS = 60_000
+const creditsCache = new Map<string, { at: number; value: FalCredits }>()
+
+async function fetchFalCredits(key: string): Promise<FalCredits> {
+  try {
+    const response = await fetch(
+      'https://api.fal.ai/v1/account/billing?expand=credits',
+      { headers: { Authorization: `Key ${key}` } },
+    )
+    if (response.status === 401 || response.status === 403) {
+      return { status: 'forbidden' }
+    }
+    if (!response.ok) {
+      return { status: 'error', message: `fal answered ${response.status}` }
+    }
+    const body = (await response.json()) as {
+      credits?: { current_balance: number; currency: string }
+    }
+    if (!body.credits) {
+      return { status: 'error', message: 'fal returned no credit balance' }
+    }
+    return {
+      status: 'ok',
+      balance: body.credits.current_balance,
+      currency: body.credits.currency,
+      checkedAt: new Date().toISOString(),
+    }
+  } catch (error) {
+    return {
+      status: 'error',
+      message: error instanceof Error ? error.message : 'Network error',
+    }
+  }
+}
+
+/**
+ * The key that may read this user's balance: their own billing key, or — for
+ * admins only — the server's FAL_BILLING_KEY. Never another user's account.
+ */
+async function getBillingKey(userId: string): Promise<string | null> {
+  const prisma = await getPrisma()
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { falBillingKey: true, role: true },
+  })
+  if (user?.falBillingKey) {
+    const { decryptApiKey } = await getEncryption()
+    return decryptApiKey(user.falBillingKey)
+  }
+  if (user?.role === 'admin' && process.env.FAL_BILLING_KEY) {
+    return process.env.FAL_BILLING_KEY
+  }
+  return null
+}
+
+export const getFalCreditsFn = createServerFn({ method: 'GET' })
+  .middleware([authMiddleware])
+  .handler(async ({ context }): Promise<FalCredits> => {
+    const cached = creditsCache.get(context.user.id)
+    if (cached && Date.now() - cached.at < CREDITS_TTL_MS) return cached.value
+
+    const key = await getBillingKey(context.user.id)
+    const value: FalCredits = key
+      ? await fetchFalCredits(key)
+      : { status: 'no-key' }
+    creditsCache.set(context.user.id, { at: Date.now(), value })
+    return value
+  })
+
+const saveBillingKeySchema = z.object({
+  apiKey: z.string().min(1, 'API key is required'),
+})
+
+export const saveBillingKeyFn = createServerFn({ method: 'POST' })
+  .middleware([authMiddleware])
+  .inputValidator(saveBillingKeySchema)
+  .handler(async ({ data, context }) => {
+    const { encryptApiKey, getApiKeyLastChars, isEncryptionConfigured } =
+      await getEncryption()
+    if (!isEncryptionConfigured()) {
+      throw new Error(
+        'Encryption is not configured on this server. Please contact support.',
+      )
+    }
+
+    // Prove the key can actually read the balance before storing it
+    const credits = await fetchFalCredits(data.apiKey)
+    if (credits.status === 'forbidden') {
+      throw new Error(
+        'This key cannot read billing. Create one in fal with the READONLY or BILLING preset.',
+      )
+    }
+    if (credits.status !== 'ok') {
+      throw new Error(
+        credits.status === 'error'
+          ? `Could not check the key: ${credits.message}`
+          : 'Could not check the key.',
+      )
+    }
+
+    const prisma = await getPrisma()
+    const lastFour = getApiKeyLastChars(data.apiKey)
+    await prisma.user.update({
+      where: { id: context.user.id },
+      data: {
+        falBillingKey: encryptApiKey(data.apiKey),
+        falBillingKeyLastFour: lastFour,
+      },
+    })
+    creditsCache.set(context.user.id, { at: Date.now(), value: credits })
+    return { success: true, billingKeyLastFour: lastFour, credits }
+  })
+
+export const removeBillingKeyFn = createServerFn({ method: 'POST' })
+  .middleware([authMiddleware])
+  .handler(async ({ context }) => {
+    const prisma = await getPrisma()
+    await prisma.user.update({
+      where: { id: context.user.id },
+      data: { falBillingKey: null, falBillingKeyLastFour: null },
+    })
+    creditsCache.delete(context.user.id)
+    return { success: true }
+  })

@@ -1,11 +1,10 @@
 /**
- * Images Page - Unified Create, Edit, Upscale, Aging & Variations
+ * Images Page - Unified Create, Edit, Upscale & Variations
  *
  * Professional image interface with mode switching:
  * - Generate: Create new images from text prompts
  * - Edit: Inpaint/outpaint existing images with mask drawing
  * - Upscale: Enhance image resolution with AI
- * - Aging: AI age transformation and baby prediction
  * - Variations: Create variations from reference images
  */
 
@@ -39,12 +38,8 @@ import {
 import { toast } from 'sonner'
 import type { ImageMode } from '@/components/images'
 import type {
-  AgeGroup,
-  AgingGender,
-  AgingSubMode,
   GptImageOutputFormat,
   GptImageQuality,
-  RecraftStyle,
   SeedvrTargetResolution,
   TopazModelType,
 } from '@/server/services/types'
@@ -78,7 +73,6 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import {
-  AgingPanel,
   EditPanel,
   ModeToggle,
   UploadDropZone,
@@ -88,7 +82,7 @@ import { BeforeAfterSlider } from '@/components/images/BeforeAfterSlider'
 import {
   GPT_IMAGE_CUSTOM_SIZE_LIMITS,
   GPT_IMAGE_OUTPUT_FORMATS,
-  RECRAFT_STYLES,
+  DEFAULT_MODELS,
   aspectRatioToGptImageSize,
   clampGptImageQuality,
   getEditModelById,
@@ -101,11 +95,18 @@ import {
 import { Input } from '@/components/ui/input'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { downloadFile, generateFilename } from '@/lib/download'
+import { estimateCost, formatEstimate } from '@/lib/pricing'
+import type { PriceRule } from '@/lib/pricing'
+
+const IMAGE_MODE_IDS: Array<ImageMode> = ['generate', 'edit', 'upscale']
 
 export const Route = createFileRoute('/_app/images/')({
   component: ImagesPage,
   validateSearch: (search: Record<string, unknown>) => ({
-    mode: (search.mode as ImageMode) || 'generate',
+    // Unknown modes (e.g. stale ?mode=aging links) fall back to generate
+    mode: IMAGE_MODE_IDS.includes(search.mode as ImageMode)
+      ? (search.mode as ImageMode)
+      : 'generate',
   }),
 })
 
@@ -152,9 +153,7 @@ interface GeneratedImage {
     height?: number
     seed?: number
     // Source tracking for before/after comparison
-    sourceAssetId?: string // For edit/upscale/aging single mode
-    motherAssetId?: string // For aging multi mode
-    fatherAssetId?: string // For aging multi mode
+    sourceAssetId?: string // For edit/upscale mode
   } | null
   createdAt: Date
 }
@@ -170,7 +169,7 @@ function ImagesPage() {
 
   // Generate form state
   const [prompt, setPrompt] = useState('')
-  const [model, setModel] = useState('fal-ai/nano-banana-2')
+  const [model, setModel] = useState<string>(DEFAULT_MODELS.image)
   const [aspectRatio, setAspectRatio] = useState('1:1')
   const [showNegativePrompt, setShowNegativePrompt] = useState(false)
   const [negativePrompt, setNegativePrompt] = useState('')
@@ -182,8 +181,6 @@ function ImagesPage() {
   // GPT Image 2 custom dimensions (used when aspectRatio === 'custom')
   const [gptCustomWidth, setGptCustomWidth] = useState(1920)
   const [gptCustomHeight, setGptCustomHeight] = useState(1080)
-  const [recraftStyle, setRecraftStyle] =
-    useState<RecraftStyle>('realistic_image')
   const [numImages, setNumImages] = useState(1)
 
   // GPT Image 2 edit options
@@ -193,7 +190,7 @@ function ImagesPage() {
 
   // Edit mode state (prompt-based, no masks!)
   const [editPrompt, setEditPrompt] = useState('')
-  const [editModel, setEditModel] = useState('fal-ai/nano-banana-2/edit')
+  const [editModel, setEditModel] = useState<string>(DEFAULT_MODELS.edit)
   // Multi-image selection for edit mode
   const [selectedEditImages, setSelectedEditImages] = useState<
     Array<{
@@ -224,24 +221,6 @@ function ImagesPage() {
   const [faceEnhancementStrength, setFaceEnhancementStrength] = useState(0.8)
   const [faceEnhancementCreativity, setFaceEnhancementCreativity] = useState(0)
 
-  // Aging mode state
-  const [agingSubMode, setAgingSubMode] = useState<AgingSubMode>('single')
-  const [ageGroup, setAgeGroup] = useState<AgeGroup>('baby')
-  const [agingGender, setAgingGender] = useState<AgingGender>('male')
-  const [agingPrompt, setAgingPrompt] = useState('')
-  const [agingNumImages, setAgingNumImages] = useState(1)
-  const [fatherWeight, setFatherWeight] = useState(0.5)
-  // For single mode - reuse selectedEditImages for the single image
-  // For multi mode - track mother/father separately
-  const [motherImage, setMotherImage] = useState<{
-    id: string
-    url: string
-  } | null>(null)
-  const [fatherImage, setFatherImage] = useState<{
-    id: string
-    url: string
-  } | null>(null)
-
   // UI state
   const [selectedImage, setSelectedImage] = useState<GeneratedImage | null>(
     null,
@@ -251,12 +230,12 @@ function ImagesPage() {
   // Generation state
   const [currentJobId, setCurrentJobId] = useState<string | null>(null)
   const [currentJobType, setCurrentJobType] = useState<
-    'generate' | 'edit' | 'upscale' | 'aging' | null
+    'generate' | 'edit' | 'upscale' | null
   >(null)
 
   // Completed result for before/after comparison in preview area
   const [completedResult, setCompletedResult] = useState<{
-    sourceUrl: string // Empty string for aging multi mode (no comparison)
+    sourceUrl: string // Empty string = no comparison, just show result
     resultUrl: string
     resultAssetId: string // Needed for delete/animate actions
   } | null>(null)
@@ -386,18 +365,6 @@ function ImagesPage() {
     },
   })
 
-  // Aging mutation
-  const agingMutation = useMutation({
-    mutationFn: async (input: { data: Record<string, unknown> }) => {
-      const { generateAgingFn } = await import('@/server/aging.server')
-      return generateAgingFn(input as never)
-    },
-    onSuccess: (result) => {
-      setCurrentJobId(result.jobId)
-      setCurrentJobType('aging')
-    },
-  })
-
   // Delete mutation
   const deleteMutation = useMutation({
     mutationFn: async (input: { data: { imageId: string } }) => {
@@ -446,23 +413,6 @@ function ImagesPage() {
     },
   })
 
-  // Poll aging job status
-  const { data: agingJobStatus, error: agingJobStatusError } = useQuery({
-    queryKey: ['agingJob', currentJobId],
-    queryFn: async () => {
-      const { getAgingJobStatusFn } = await import('@/server/aging.server')
-      return getAgingJobStatusFn({ data: { jobId: currentJobId! } })
-    },
-    enabled: !!currentJobId && currentJobType === 'aging',
-    refetchInterval: (query) => {
-      const status = query.state.data?.status
-      if (status === 'completed' || status === 'failed') {
-        return false
-      }
-      return 2000
-    },
-  })
-
   // Handle job completion or failure
   useEffect(() => {
     let status
@@ -470,9 +420,6 @@ function ImagesPage() {
     if (currentJobType === 'generate') {
       status = jobStatus
       queryError = jobStatusError
-    } else if (currentJobType === 'aging') {
-      status = agingJobStatus
-      queryError = agingJobStatusError
     } else {
       status = editJobStatus
       queryError = editJobStatusError
@@ -487,22 +434,13 @@ function ImagesPage() {
         status.output?.assetId || status.output?.images?.[0]?.assetId || ''
 
       if (resultUrl && currentJobType !== 'generate') {
-        // For aging multi mode (two parents), skip comparison - just show result
-        if (currentJobType === 'aging' && agingSubMode === 'multi') {
-          setCompletedResult({
-            sourceUrl: '', // Empty = no comparison, just show result
-            resultUrl,
-            resultAssetId,
-          })
-        } else {
-          // For edit/upscale/aging single - show comparison
-          const sourceUrl = selectedEditImages[0]?.url || ''
-          setCompletedResult({
-            sourceUrl,
-            resultUrl,
-            resultAssetId,
-          })
-        }
+        // For edit/upscale - show comparison
+        const sourceUrl = selectedEditImages[0]?.url || ''
+        setCompletedResult({
+          sourceUrl,
+          resultUrl,
+          resultAssetId,
+        })
       }
 
       setCurrentJobId(null)
@@ -524,13 +462,10 @@ function ImagesPage() {
   }, [
     jobStatus,
     editJobStatus,
-    agingJobStatus,
     jobStatusError,
     editJobStatusError,
-    agingJobStatusError,
     currentJobType,
     queryClient,
-    agingSubMode,
     selectedEditImages,
   ])
 
@@ -636,7 +571,6 @@ function ImagesPage() {
         quality: isGptImage2
           ? clampGptImageQuality(model, gptQuality)
           : undefined,
-        style: model.includes('recraft') ? recraftStyle : undefined,
         // GPT Image 2: send preset for known ratios; for custom let the server
         // build image_size from width/height (omit imageSizePreset).
         imageSizePreset:
@@ -703,53 +637,6 @@ function ImagesPage() {
         }),
       },
     })
-  }
-
-  const handleAging = () => {
-    if (isGenerating) return
-
-    // Validate based on sub-mode
-    if (agingSubMode === 'single') {
-      if (selectedEditImages.length === 0) {
-        toast.error('Please select an image to transform')
-        return
-      }
-      agingMutation.mutate({
-        data: {
-          subMode: 'single',
-          ageGroup,
-          gender: agingGender,
-          prompt: agingPrompt.trim() || undefined,
-          numImages: agingNumImages,
-          idImageUrls: [selectedEditImages[0].url],
-          sourceAssetId: selectedEditImages[0].id,
-        },
-      })
-    } else {
-      // Multi mode
-      if (!motherImage) {
-        toast.error('Please select a mother image')
-        return
-      }
-      if (!fatherImage) {
-        toast.error('Please select a father image')
-        return
-      }
-      agingMutation.mutate({
-        data: {
-          subMode: 'multi',
-          ageGroup,
-          gender: agingGender,
-          prompt: agingPrompt.trim() || undefined,
-          numImages: agingNumImages,
-          motherImageUrls: [motherImage.url],
-          fatherImageUrls: [fatherImage.url],
-          motherAssetId: motherImage.id,
-          fatherAssetId: fatherImage.id,
-          fatherWeight,
-        },
-      })
-    }
   }
 
   const handleCopyPrompt = async (text: string) => {
@@ -930,38 +817,29 @@ function ImagesPage() {
     generateMutation.isPending ||
     editMutation.isPending ||
     upscaleMutation.isPending ||
-    agingMutation.isPending ||
     !!(
       currentJobId &&
       (currentJobType === 'generate'
         ? jobStatus?.status !== 'completed' &&
           jobStatus?.status !== 'failed' &&
           !jobStatusError
-        : currentJobType === 'aging'
-          ? agingJobStatus?.status !== 'completed' &&
-            agingJobStatus?.status !== 'failed' &&
-            !agingJobStatusError
-          : editJobStatus?.status !== 'completed' &&
-            editJobStatus?.status !== 'failed' &&
-            !editJobStatusError)
+        : editJobStatus?.status !== 'completed' &&
+          editJobStatus?.status !== 'failed' &&
+          !editJobStatusError)
     )
 
   const selectedModel = models.find((m) => m.id === model)
   const progress =
     currentJobType === 'generate'
       ? jobStatus?.progress || 0
-      : currentJobType === 'aging'
-        ? agingJobStatus?.progress || 0
-        : editJobStatus?.progress || 0
+      : editJobStatus?.progress || 0
 
   const currentError =
     generateMutation.error ||
     editMutation.error ||
     upscaleMutation.error ||
-    agingMutation.error ||
     jobStatusError ||
-    editJobStatusError ||
-    agingJobStatusError
+    editJobStatusError
 
   // Get the current image to act on (result if comparing, otherwise selected single image)
   const currentActionImage = completedResult
@@ -1009,171 +887,14 @@ function ImagesPage() {
             downloadingId={downloadingId}
             onCancelJob={handleCancelJob}
           />
-        ) : mode === 'aging' && agingSubMode === 'multi' ? (
-          // Aging Multi Mode: Mother + Father preview slots
-          <div className="grid gap-8 lg:grid-cols-2 px-2">
-            {/* Preview Area - Two Parent Slots */}
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4 aspect-square">
-                {/* Mother Slot */}
-                <div className="rounded-2xl border border-border/30 bg-card/30 overflow-hidden shadow-lg">
-                  {motherImage ? (
-                    <div className="relative h-full">
-                      <img
-                        src={motherImage.url}
-                        alt="Mother"
-                        className="h-full w-full object-cover"
-                      />
-                      <div className="absolute top-2 left-2 bg-pink-500 text-white text-xs font-bold px-2 py-1 rounded-lg">
-                        Mother
-                      </div>
-                      <button
-                        onClick={() => setMotherImage(null)}
-                        className="absolute top-2 right-2 bg-black/50 hover:bg-black/70 text-white p-1 rounded-lg transition-colors"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="h-full flex flex-col items-center justify-center gap-2 p-4">
-                      <div className="rounded-xl bg-pink-500/10 p-4 border border-pink-500/20">
-                        <ImageIcon className="h-8 w-8 text-pink-500/50" />
-                      </div>
-                      <p className="text-muted-foreground text-center text-sm">
-                        Select mother
-                      </p>
-                    </div>
-                  )}
-                </div>
-                {/* Father Slot */}
-                <div className="rounded-2xl border border-border/30 bg-card/30 overflow-hidden shadow-lg">
-                  {fatherImage ? (
-                    <div className="relative h-full">
-                      <img
-                        src={fatherImage.url}
-                        alt="Father"
-                        className="h-full w-full object-cover"
-                      />
-                      <div className="absolute top-2 left-2 bg-blue-500 text-white text-xs font-bold px-2 py-1 rounded-lg">
-                        Father
-                      </div>
-                      <button
-                        onClick={() => setFatherImage(null)}
-                        className="absolute top-2 right-2 bg-black/50 hover:bg-black/70 text-white p-1 rounded-lg transition-colors"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="h-full flex flex-col items-center justify-center gap-2 p-4">
-                      <div className="rounded-xl bg-blue-500/10 p-4 border border-blue-500/20">
-                        <ImageIcon className="h-8 w-8 text-blue-500/50" />
-                      </div>
-                      <p className="text-muted-foreground text-center text-sm">
-                        Select father
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </div>
-              {isGenerating && (
-                <div className="flex items-center gap-3 rounded-xl bg-primary/10 border border-primary/20 px-4 py-3">
-                  <Loader2 className="h-5 w-5 animate-spin text-primary" />
-                  <span className="text-sm font-medium">
-                    Processing... {progress > 0 && `${progress}%`}
-                  </span>
-                </div>
-              )}
-            </div>
-
-            {/* Image Selector for Multi Mode */}
-            <div>
-              <h3 className="mb-4 text-lg font-semibold">
-                Select Parent Photos
-                <span className="ml-2 text-sm text-muted-foreground font-normal">
-                  (click to assign as mother or father)
-                </span>
-              </h3>
-
-              <UploadDropZone
-                onUploadComplete={() => {
-                  queryClient.invalidateQueries({ queryKey: ['images'] })
-                }}
-              />
-
-              <div className="grid grid-cols-3 md:grid-cols-4 gap-3 max-h-[450px] overflow-y-auto pr-2">
-                {images.map((image) => {
-                  const isMother = motherImage?.id === image.id
-                  const isFather = fatherImage?.id === image.id
-                  const isSelected = isMother || isFather
-                  return (
-                    <button
-                      key={image.id}
-                      onClick={() => {
-                        // If already selected as mother/father, deselect
-                        if (isMother) {
-                          setMotherImage(null)
-                        } else if (isFather) {
-                          setFatherImage(null)
-                        } else {
-                          // Assign to empty slot (mother first, then father)
-                          if (!motherImage) {
-                            setMotherImage({ id: image.id, url: image.url })
-                          } else if (!fatherImage) {
-                            setFatherImage({ id: image.id, url: image.url })
-                          } else {
-                            toast.info(
-                              'Both slots filled. Click an image to deselect first.',
-                            )
-                          }
-                        }
-                      }}
-                      className={`relative aspect-square rounded-xl overflow-hidden border-2 transition-all duration-200 ${
-                        isSelected
-                          ? isMother
-                            ? 'border-pink-500 ring-2 ring-pink-500/30 shadow-lg shadow-pink-500/20'
-                            : 'border-blue-500 ring-2 ring-blue-500/30 shadow-lg shadow-blue-500/20'
-                          : 'border-border/30 hover:border-primary/30 hover:shadow-md'
-                      }`}
-                    >
-                      <img
-                        src={image.url}
-                        alt={image.prompt || 'Image'}
-                        className="absolute inset-0 h-full w-full object-cover"
-                        loading="lazy"
-                      />
-                      {isSelected && (
-                        <div
-                          className={`absolute inset-0 ${isMother ? 'bg-pink-500/20' : 'bg-blue-500/20'} backdrop-blur-[1px] flex items-center justify-center`}
-                        >
-                          <div
-                            className={`${isMother ? 'bg-pink-500' : 'bg-blue-500'} text-white text-xs font-bold px-2 py-1 rounded-lg`}
-                          >
-                            {isMother ? 'Mother' : 'Father'}
-                          </div>
-                        </div>
-                      )}
-                    </button>
-                  )
-                })}
-              </div>
-              {images.length === 0 && (
-                <div className="text-center py-12">
-                  <p className="text-muted-foreground">
-                    No images yet. Generate some first!
-                  </p>
-                </div>
-              )}
-            </div>
-          </div>
         ) : (
-          // Edit/Upscale/Aging(Single) Mode: Premium Preview + Image Selector
+          // Edit/Upscale Mode: Premium Preview + Image Selector
           <div className="grid gap-8 lg:grid-cols-2 px-2">
             {/* Preview Area - Premium Styling */}
             <div className="space-y-4">
               <div className="aspect-square rounded-2xl border border-border/30 bg-card/30 overflow-hidden shadow-lg">
                 {completedResult ? (
-                  // Show comparison slider OR just result (for aging multi)
+                  // Show comparison slider OR just result (no source image)
                   completedResult.sourceUrl ? (
                     <BeforeAfterSlider
                       beforeImage={completedResult.sourceUrl}
@@ -1183,7 +904,7 @@ function ImagesPage() {
                       className="h-full w-full"
                     />
                   ) : (
-                    // Aging multi mode - just show result
+                    // No source image - just show result
                     <img
                       src={completedResult.resultUrl}
                       alt="Result"
@@ -1233,7 +954,7 @@ function ImagesPage() {
                       {mode === 'edit' && maxImagesForModel > 1
                         ? 'image(s)'
                         : 'an image'}{' '}
-                      to {mode === 'aging' ? 'transform' : mode}
+                      to {mode}
                     </p>
                   </div>
                 )}
@@ -1476,8 +1197,6 @@ function ImagesPage() {
               onGptCustomWidthChange={setGptCustomWidth}
               gptCustomHeight={gptCustomHeight}
               onGptCustomHeightChange={setGptCustomHeight}
-              recraftStyle={recraftStyle}
-              onRecraftStyleChange={setRecraftStyle}
               numImages={numImages}
               onNumImagesChange={setNumImages}
             />
@@ -1542,36 +1261,6 @@ function ImagesPage() {
                   : editJobStatus?.error ||
                     (editJobStatusError instanceof Error
                       ? editJobStatusError.message
-                      : undefined)
-              }
-            />
-          )}
-
-          {mode === 'aging' && (
-            <AgingPanel
-              subMode={agingSubMode}
-              onSubModeChange={setAgingSubMode}
-              ageGroup={ageGroup}
-              onAgeGroupChange={setAgeGroup}
-              gender={agingGender}
-              onGenderChange={setAgingGender}
-              prompt={agingPrompt}
-              onPromptChange={setAgingPrompt}
-              numImages={agingNumImages}
-              onNumImagesChange={setAgingNumImages}
-              fatherWeight={fatherWeight}
-              onFatherWeightChange={setFatherWeight}
-              onGenerate={handleAging}
-              isGenerating={isGenerating}
-              singleImageSelected={selectedEditImages.length > 0}
-              motherSelected={motherImage !== null}
-              fatherSelected={fatherImage !== null}
-              error={
-                agingMutation.error instanceof Error
-                  ? agingMutation.error.message
-                  : agingJobStatus?.error ||
-                    (agingJobStatusError instanceof Error
-                      ? agingJobStatusError.message
                       : undefined)
               }
             />
@@ -1800,6 +1489,7 @@ interface GeneratePanelProps {
     name: string
     supportsNumImages?: boolean
     maxNumImages?: number
+    pricing?: PriceRule
   }>
   aspectRatio: string
   onAspectRatioChange: (v: string) => void
@@ -1810,7 +1500,12 @@ interface GeneratePanelProps {
   onGenerate: () => void
   isGenerating: boolean
   selectedModel:
-    | { supportsNumImages?: boolean; maxNumImages?: number }
+    | {
+        supportsNumImages?: boolean
+        maxNumImages?: number
+        supportsNegativePrompt?: boolean
+        pricing?: PriceRule
+      }
     | undefined
   error: Error | null
   jobStatus: { status?: string; error?: string | null } | undefined
@@ -1823,8 +1518,6 @@ interface GeneratePanelProps {
   onGptCustomWidthChange: (v: number) => void
   gptCustomHeight: number
   onGptCustomHeightChange: (v: number) => void
-  recraftStyle: RecraftStyle
-  onRecraftStyleChange: (v: RecraftStyle) => void
   numImages: number
   onNumImagesChange: (v: number) => void
 }
@@ -1855,8 +1548,6 @@ function GeneratePanel({
   onGptCustomWidthChange,
   gptCustomHeight,
   onGptCustomHeightChange,
-  recraftStyle,
-  onRecraftStyleChange,
   numImages,
   onNumImagesChange,
 }: GeneratePanelProps) {
@@ -1867,6 +1558,19 @@ function GeneratePanel({
   const gptCustomSizeError = isCustomGptSize
     ? validateGptImageCustomSize(gptCustomWidth, gptCustomHeight)
     : null
+  const dims = isCustomGptSize
+    ? { width: gptCustomWidth, height: gptCustomHeight }
+    : ASPECT_RATIOS.find((r) => r.id === aspectRatio) || ASPECT_RATIOS[0]
+  const costLabel = formatEstimate(
+    estimateCost(selectedModel?.pricing, {
+      numImages: supportsNumImages ? numImages : 1,
+      width: dims.width,
+      height: dims.height,
+      quality: gptQuality,
+      resolution: '1K',
+    }),
+  )
+  const supportsNegativePrompt = selectedModel?.supportsNegativePrompt ?? false
   return (
     <>
       {/* Premium Textarea with Floating Generate Button */}
@@ -1877,7 +1581,7 @@ function GeneratePanel({
           value={prompt}
           onChange={(e) => onPromptChange(e.target.value)}
           disabled={isGenerating}
-          className="min-h-[80px] resize-none pr-28 text-base rounded-xl border-border/50 bg-background/50 focus:border-primary/50 focus:ring-primary/20 placeholder:text-muted-foreground/60 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="min-h-[80px] resize-none pr-44 text-base rounded-xl border-border/50 bg-background/50 focus:border-primary/50 focus:ring-primary/20 placeholder:text-muted-foreground/60 disabled:opacity-50 disabled:cursor-not-allowed"
           rows={2}
         />
         <Button
@@ -1892,6 +1596,11 @@ function GeneratePanel({
             <>
               <Sparkles className="mr-2 h-4 w-4" />
               Generate
+              {costLabel && (
+                <span className="ml-2 border-l border-primary-foreground/30 pl-2 text-xs font-normal tabular-nums opacity-80">
+                  {costLabel}
+                </span>
+              )}
             </>
           )}
         </Button>
@@ -1951,22 +1660,6 @@ function GeneratePanel({
           </>
         )}
 
-        {/* Recraft Style Selector */}
-        {model.includes('recraft') && (
-          <Select value={recraftStyle} onValueChange={onRecraftStyleChange}>
-            <SelectTrigger className="h-9 w-40 rounded-xl border-border/50 bg-background/50">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent className="rounded-xl">
-              {RECRAFT_STYLES.map((style) => (
-                <SelectItem key={style.id} value={style.id}>
-                  {style.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
-
         {/* Number of Images Slider - Premium Styling */}
         {supportsNumImages && (
           <div className="flex items-center gap-3 rounded-xl border border-border/50 bg-background/50 px-3 py-2">
@@ -2016,17 +1709,19 @@ function GeneratePanel({
           )}
         </div>
 
-        {/* Negative Prompt Toggle */}
-        <button
-          onClick={onToggleNegativePrompt}
-          className={`text-xs font-medium transition-colors rounded-lg px-3 py-1.5 ${
-            showNegativePrompt
-              ? 'text-primary bg-primary/10'
-              : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
-          }`}
-        >
-          {showNegativePrompt ? '- Negative' : '+ Negative'}
-        </button>
+        {/* Negative Prompt Toggle — only for models that take one */}
+        {supportsNegativePrompt && (
+          <button
+            onClick={onToggleNegativePrompt}
+            className={`text-xs font-medium transition-colors rounded-lg px-3 py-1.5 ${
+              showNegativePrompt
+                ? 'text-primary bg-primary/10'
+                : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+            }`}
+          >
+            {showNegativePrompt ? '- Negative' : '+ Negative'}
+          </button>
+        )}
       </div>
 
       {/* GPT Image 2 Custom Dimensions */}
@@ -2078,7 +1773,7 @@ function GeneratePanel({
       )}
 
       {/* Negative Prompt Input */}
-      {showNegativePrompt && (
+      {supportsNegativePrompt && showNegativePrompt && (
         <div className="mt-4">
           <Textarea
             placeholder="What to avoid in the image..."
@@ -2129,7 +1824,7 @@ function ImageDetailPanel({
   // Get the source asset ID for before/after comparison
   const sourceAssetId = image.metadata?.sourceAssetId
 
-  // Fetch source image if this image was derived from another (edit/upscale/aging)
+  // Fetch source image if this image was derived from another (edit/upscale)
   const { data: sourceImage } = useQuery({
     queryKey: ['sourceImage', sourceAssetId],
     queryFn: async () => {

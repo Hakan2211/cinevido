@@ -167,12 +167,6 @@ export const galleryImages = [
 
 // Before/After comparison demos
 export const beforeAfterDemos = {
-  aging: {
-    before: `${CDN_BASE}/images/cml3kjr9w0000e4uc6oymgh4i/keanu%20reeves-1769967144894.jpg`,
-    after: `${CDN_BASE}/images/cml3kjr9w0000e4uc6oymgh4i/aging-single-baby-1769967170753-0.jpeg`,
-    label: 'Baby Prediction',
-    description: 'Predict what a baby would look like from a parent photo',
-  },
   edit: {
     before: `${CDN_BASE}/images/kEfpAGeXEISFdl55hRbdV6oEFH5zWJis/generated-1769082201172-0.webp`,
     after: `${CDN_BASE}/images/kEfpAGeXEISFdl55hRbdV6oEFH5zWJis/edit-1769184929468.png`,

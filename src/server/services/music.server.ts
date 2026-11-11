@@ -8,7 +8,7 @@
  *   ACE-Step          tags + lyrics, duration honoured      (the drafting engine)
  *   MiniMax Music 3   prompt + REQUIRED lyrics, duration is a CAP, ≤5min
  *   ElevenLabs Music  prose prompt, 3s–10min, instrumental  (the delivery engine)
- *   Lyria 3 Pro       prose prompt only — no duration, no seed, ≤3min
+ *   Lyria 3.5         prose prompt only — no duration, no seed, ≤3min
  *
  * BYOK (Bring Your Own Key) Support:
  * - Functions accept an optional `apiKey` parameter for user-provided keys
@@ -109,7 +109,7 @@ export function buildMusicPayload(
     }
   }
 
-  if (modelId === 'fal-ai/elevenlabs/music') {
+  if (modelId === 'elevenlabs/music/v2.5') {
     return {
       prompt: input.prompt,
       music_length_ms: Math.round(duration * 1000),
@@ -117,7 +117,7 @@ export function buildMusicPayload(
     }
   }
 
-  // fal-ai/lyria3/pro — prompt is the whole API surface. No duration, no seed,
+  // google/lyria-3.5 — prompt is the whole API surface. No duration, no seed,
   // no negative prompt: sending them is a schema error, not a no-op.
   return { prompt: input.prompt }
 }

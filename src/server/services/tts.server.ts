@@ -11,7 +11,7 @@
 
 import { uploadFromUrl } from './bunny.server'
 import type { BunnyConfig } from './bunny.server'
-import { AUDIO_MODELS, getModelById } from './types'
+import { AUDIO_MODELS, DEFAULT_MODELS, getModelById } from './types'
 
 const MOCK_TTS = process.env.MOCK_GENERATION === 'true'
 const FAL_API_URL = 'https://queue.fal.run'
@@ -40,10 +40,10 @@ export interface Voice {
 export interface SpeechGenerationInput {
   text: string
   voice?: string // Voice name like "Rachel", "Adam" (default: "Rachel")
-  model?: string // Fal model ID (default: multilingual-v2)
+  model?: string // Fal model ID (default: Eleven v4)
   stability?: number // 0-1 (default: 0.5)
   similarityBoost?: number // 0-1 (default: 0.75)
-  speed?: number // 0.7-1.2 (default: 1)
+  speed?: number // Ignored: Eleven v4 has no speed control
 }
 
 export interface WordTimestamp {
@@ -75,6 +75,8 @@ interface FalTtsResponse {
 
 interface FalQueueResponse {
   request_id: string
+  status_url: string
+  response_url: string
   status: 'IN_QUEUE' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED'
 }
 
@@ -123,9 +125,10 @@ export async function generateSpeech(
 
   const apiKey = getApiKey(userApiKey)
 
-  const modelId = input.model || 'fal-ai/elevenlabs/tts/multilingual-v2'
-  // Validate model exists
-  getModelById(modelId, AUDIO_MODELS)
+  const modelId = input.model || DEFAULT_MODELS.tts
+  if (!getModelById(modelId, AUDIO_MODELS)) {
+    throw new Error(`Unknown speech model: ${modelId}`)
+  }
 
   const voice = input.voice || 'Rachel'
 
@@ -141,7 +144,6 @@ export async function generateSpeech(
       voice,
       stability: input.stability ?? 0.5,
       similarity_boost: input.similarityBoost ?? 0.75,
-      speed: input.speed ?? 1,
       timestamps: true, // Always request timestamps for karaoke sync
     }),
   })
@@ -152,10 +154,15 @@ export async function generateSpeech(
   }
 
   const queueData: FalQueueResponse = await submitResponse.json()
-  const requestId = queueData.request_id
 
   // Poll for completion (TTS is usually fast, 2-10 seconds)
-  const result = await pollForCompletion(requestId, modelId, apiKey)
+  // Poll the URLs fal hands back: for nested endpoint ids the queue path is
+  // not simply `<modelId>/requests/<id>`
+  const result = await pollForCompletion(
+    queueData.status_url,
+    queueData.response_url,
+    apiKey,
+  )
 
   // Convert Fal.ai timestamps to our format
   const wordTimestamps: Array<WordTimestamp> = (result.timestamps || []).map(
@@ -233,20 +240,17 @@ export function getAudioModels() {
  * Poll Fal.ai for job completion
  */
 async function pollForCompletion(
-  requestId: string,
-  modelId: string,
+  statusUrl: string,
+  responseUrl: string,
   apiKey: string,
-  maxAttempts = 60, // 60 attempts * 500ms = 30 seconds max
+  maxAttempts = 120, // 120 attempts * 500ms = 60 seconds max
   intervalMs = 500,
 ): Promise<FalTtsResponse> {
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     // Check status
-    const statusResponse = await fetch(
-      `${FAL_API_URL}/${modelId}/requests/${requestId}/status`,
-      {
-        headers: { Authorization: `Key ${apiKey}` },
-      },
-    )
+    const statusResponse = await fetch(statusUrl, {
+      headers: { Authorization: `Key ${apiKey}` },
+    })
 
     if (!statusResponse.ok) {
       throw new Error(`Failed to get TTS status: ${statusResponse.status}`)
@@ -256,12 +260,9 @@ async function pollForCompletion(
 
     if (statusData.status === 'COMPLETED') {
       // Fetch the result
-      const resultResponse = await fetch(
-        `${FAL_API_URL}/${modelId}/requests/${requestId}`,
-        {
-          headers: { Authorization: `Key ${apiKey}` },
-        },
-      )
+      const resultResponse = await fetch(responseUrl, {
+        headers: { Authorization: `Key ${apiKey}` },
+      })
 
       if (!resultResponse.ok) {
         throw new Error(`Failed to get TTS result: ${resultResponse.status}`)

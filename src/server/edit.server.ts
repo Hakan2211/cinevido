@@ -19,6 +19,7 @@ import {
   upscaleImage,
 } from './services/edit.server'
 import {
+  DEFAULT_MODELS,
   GPT_IMAGE_QUALITY_VALUES,
   UPSCALE_MODELS,
   getEditModelById,
@@ -93,7 +94,7 @@ export const editImageFn = createServerFn({ method: 'POST' })
       promptPreview: data.prompt.slice(0, 50) + '...',
     })
 
-    const modelId = data.model || 'fal-ai/flux-pro/kontext'
+    const modelId = data.model || DEFAULT_MODELS.edit
     const modelConfig = getEditModelById(modelId)
 
     if (!modelConfig) {

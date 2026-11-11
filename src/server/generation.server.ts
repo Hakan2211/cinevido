@@ -20,6 +20,8 @@ import {
   uploadFromUrl,
 } from './services/index.server'
 import { getUserStorageConfig } from './storage-config.server'
+import { getUserFalApiKey } from './byok.server'
+import { DEFAULT_MODELS } from './services/types'
 
 // =============================================================================
 // Schemas
@@ -44,7 +46,7 @@ const createVideoJobSchema = z.object({
 const createAudioJobSchema = z.object({
   text: z.string().min(1).max(5000),
   voice: z.string().optional(), // Voice name like "Rachel", "Adam" (defaults to "Rachel")
-  model: z.string().optional(), // TTS model (defaults to multilingual-v2)
+  model: z.string().optional(), // TTS model (defaults to Eleven v4)
   projectId: z.string().optional(),
 })
 
@@ -70,7 +72,7 @@ export const createImageJobFn = createServerFn({ method: 'POST' })
   .middleware([authMiddleware])
   .inputValidator(createImageJobSchema)
   .handler(async ({ data, context }) => {
-    const modelId = data.model || 'fal-ai/flux-pro/v1.1'
+    const modelId = data.model || DEFAULT_MODELS.image
 
     // Create job in database
     const job = await prisma.generationJob.create({
@@ -91,18 +93,24 @@ export const createImageJobFn = createServerFn({ method: 'POST' })
 
     // Start the generation (async)
     try {
-      const falJob = await generateImage({
-        prompt: data.prompt,
-        model: modelId,
-        width: data.width,
-        height: data.height,
-      })
+      const falJob = await generateImage(
+        {
+          prompt: data.prompt,
+          model: modelId,
+          width: data.width,
+          height: data.height,
+        },
+        await getUserFalApiKey(context.user.id),
+      )
 
       // Update job with external ID
       await prisma.generationJob.update({
         where: { id: job.id },
         data: {
           externalId: falJob.requestId,
+          statusUrl: falJob.statusUrl,
+          responseUrl: falJob.responseUrl,
+          cancelUrl: falJob.cancelUrl,
           status: 'processing',
         },
       })
@@ -132,7 +140,7 @@ export const createVideoJobFn = createServerFn({ method: 'POST' })
   .middleware([authMiddleware])
   .inputValidator(createVideoJobSchema)
   .handler(async ({ data, context }) => {
-    const modelId = data.model || 'fal-ai/kling-video/v1.5/pro/image-to-video'
+    const modelId = data.model || DEFAULT_MODELS.imageToVideo
 
     // Create job in database
     const job = await prisma.generationJob.create({
@@ -153,19 +161,25 @@ export const createVideoJobFn = createServerFn({ method: 'POST' })
 
     // Start the generation (async)
     try {
-      const falJob = await generateVideo({
-        generationType: 'image-to-video',
-        imageUrl: data.imageUrl,
-        prompt: data.prompt,
-        model: modelId,
-        duration: data.duration,
-      })
+      const falJob = await generateVideo(
+        {
+          generationType: 'image-to-video',
+          imageUrl: data.imageUrl,
+          prompt: data.prompt,
+          model: modelId,
+          duration: data.duration,
+        },
+        await getUserFalApiKey(context.user.id),
+      )
 
       // Update job with external ID
       await prisma.generationJob.update({
         where: { id: job.id },
         data: {
           externalId: falJob.requestId,
+          statusUrl: falJob.statusUrl,
+          responseUrl: falJob.responseUrl,
+          cancelUrl: falJob.cancelUrl,
           status: 'processing',
         },
       })
@@ -195,7 +209,7 @@ export const createAudioJobFn = createServerFn({ method: 'POST' })
   .middleware([authMiddleware])
   .inputValidator(createAudioJobSchema)
   .handler(async ({ data, context }) => {
-    const modelId = data.model || 'fal-ai/elevenlabs/tts/multilingual-v2'
+    const modelId = data.model || DEFAULT_MODELS.tts
 
     const voice = data.voice || 'Rachel'
 
@@ -225,7 +239,7 @@ export const createAudioJobFn = createServerFn({ method: 'POST' })
           voice,
           model: modelId,
         },
-        undefined, // userApiKey (uses service default)
+        await getUserFalApiKey(context.user.id),
         storageConfig,
       )
 
@@ -320,9 +334,13 @@ export const getJobStatusFn = createServerFn({ method: 'GET' })
     }
 
     // Poll the provider for status update
-    if (job.provider === 'fal' && job.externalId) {
+    if (job.provider === 'fal' && job.statusUrl && job.responseUrl) {
       try {
-        const falStatus = await getFalJobStatus(job.externalId, job.model)
+        const falStatus = await getFalJobStatus(
+          job.statusUrl,
+          job.responseUrl,
+          await getUserFalApiKey(context.user.id),
+        )
 
         // Update job progress
         await prisma.generationJob.update({

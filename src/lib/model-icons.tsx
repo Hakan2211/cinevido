@@ -115,6 +115,7 @@ export function getProviderFromModelId(modelId: string): ProviderKey {
   if (
     lowerModelId.includes('nano-banana') ||
     lowerModelId.includes('google') ||
+    lowerModelId.includes('veo') ||
     lowerModelId.includes('lyria')
   ) {
     return 'google'

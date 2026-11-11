@@ -30,7 +30,7 @@ const faqs = [
   {
     question: 'Can I use my own images and videos as input?',
     answer:
-      'Yes! Many features support your own content as input. You can upload images for image-to-video, image-to-3D, editing, upscaling, and age transformation. Videos can be uploaded for upscaling. All uploads are processed securely.',
+      'Yes! Many features support your own content as input. You can upload images for image-to-video, image-to-3D, editing, and upscaling. Videos can be uploaded for upscaling. All uploads are processed securely.',
   },
   {
     question: 'What formats can I export?',

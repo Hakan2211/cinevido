@@ -4,9 +4,18 @@
  * This file contains type definitions used across multiple services.
  */
 
+import type { ModelTier, PriceRule } from '../../lib/pricing'
+
+export type { ModelTier, PriceRule } from '../../lib/pricing'
+
 // =============================================================================
 // Model Configurations
 // =============================================================================
+//
+// The catalog is curated: per category a Draft (cheap previews), a Workhorse
+// (the default) and a Hero (best quality) tier, plus a few specialists.
+// Endpoint input fields were checked against each model's OpenAPI schema on
+// fal (2026-11-11) — only send what a model's schema declares.
 
 export interface ModelConfig {
   id: string
@@ -15,6 +24,10 @@ export interface ModelConfig {
   description?: string
   supportsNumImages?: boolean // Whether model supports generating multiple images
   maxNumImages?: number // Maximum number of images (default 4 if supportsNumImages is true)
+  tier?: ModelTier
+  pricing?: PriceRule
+  supportsSeed?: boolean
+  supportsNegativePrompt?: boolean
 }
 
 // Extended config for edit models with image capacity info
@@ -30,136 +43,145 @@ export interface UpscaleModelConfig extends ModelConfig {
 }
 
 export const IMAGE_MODELS: Array<ModelConfig> = [
-  // === Google (Nano Banana) ===
+  // === Draft ===
   {
-    id: 'fal-ai/nano-banana-pro',
-    name: 'Nano Banana Pro',
+    id: 'blackforestlabs/flux-3/klein/text-to-image',
+    name: 'FLUX.3 Klein',
     provider: 'fal',
-    description: 'Google Gemini 3 Pro - Best quality, excellent text rendering',
+    description:
+      'Black Forest Labs - Fastest and cheapest, for exploring ideas',
+    tier: 'draft',
+    pricing: { kind: 'perMegapixel', usd: 0.009 },
     supportsNumImages: true,
     maxNumImages: 4,
+    supportsSeed: true,
+  },
+  {
+    id: 'minimax/h3-image/highspeed/text-to-image',
+    name: 'MiniMax H3 Image Fast',
+    provider: 'fal',
+    description: 'MiniMax - Quick 2K drafts with prompt expansion',
+    tier: 'draft',
+    // token-billed by MiniMax; fal publishes no per-image figure
+    supportsNumImages: true,
+    maxNumImages: 4,
+  },
+
+  // === Workhorse ===
+  {
+    id: 'bytedance/seedream/v5/flash/text-to-image',
+    name: 'Seedream 5 Flash',
+    provider: 'fal',
+    description: 'ByteDance - Sharp 2K images at a draft price. The default.',
+    tier: 'standard',
+    pricing: { kind: 'perImage', usd: 0.027 },
+    supportsNumImages: true,
+    maxNumImages: 4,
+  },
+  {
+    id: 'minimax/h3-image/text-to-image',
+    name: 'MiniMax H3 Image',
+    provider: 'fal',
+    description: 'MiniMax - Native 2K, strong on people and scenes',
+    tier: 'standard',
+    supportsNumImages: true,
+    maxNumImages: 4,
+  },
+  {
+    id: 'krea/v3/text-to-image',
+    name: 'Krea 3',
+    provider: 'fal',
+    description: 'Krea - Photographic, natural-looking light and texture',
+    tier: 'standard',
+    pricing: { kind: 'perMegapixel', usd: 0.025 },
+    supportsSeed: true,
+    supportsNegativePrompt: true,
   },
   {
     id: 'google/nano-banana-2.1',
     name: 'Nano Banana 2.1',
     provider: 'fal',
-    description: 'Google - Newest Nano Banana, sharper detail and text',
+    description: 'Google - Follows complex prompts, excellent text',
+    tier: 'standard',
+    pricing: {
+      kind: 'perImage',
+      usd: 0.04,
+      byResolution: { '1K': 0.04, '2K': 0.059, '4K': 0.134 },
+    },
+    supportsNumImages: true,
+    maxNumImages: 4,
+    supportsSeed: true,
+  },
+
+  // === Hero ===
+  {
+    id: 'bytedance/seedream/v5/pro/text-to-image',
+    name: 'Seedream 5 Pro',
+    provider: 'fal',
+    description: 'ByteDance - Flagship detail and composition',
+    tier: 'hero',
+    pricing: { kind: 'perImage', usd: 0.0675 },
     supportsNumImages: true,
     maxNumImages: 4,
   },
   {
-    id: 'fal-ai/nano-banana-2',
-    name: 'Nano Banana 2',
+    id: 'blackforestlabs/flux-3/text-to-image',
+    name: 'FLUX 3',
     provider: 'fal',
-    description: 'Google Gemini 3.1 Flash - Fast, high quality',
+    description: 'Black Forest Labs - Photoreal flagship, wide aspect ratios',
+    tier: 'hero',
+    pricing: { kind: 'perMegapixel', usd: 0.048 },
+  },
+  {
+    id: 'fal-ai/nano-banana-pro',
+    name: 'Nano Banana Pro',
+    provider: 'fal',
+    description: 'Google Gemini 3 Pro - Best reasoning and text rendering',
+    tier: 'hero',
+    pricing: { kind: 'perImage', usd: 0.15 },
+    supportsNumImages: true,
+    maxNumImages: 4,
+    supportsSeed: true,
+  },
+  {
+    id: 'openai/gpt-image-2.6/sunburst/text-to-image',
+    name: 'GPT Image 2.6 Sunburst',
+    provider: 'fal',
+    description: 'OpenAI - Fine typography and layout, up to "max" quality',
+    tier: 'hero',
+    // token-billed; low→max quality spans roughly this range per image
+    pricing: { kind: 'range', min: 0.01, max: 0.25, per: 'image' },
+    supportsNumImages: true,
+    maxNumImages: 4,
+  },
+  {
+    id: 'openai/gpt-image-2.6/flare/text-to-image',
+    name: 'GPT Image 2.6 Flare',
+    provider: 'fal',
+    description: "OpenAI - OpenAI's default image model, up to max quality",
+    tier: 'hero',
+    pricing: { kind: 'range', min: 0.01, max: 0.25, per: 'image' },
     supportsNumImages: true,
     maxNumImages: 4,
   },
 
-  // === OpenAI (GPT Image) ===
+  // === Specialists ===
   {
-    id: 'openai/gpt-image-2.5/flare/text-to-image',
-    name: 'GPT Image 2.5 Flare',
+    id: 'ideogram/v4.5',
+    name: 'Ideogram 4.5',
     provider: 'fal',
-    description: "OpenAI Flare - OpenAI's default image model, up to max quality",
+    description: 'Posters, logos and anything with lettering',
+    pricing: { kind: 'perImage', usd: 0.06 },
     supportsNumImages: true,
     maxNumImages: 4,
+    supportsSeed: true,
   },
   {
-    id: 'openai/gpt-image-2.5/sunburst/text-to-image',
-    name: 'GPT Image 2.5 Sunburst',
+    id: 'recraft/v4.1/flash/text-to-image',
+    name: 'Recraft 4.1 Flash',
     provider: 'fal',
-    description: 'OpenAI Sunburst - Up to "max" quality tier, fine typography',
-    supportsNumImages: true,
-    maxNumImages: 4,
-  },
-  {
-    id: 'fal-ai/gpt-image-2',
-    name: 'GPT Image 2',
-    provider: 'fal',
-    description: 'OpenAI - Detailed images with fine typography, quality tiers',
-    supportsNumImages: true,
-    maxNumImages: 4,
-  },
-
-  // === Black Forest Labs (Flux 2) ===
-  {
-    id: 'fal-ai/flux-2-pro',
-    name: 'Flux 2 Pro',
-    provider: 'fal',
-    description: 'Production-optimized, zero-config professional quality',
-    // Flux 2 Pro does NOT support num_images
-  },
-  {
-    id: 'fal-ai/flux-2',
-    name: 'Flux 2 Dev',
-    provider: 'fal',
-    description: 'Fast open-source, great for iteration',
-    supportsNumImages: true,
-    maxNumImages: 4,
-  },
-
-  // === ImagineArt ===
-  {
-    id: 'imagineart/imagineart-1.5-pro-preview/text-to-image',
-    name: 'ImagineArt 1.5 Pro',
-    provider: 'fal',
-    description: 'Ultra-high-fidelity 4K, professional use',
-    // ImagineArt does NOT support num_images
-  },
-  {
-    id: 'imagineart/imagineart-1.5-preview/text-to-image',
-    name: 'ImagineArt 1.5',
-    provider: 'fal',
-    description: 'Professional realism, good text rendering',
-    // ImagineArt does NOT support num_images
-  },
-
-  // === ByteDance ===
-  {
-    id: 'fal-ai/bytedance/seedream/v4.5/text-to-image',
-    name: 'Seedream 4.5',
-    provider: 'fal',
-    description: 'ByteDance - Up to 4MP, unified generation + editing',
-    supportsNumImages: true,
-    maxNumImages: 4,
-  },
-
-  // === Recraft ===
-  {
-    id: 'fal-ai/recraft/v3/text-to-image',
-    name: 'Recraft V3',
-    provider: 'fal',
-    description: 'SOTA text rendering, vector art, brand styles',
-    // Recraft does NOT support num_images in current API
-  },
-
-  // === Bria ===
-  {
-    id: 'bria/text-to-image/3.2',
-    name: 'Bria 3.2',
-    provider: 'fal',
-    description: 'Licensed data, safe commercial use, good text',
-    // Bria does NOT support num_images in current API
-  },
-
-  // === Alibaba (Wan) ===
-  {
-    id: 'wan/v2.6/text-to-image',
-    name: 'Wan 2.6',
-    provider: 'fal',
-    description: 'Alibaba - High quality, good value',
-    // Disabled: max_images causes downstream service errors on fal.ai
-  },
-
-  // === xAI (Grok Imagine) ===
-  {
-    id: 'xai/grok-imagine-image',
-    name: 'Grok Imagine',
-    provider: 'fal',
-    description: 'xAI - Highly aesthetic images with prompt enhancement',
-    supportsNumImages: true,
-    maxNumImages: 4,
+    description: 'Design work - icons, illustration, brand graphics',
+    pricing: { kind: 'perImage', usd: 0.007 },
   },
 ]
 
@@ -199,29 +221,26 @@ export const GPT_IMAGE_QUALITY_VALUES = [
   'max',
 ] as const
 
-// Any GPT Image text-to-image model (2, 2.5 Flare, 2.5 Sunburst)
+// Any GPT Image text-to-image model (2.6 Flare, 2.6 Sunburst)
 export function isGptImageModel(modelId: string): boolean {
   return (
-    modelId === 'fal-ai/gpt-image-2' ||
-    modelId === 'openai/gpt-image-2.5/flare/text-to-image' ||
-    modelId === 'openai/gpt-image-2.5/sunburst/text-to-image'
+    modelId === 'openai/gpt-image-2.6/flare/text-to-image' ||
+    modelId === 'openai/gpt-image-2.6/sunburst/text-to-image'
   )
 }
 
-// Any GPT Image edit model (2, 2.5 Flare, 2.5 Sunburst)
+// Any GPT Image edit model (2.6 Flare, 2.6 Sunburst)
 export function isGptImageEditModel(modelId: string): boolean {
   return (
-    modelId === 'fal-ai/gpt-image-2/edit' ||
-    modelId === 'openai/gpt-image-2.5/flare/edit' ||
-    modelId === 'openai/gpt-image-2.5/sunburst/edit'
+    modelId === 'openai/gpt-image-2.6/flare/edit' ||
+    modelId === 'openai/gpt-image-2.6/sunburst/edit'
   )
 }
 
-// Quality tiers offered by a given GPT Image model (create or edit)
-export function gptImageQualityTiers(modelId: string) {
-  return modelId.includes('gpt-image-2.5')
-    ? GPT_IMAGE_25_QUALITY_TIERS
-    : GPT_IMAGE_QUALITY_TIERS
+// Quality tiers offered by a given GPT Image model (create or edit).
+// Every GPT Image model we offer (2.6) takes auto, low…high, xhigh and max.
+export function gptImageQualityTiers(_modelId: string) {
+  return GPT_IMAGE_25_QUALITY_TIERS
 }
 
 // Clamp a quality to one the model accepts (falls back to 'high')
@@ -345,78 +364,98 @@ export type RecraftStyle =
 // Image editing models (prompt-based AI editing)
 // These models edit images via natural language prompts - no masks required
 export const EDIT_MODELS: Array<EditModelConfig> = [
-  // === Single-image models ===
+  // === Draft ===
   {
-    id: 'fal-ai/flux-pro/kontext',
-    name: 'Kontext Pro',
+    id: 'bytedance/seedream/v5/flash/edit',
+    name: 'Seedream 5 Flash',
     provider: 'fal',
-    maxImages: 1,
-    description: 'Character consistency, local edits',
+    maxImages: 10,
+    description: 'ByteDance - Fast, cheap multi-image edits',
+    tier: 'draft',
+    pricing: { kind: 'perImage', usd: 0.027 },
   },
-  // === Multi-image models ===
-  {
-    id: 'fal-ai/nano-banana-pro/edit',
-    name: 'Nano Banana Pro',
-    provider: 'fal',
-    maxImages: 14,
-    description: 'Best quality, multi-image composition',
-  },
+
+  // === Workhorse ===
   {
     id: 'google/nano-banana-2.1/edit',
     name: 'Nano Banana 2.1',
     provider: 'fal',
     maxImages: 10,
-    description: 'Google - Newest Nano Banana editing',
+    description:
+      'Google - Precise edits that keep everything else intact. The default.',
+    tier: 'standard',
+    pricing: {
+      kind: 'perImage',
+      usd: 0.044,
+      byResolution: { '1K': 0.044, '2K': 0.063, '4K': 0.138 },
+    },
+    supportsSeed: true,
   },
   {
-    id: 'fal-ai/nano-banana-2/edit',
-    name: 'Nano Banana 2',
+    id: 'blackforestlabs/flux-3/edit-image',
+    name: 'FLUX 3 Edit',
     provider: 'fal',
     maxImages: 10,
-    description: 'Google Gemini 3.1 Flash - Fast, high quality editing',
+    description: 'Black Forest Labs - Photoreal edits, multi-reference',
+    tier: 'standard',
+    pricing: { kind: 'perMegapixel', usd: 0.048 },
   },
   {
-    id: 'fal-ai/flux-2/edit',
-    name: 'Flux 2 Edit',
+    id: 'krea/v3/edit',
+    name: 'Krea 3 Edit',
     provider: 'fal',
-    maxImages: 10,
-    description: 'Multi-reference, HEX color control',
+    maxImages: 8,
+    description: 'Krea - Natural light and texture, keeps the photo look',
+    tier: 'standard',
+    pricing: { kind: 'perMegapixel', usd: 0.025 },
+    supportsSeed: true,
   },
   {
-    id: 'openai/gpt-image-2.5/flare/edit',
-    name: 'GPT Image 2.5 Flare',
+    id: 'minimax/h3-image/edit',
+    name: 'MiniMax H3 Image',
     provider: 'fal',
     maxImages: 16,
-    description: 'OpenAI Flare - Up to 16 refs, "max" quality tier',
+    description: 'MiniMax - Up to 16 references, strong on people',
+    tier: 'standard',
+  },
+
+  // === Hero ===
+  {
+    id: 'fal-ai/nano-banana-pro/edit',
+    name: 'Nano Banana Pro',
+    provider: 'fal',
+    maxImages: 14,
+    description: 'Google Gemini 3 Pro - Best multi-image composition',
+    tier: 'hero',
+    pricing: { kind: 'perImage', usd: 0.15 },
+    supportsSeed: true,
   },
   {
-    id: 'openai/gpt-image-2.5/sunburst/edit',
-    name: 'GPT Image 2.5 Sunburst',
+    id: 'bytedance/seedream/v5/pro/edit',
+    name: 'Seedream 5 Pro',
+    provider: 'fal',
+    maxImages: 10,
+    description: 'ByteDance - Flagship multi-source composition',
+    tier: 'hero',
+    pricing: { kind: 'perImage', usd: 0.0675 },
+  },
+  {
+    id: 'openai/gpt-image-2.6/sunburst/edit',
+    name: 'GPT Image 2.6 Sunburst',
     provider: 'fal',
     maxImages: 16,
-    description: 'OpenAI Sunburst - Up to 16 refs, "max" quality tier',
+    description: 'OpenAI - Up to 16 refs, fine typography, "max" quality',
+    tier: 'hero',
+    pricing: { kind: 'range', min: 0.01, max: 0.25, per: 'image' },
   },
   {
-    id: 'fal-ai/gpt-image-2/edit',
-    name: 'GPT Image 2',
+    id: 'openai/gpt-image-2.6/flare/edit',
+    name: 'GPT Image 2.6 Flare',
     provider: 'fal',
-    maxImages: 10,
-    description: 'OpenAI - Fine-grained edits, quality tiers, up to 4K',
-  },
-  {
-    id: 'fal-ai/bytedance/seedream/v4.5/edit',
-    name: 'Seedream 4.5',
-    provider: 'fal',
-    maxImages: 10,
-    description: 'Multi-source composition',
-  },
-  // === xAI (Grok Imagine) ===
-  {
-    id: 'xai/grok-imagine-image/edit',
-    name: 'Grok Imagine',
-    provider: 'fal',
-    maxImages: 1,
-    description: 'xAI - Precise editing with prompt enhancement',
+    maxImages: 16,
+    description: 'OpenAI - Up to 16 refs, "max" quality tier',
+    tier: 'hero',
+    pricing: { kind: 'range', min: 0.01, max: 0.25, per: 'image' },
   },
 ]
 
@@ -521,6 +560,9 @@ export const UPSCALE_MODELS: Array<UpscaleModelConfig> = [
     name: 'SeedVR2',
     provider: 'fal',
     description: 'AI upscaling up to 10x with target resolution mode',
+    tier: 'standard',
+    // billed on output megapixels
+    pricing: { kind: 'perMegapixel', usd: 0.001 },
     maxScale: 10,
     supportsTargetResolution: true,
   },
@@ -529,6 +571,8 @@ export const UPSCALE_MODELS: Array<UpscaleModelConfig> = [
     name: 'Topaz',
     provider: 'fal',
     description: 'Professional enhancement with face recovery',
+    tier: 'hero',
+    pricing: { kind: 'perMegapixel', usd: 0.01 },
     maxScale: 4,
     topazModels: TOPAZ_MODELS.map((m) => m.id),
   },
@@ -562,480 +606,365 @@ export interface VideoModelConfig extends ModelConfig {
 }
 
 export const VIDEO_MODELS: Array<VideoModelConfig> = [
-  // =============================================================================
-  // Kling 3.0 (O3) - Next-gen with extended durations (3-15s)
-  // =============================================================================
-  {
-    id: 'fal-ai/kling-video/o3/pro/text-to-video',
-    name: 'Kling 3.0 Pro',
-    provider: 'fal',
-    description: 'Kling 3.0 Pro text-to-video with 1080p and audio',
-    capabilities: ['text-to-video'],
-    durations: [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
-    aspectRatios: ['16:9', '9:16', '1:1'],
-    supportsAudio: true,
-  },
-  {
-    id: 'fal-ai/kling-video/o3/standard/text-to-video',
-    name: 'Kling 3.0 Standard',
-    provider: 'fal',
-    description: 'Kling 3.0 Standard text-to-video - Affordable',
-    capabilities: ['text-to-video'],
-    durations: [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
-    aspectRatios: ['16:9', '9:16', '1:1'],
-    supportsAudio: true,
-  },
-  {
-    id: 'fal-ai/kling-video/o3/pro/image-to-video',
-    name: 'Kling 3.0 Pro',
-    provider: 'fal',
-    description: 'Kling 3.0 Pro image-to-video with keyframes',
-    capabilities: ['image-to-video', 'keyframes'],
-    durations: [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
-    aspectRatios: ['16:9', '9:16', '1:1'],
-    supportsAudio: true,
-    supportsEndFrame: true,
-    fieldMappings: {
-      imageUrl: 'image_url',
-      endImageUrl: 'end_image_url',
-    },
-  },
-  {
-    id: 'fal-ai/kling-video/o3/standard/image-to-video',
-    name: 'Kling 3.0 Standard',
-    provider: 'fal',
-    description: 'Kling 3.0 Standard image-to-video with keyframes',
-    capabilities: ['image-to-video', 'keyframes'],
-    durations: [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
-    aspectRatios: ['16:9', '9:16', '1:1'],
-    supportsAudio: true,
-    supportsEndFrame: true,
-    fieldMappings: {
-      imageUrl: 'image_url',
-      endImageUrl: 'end_image_url',
-    },
-  },
-  {
-    id: 'fal-ai/kling-video/o3/pro/reference-to-video',
-    name: 'Kling 3.0 Pro Ref',
-    provider: 'fal',
-    description: 'Kling 3.0 Pro reference-to-video with keyframes',
-    capabilities: ['image-to-video', 'keyframes'],
-    durations: [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
-    aspectRatios: ['16:9', '9:16', '1:1'],
-    supportsAudio: true,
-    supportsEndFrame: true,
-    fieldMappings: {
-      imageUrl: 'start_image_url',
-      endImageUrl: 'end_image_url',
-    },
-  },
-  {
-    id: 'fal-ai/kling-video/o3/standard/reference-to-video',
-    name: 'Kling 3.0 Standard Ref',
-    provider: 'fal',
-    description: 'Kling 3.0 Standard reference-to-video with keyframes',
-    capabilities: ['image-to-video', 'keyframes'],
-    durations: [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
-    aspectRatios: ['16:9', '9:16', '1:1'],
-    supportsAudio: true,
-    supportsEndFrame: true,
-    fieldMappings: {
-      imageUrl: 'start_image_url',
-      endImageUrl: 'end_image_url',
-    },
-  },
+  // Order matters: the first model offered for a mode is that mode's default,
+  // so each mode leads with its Workhorse. Pickers group by tier for display.
+  //
+  // Prices are per second at the endpoint's DEFAULT resolution (we do not send
+  // one unless the user picks it). MiniMax rates are fal's standard rates from
+  // 2026-11-16; fal's API may show a temporary promotional rate before that.
 
   // =============================================================================
-  // Kling v3 - Latest generation with extended durations (3-15s)
-  // Uses start_image_url (not image_url like o3)
+  // Kling 4.0 - Kuaishou
   // =============================================================================
   {
-    id: 'fal-ai/kling-video/v3/pro/text-to-video',
-    name: 'Kling v3 Pro',
+    id: 'kling/v4/flash/text-to-video',
+    name: 'Kling 4.0 Flash',
     provider: 'fal',
-    description: 'Kling v3 Pro text-to-video with 1080p and audio',
+    description:
+      'Kling 4.0 Flash - Fast, reliable motion at 720p. The default.',
+    tier: 'standard',
+    pricing: { kind: 'perSecond', usd: 0.094 },
     capabilities: ['text-to-video'],
-    durations: [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
-    aspectRatios: ['16:9', '9:16', '1:1'],
-    supportsAudio: true,
-  },
-  {
-    id: 'fal-ai/kling-video/v3/standard/text-to-video',
-    name: 'Kling v3 Standard',
-    provider: 'fal',
-    description: 'Kling v3 Standard text-to-video - Affordable',
-    capabilities: ['text-to-video'],
-    durations: [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
-    aspectRatios: ['16:9', '9:16', '1:1'],
-    supportsAudio: true,
-  },
-  {
-    id: 'fal-ai/kling-video/v3/pro/image-to-video',
-    name: 'Kling v3 Pro',
-    provider: 'fal',
-    description: 'Kling v3 Pro image-to-video with keyframes',
-    capabilities: ['image-to-video', 'keyframes'],
-    durations: [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
-    aspectRatios: ['16:9', '9:16', '1:1'],
-    supportsAudio: true,
-    supportsEndFrame: true,
-    fieldMappings: {
-      imageUrl: 'start_image_url',
-      endImageUrl: 'end_image_url',
-    },
-  },
-  {
-    id: 'fal-ai/kling-video/v3/standard/image-to-video',
-    name: 'Kling v3 Standard',
-    provider: 'fal',
-    description: 'Kling v3 Standard image-to-video with keyframes',
-    capabilities: ['image-to-video', 'keyframes'],
-    durations: [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
-    aspectRatios: ['16:9', '9:16', '1:1'],
-    supportsAudio: true,
-    supportsEndFrame: true,
-    fieldMappings: {
-      imageUrl: 'start_image_url',
-      endImageUrl: 'end_image_url',
-    },
-  },
-
-  // =============================================================================
-  // Sora 2 - OpenAI's video model
-  // =============================================================================
-  {
-    id: 'fal-ai/sora-2/text-to-video/pro',
-    name: 'Sora 2 Pro',
-    provider: 'fal',
-    description: 'OpenAI Sora 2 Pro - Premium quality',
-    capabilities: ['text-to-video'],
-    durations: [4, 8, 12],
-    aspectRatios: ['16:9', '9:16'],
+    durations: [5, 8, 10, 15, 20],
+    aspectRatios: ['16:9', '9:16', '1:1', '21:9'],
     resolutions: ['720p'],
   },
   {
-    id: 'fal-ai/sora-2/text-to-video',
-    name: 'Sora 2',
+    id: 'kling/v4/flash/image-to-video',
+    name: 'Kling 4.0 Flash',
     provider: 'fal',
-    description: 'OpenAI Sora 2 - State-of-the-art video',
-    capabilities: ['text-to-video'],
-    durations: [4, 8, 12],
-    aspectRatios: ['16:9', '9:16'],
-    resolutions: ['720p'],
-  },
-  {
-    id: 'fal-ai/sora-2/image-to-video/pro',
-    name: 'Sora 2 Pro',
-    provider: 'fal',
-    description: 'OpenAI Sora 2 Pro image-to-video',
+    description:
+      'Kling 4.0 Flash - Animate a still, fast and affordable. The default.',
+    tier: 'standard',
+    pricing: { kind: 'perSecond', usd: 0.094 },
     capabilities: ['image-to-video'],
-    durations: [4, 8, 12],
-    aspectRatios: ['16:9', '9:16'],
+    durations: [5, 8, 10, 15, 20],
     resolutions: ['720p'],
-    fieldMappings: {
-      imageUrl: 'image_url',
-    },
+    fieldMappings: { imageUrl: 'start_image_url' },
   },
   {
-    id: 'fal-ai/sora-2/image-to-video',
-    name: 'Sora 2',
+    id: 'kling/v4/text-to-video',
+    name: 'Kling 4.0',
     provider: 'fal',
-    description: 'OpenAI Sora 2 image-to-video',
-    capabilities: ['image-to-video'],
-    durations: [4, 8, 12],
-    aspectRatios: ['16:9', '9:16'],
-    resolutions: ['720p'],
+    description: 'Kling 4.0 - Flagship motion and physics, 1080p, up to 30s',
+    tier: 'hero',
+    pricing: {
+      kind: 'perSecond',
+      usd: 0.235,
+      byResolution: { '720p': 0.157, '1080p': 0.235 },
+    },
+    capabilities: ['text-to-video'],
+    durations: [5, 8, 10, 15, 20, 30],
+    aspectRatios: ['16:9', '9:16', '1:1', '21:9'],
+    resolutions: ['720p', '1080p'],
+  },
+  {
+    id: 'kling/v4/image-to-video',
+    name: 'Kling 4.0',
+    provider: 'fal',
+    description:
+      'Kling 4.0 - Flagship image-to-video with an optional end frame',
+    tier: 'hero',
+    pricing: {
+      kind: 'perSecond',
+      usd: 0.235,
+      byResolution: { '720p': 0.157, '1080p': 0.235 },
+    },
+    capabilities: ['image-to-video', 'keyframes'],
+    durations: [5, 8, 10, 15, 20, 30],
+    resolutions: ['720p', '1080p'],
+    supportsEndFrame: true,
     fieldMappings: {
-      imageUrl: 'image_url',
+      imageUrl: 'start_image_url',
+      endImageUrl: 'end_image_url',
     },
   },
 
   // =============================================================================
-  // Veo 3.1 - Google's video model (Premium)
+  // Gemini Omni Flash 1.2 - Google (cheapest usable drafts)
   // =============================================================================
   {
-    id: 'fal-ai/veo3.1',
-    name: 'Veo 3.1',
+    id: 'google/gemini-omni-flash/v1.2/text-to-video',
+    name: 'Gemini Omni Flash',
     provider: 'fal',
-    description: 'Google Veo 3.1 - Most advanced, with audio',
+    description:
+      'Google - Cheap, quick drafts to check an idea before the real render',
+    tier: 'draft',
+    pricing: {
+      kind: 'perSecond',
+      usd: 0.0819,
+      byResolution: {
+        '360p': 0.0273,
+        '720p': 0.0819,
+        '1080p': 0.1229,
+        '4k': 0.2457,
+      },
+    },
+    capabilities: ['text-to-video'],
+    durations: [4, 6, 8, 10, 15],
+    aspectRatios: ['16:9', '9:16'],
+    resolutions: ['360p', '720p', '1080p', '4k'],
+  },
+  {
+    id: 'google/gemini-omni-flash/v1.2/image-to-video',
+    name: 'Gemini Omni Flash',
+    provider: 'fal',
+    description:
+      'Google - Cheap image-to-video drafts with an optional end frame',
+    tier: 'draft',
+    pricing: {
+      kind: 'perSecond',
+      usd: 0.0819,
+      byResolution: {
+        '360p': 0.0273,
+        '720p': 0.0819,
+        '1080p': 0.1229,
+        '4k': 0.2457,
+      },
+    },
+    capabilities: ['image-to-video', 'keyframes'],
+    durations: [4, 6, 8, 10, 15],
+    aspectRatios: ['16:9', '9:16'],
+    resolutions: ['360p', '720p', '1080p', '4k'],
+    supportsEndFrame: true,
+    fieldMappings: {
+      imageUrl: 'image_url',
+      endImageUrl: 'end_image_url',
+    },
+  },
+
+  // =============================================================================
+  // MiniMax H3 - Max and Max Turbo
+  // =============================================================================
+  {
+    id: 'minimax/h3-max-turbo/text-to-video',
+    name: 'MiniMax H3 Turbo',
+    provider: 'fal',
+    description: 'MiniMax H3 Max Turbo - Very cheap, fast 768P drafts',
+    tier: 'draft',
+    pricing: {
+      kind: 'perSecond',
+      usd: 0.04,
+      byResolution: { '480P': 0.025, '768P': 0.04, '1080P': 0.08 },
+    },
+    capabilities: ['text-to-video'],
+    durations: [5, 6, 8, 10, 15],
+    aspectRatios: ['16:9', '9:16', '1:1', '21:9'],
+    resolutions: ['480P', '768P', '1080P'],
+    supportsSeed: true,
+  },
+  {
+    id: 'minimax/h3-max-turbo/image-to-video',
+    name: 'MiniMax H3 Turbo',
+    provider: 'fal',
+    description: 'MiniMax H3 Max Turbo - Fast I2V with optional end frame',
+    tier: 'draft',
+    pricing: {
+      kind: 'perSecond',
+      usd: 0.04,
+      byResolution: { '480P': 0.025, '768P': 0.04, '1080P': 0.08 },
+    },
+    capabilities: ['image-to-video', 'keyframes'],
+    durations: [5, 6, 8, 10, 15],
+    resolutions: ['480P', '768P', '1080P'],
+    supportsEndFrame: true,
+    supportsSeed: true,
+    fieldMappings: {
+      imageUrl: 'image_url',
+      endImageUrl: 'end_image_url',
+    },
+  },
+  {
+    id: 'minimax/h3-max/text-to-video',
+    name: 'MiniMax H3 Max',
+    provider: 'fal',
+    description: 'MiniMax H3 Max - Expressive people and camera work',
+    tier: 'standard',
+    pricing: {
+      kind: 'perSecond',
+      usd: 0.08,
+      byResolution: { '480P': 0.05, '768P': 0.08, '1080P': 0.16 },
+    },
+    capabilities: ['text-to-video'],
+    durations: [5, 6, 8, 10, 15],
+    aspectRatios: ['16:9', '9:16', '1:1', '21:9'],
+    resolutions: ['480P', '768P', '1080P'],
+    supportsSeed: true,
+  },
+  {
+    id: 'minimax/h3-max/image-to-video',
+    name: 'MiniMax H3 Max',
+    provider: 'fal',
+    description: 'MiniMax H3 Max - Expressive I2V with optional end frame',
+    tier: 'standard',
+    pricing: {
+      kind: 'perSecond',
+      usd: 0.08,
+      byResolution: { '480P': 0.05, '768P': 0.08, '1080P': 0.16 },
+    },
+    capabilities: ['image-to-video', 'keyframes'],
+    durations: [5, 6, 8, 10, 15],
+    resolutions: ['480P', '768P', '1080P'],
+    supportsEndFrame: true,
+    supportsSeed: true,
+    fieldMappings: {
+      imageUrl: 'image_url',
+      endImageUrl: 'end_image_url',
+    },
+  },
+
+  // =============================================================================
+  // Seedance 2.5 - ByteDance (premium, native audio)
+  // =============================================================================
+  {
+    id: 'bytedance/seedance-2.5/us/text-to-video',
+    name: 'Seedance 2.5',
+    provider: 'fal',
+    description:
+      'ByteDance - Cinematic multi-shot video with native audio, up to 30s',
+    tier: 'hero',
+    pricing: {
+      kind: 'perSecond',
+      usd: 0.473,
+      byResolution: { '480p': 0.2205, '720p': 0.473, '1080p': 1.164 },
+    },
+    capabilities: ['text-to-video'],
+    durations: [5, 8, 10, 15, 20, 30],
+    aspectRatios: ['16:9', '9:16', '1:1', '21:9'],
+    resolutions: ['480p', '720p', '1080p'],
+    supportsAudio: true,
+  },
+  {
+    id: 'bytedance/seedance-2.5/us/image-to-video',
+    name: 'Seedance 2.5',
+    provider: 'fal',
+    description:
+      'ByteDance - Cinematic I2V with native audio and an optional end frame',
+    tier: 'hero',
+    pricing: {
+      kind: 'perSecond',
+      usd: 0.473,
+      byResolution: { '480p': 0.2205, '720p': 0.473, '1080p': 1.164 },
+    },
+    capabilities: ['image-to-video', 'keyframes'],
+    durations: [5, 8, 10, 15, 20, 30],
+    resolutions: ['480p', '720p', '1080p'],
+    supportsAudio: true,
+    supportsEndFrame: true,
+    fieldMappings: {
+      imageUrl: 'image_url',
+      endImageUrl: 'end_image_url',
+    },
+  },
+
+  // =============================================================================
+  // Veo 3.1 - Google (premium, native audio)
+  // =============================================================================
+  {
+    id: 'fal-ai/veo3.1/fast',
+    name: 'Veo 3.1 Fast',
+    provider: 'fal',
+    description: 'Google Veo 3.1 Fast - Quicker generation, with audio',
+    tier: 'standard',
+    pricing: {
+      kind: 'perSecond',
+      usd: 0.15,
+      byResolution: { '4k': 0.35 },
+      noAudio: { usd: 0.1, byResolution: { '4k': 0.3 } },
+    },
     capabilities: ['text-to-video'],
     durations: [4, 6, 8],
     aspectRatios: ['16:9', '9:16'],
     resolutions: ['720p', '1080p', '4k'],
     supportsAudio: true,
+    supportsSeed: true,
+    supportsNegativePrompt: true,
   },
   {
-    id: 'fal-ai/veo3.1/fast',
+    id: 'fal-ai/veo3.1/fast/image-to-video',
     name: 'Veo 3.1 Fast',
     provider: 'fal',
-    description: 'Google Veo 3.1 Fast - Quicker generation',
+    description: 'Google Veo 3.1 Fast image-to-video, with audio',
+    tier: 'standard',
+    pricing: {
+      kind: 'perSecond',
+      usd: 0.15,
+      byResolution: { '4k': 0.35 },
+      noAudio: { usd: 0.1, byResolution: { '4k': 0.3 } },
+    },
+    capabilities: ['image-to-video'],
+    durations: [4, 6, 8],
+    aspectRatios: ['16:9', '9:16'],
+    resolutions: ['720p', '1080p', '4k'],
+    supportsAudio: true,
+    supportsSeed: true,
+    supportsNegativePrompt: true,
+    fieldMappings: { imageUrl: 'image_url' },
+  },
+  {
+    id: 'fal-ai/veo3.1',
+    name: 'Veo 3.1',
+    provider: 'fal',
+    description: 'Google Veo 3.1 - Most polished, with audio',
+    tier: 'hero',
+    pricing: {
+      kind: 'perSecond',
+      usd: 0.4,
+      byResolution: { '4k': 0.6 },
+      noAudio: { usd: 0.2, byResolution: { '4k': 0.4 } },
+    },
     capabilities: ['text-to-video'],
     durations: [4, 6, 8],
     aspectRatios: ['16:9', '9:16'],
-    resolutions: ['720p', '1080p'],
+    resolutions: ['720p', '1080p', '4k'],
     supportsAudio: true,
+    supportsSeed: true,
+    supportsNegativePrompt: true,
   },
   {
     id: 'fal-ai/veo3.1/image-to-video',
     name: 'Veo 3.1',
     provider: 'fal',
     description: 'Google Veo 3.1 image-to-video with audio',
+    tier: 'hero',
+    pricing: {
+      kind: 'perSecond',
+      usd: 0.4,
+      byResolution: { '4k': 0.6 },
+      noAudio: { usd: 0.2, byResolution: { '4k': 0.4 } },
+    },
     capabilities: ['image-to-video'],
     durations: [4, 6, 8],
     aspectRatios: ['16:9', '9:16'],
     resolutions: ['720p', '1080p', '4k'],
     supportsAudio: true,
-    fieldMappings: {
-      imageUrl: 'image_url',
-    },
-  },
-  {
-    id: 'fal-ai/veo3.1/fast/image-to-video',
-    name: 'Veo 3.1 Fast',
-    provider: 'fal',
-    description: 'Google Veo 3.1 Fast image-to-video',
-    capabilities: ['image-to-video'],
-    durations: [4, 6, 8],
-    aspectRatios: ['16:9', '9:16'],
-    resolutions: ['720p', '1080p'],
-    supportsAudio: true,
-    fieldMappings: {
-      imageUrl: 'image_url',
-    },
+    supportsSeed: true,
+    supportsNegativePrompt: true,
+    fieldMappings: { imageUrl: 'image_url' },
   },
   {
     id: 'fal-ai/veo3.1/first-last-frame-to-video',
     name: 'Veo 3.1 Keyframes',
     provider: 'fal',
-    description: 'Google Veo 3.1 first+last frame to video',
+    description: 'Google Veo 3.1 first+last frame to video, with audio',
+    tier: 'hero',
+    pricing: {
+      kind: 'perSecond',
+      usd: 0.4,
+      byResolution: { '4k': 0.6 },
+      noAudio: { usd: 0.2, byResolution: { '4k': 0.4 } },
+    },
     capabilities: ['keyframes'],
     durations: [4, 6, 8],
     aspectRatios: ['16:9', '9:16'],
     resolutions: ['720p', '1080p', '4k'],
     supportsAudio: true,
+    supportsSeed: true,
+    supportsNegativePrompt: true,
     fieldMappings: {
       imageUrl: 'first_frame_url',
       endImageUrl: 'last_frame_url',
     },
-  },
-
-  // =============================================================================
-  // Wan 2.6 - Alibaba (Good value)
-  // =============================================================================
-  {
-    id: 'wan/v2.6/text-to-video',
-    name: 'Wan 2.6',
-    provider: 'fal',
-    description: 'Alibaba Wan 2.6 - Multi-shot support',
-    capabilities: ['text-to-video'],
-    durations: [5, 10, 15],
-    aspectRatios: ['16:9', '9:16', '1:1', '4:3', '3:4'],
-    resolutions: ['720p', '1080p'],
-  },
-  {
-    id: 'wan/v2.6/image-to-video',
-    name: 'Wan 2.6',
-    provider: 'fal',
-    description: 'Alibaba Wan 2.6 image-to-video',
-    capabilities: ['image-to-video'],
-    durations: [5, 10, 15],
-    resolutions: ['720p', '1080p'],
-    fieldMappings: {
-      imageUrl: 'image_url',
-    },
-  },
-
-  // =============================================================================
-  // Seedance 1.5 Pro - ByteDance (with keyframes support)
-  // =============================================================================
-  {
-    id: 'fal-ai/bytedance/seedance/v1.5/pro/text-to-video',
-    name: 'Seedance 1.5 Pro',
-    provider: 'fal',
-    description: 'ByteDance Seedance with audio',
-    capabilities: ['text-to-video'],
-    durations: [4, 5, 6, 7, 8, 9, 10, 11, 12],
-    aspectRatios: ['21:9', '16:9', '4:3', '1:1', '3:4', '9:16'],
-    resolutions: ['480p', '720p', '1080p'],
-    supportsAudio: true,
-  },
-  {
-    id: 'fal-ai/bytedance/seedance/v1.5/pro/image-to-video',
-    name: 'Seedance 1.5 Pro',
-    provider: 'fal',
-    description: 'ByteDance Seedance I2V with keyframes',
-    capabilities: ['image-to-video', 'keyframes'],
-    durations: [4, 5, 6, 7, 8, 9, 10, 11, 12],
-    aspectRatios: ['21:9', '16:9', '4:3', '1:1', '3:4', '9:16'],
-    resolutions: ['480p', '720p', '1080p'],
-    supportsAudio: true,
-    supportsEndFrame: true,
-    fieldMappings: {
-      imageUrl: 'image_url',
-      endImageUrl: 'end_image_url',
-    },
-  },
-
-  // =============================================================================
-  // MiniMax H3 Max Turbo - first/last frame, 480P-1080P
-  // =============================================================================
-  {
-    id: 'minimax/h3-max-turbo/image-to-video',
-    name: 'MiniMax H3 Max Turbo',
-    provider: 'fal',
-    description: 'MiniMax H3 - Fast I2V with optional end frame',
-    capabilities: ['image-to-video', 'keyframes'],
-    durations: [5, 10],
-    resolutions: ['480P', '768P', '1080P'],
-    supportsEndFrame: true,
-    fieldMappings: {
-      imageUrl: 'image_url',
-      endImageUrl: 'end_image_url',
-    },
-  },
-
-  // =============================================================================
-  // MiniMax Hailuo 2.3 - Pro and Standard tiers
-  // =============================================================================
-  {
-    id: 'fal-ai/minimax/hailuo-2.3/pro/text-to-video',
-    name: 'Hailuo 2.3 Pro',
-    provider: 'fal',
-    description: 'MiniMax Hailuo Pro - 1080p quality',
-    capabilities: ['text-to-video'],
-    durations: [5], // Fixed duration
-  },
-  {
-    id: 'fal-ai/minimax/hailuo-2.3/standard/text-to-video',
-    name: 'Hailuo 2.3 Standard',
-    provider: 'fal',
-    description: 'MiniMax Hailuo Standard - Affordable',
-    capabilities: ['text-to-video'],
-    durations: [5],
-  },
-  {
-    id: 'fal-ai/minimax/hailuo-2.3/pro/image-to-video',
-    name: 'Hailuo 2.3 Pro',
-    provider: 'fal',
-    description: 'MiniMax Hailuo Pro I2V - 1080p',
-    capabilities: ['image-to-video'],
-    durations: [5],
-    fieldMappings: {
-      imageUrl: 'image_url',
-    },
-  },
-  {
-    id: 'fal-ai/minimax/hailuo-2.3/standard/image-to-video',
-    name: 'Hailuo 2.3 Standard',
-    provider: 'fal',
-    description: 'MiniMax Hailuo Standard I2V',
-    capabilities: ['image-to-video'],
-    durations: [5],
-    fieldMappings: {
-      imageUrl: 'image_url',
-    },
-  },
-
-  // =============================================================================
-  // xAI Grok Imagine Video - Text-to-video and image-to-video with audio
-  // =============================================================================
-  {
-    id: 'xai/grok-imagine-video/text-to-video',
-    name: 'Grok Imagine Video',
-    provider: 'fal',
-    description: 'xAI Grok - Videos with audio from text',
-    capabilities: ['text-to-video'],
-    durations: [6],
-    aspectRatios: ['16:9', '4:3', '3:2', '1:1', '2:3', '3:4', '9:16'],
-    resolutions: ['480p', '720p'],
-    supportsAudio: true,
-  },
-  {
-    id: 'xai/grok-imagine-video/image-to-video',
-    name: 'Grok Imagine Video',
-    provider: 'fal',
-    description: 'xAI Grok - Videos with audio from images',
-    capabilities: ['image-to-video'],
-    durations: [6],
-    aspectRatios: ['auto', '16:9', '4:3', '3:2', '1:1', '2:3', '3:4', '9:16'],
-    resolutions: ['480p', '720p'],
-    supportsAudio: true,
-    fieldMappings: {
-      imageUrl: 'image_url',
-    },
-  },
-
-  // =============================================================================
-  // LTX 2.3 - Lightricks (text-to-video and image-to-video, pro + fast)
-  // =============================================================================
-  {
-    id: 'fal-ai/ltx-2.3/text-to-video',
-    name: 'LTX 2.3',
-    provider: 'fal',
-    description: 'Lightricks LTX 2.3 text-to-video with audio',
-    capabilities: ['text-to-video'],
-    durations: [6, 8, 10],
-    aspectRatios: ['16:9', '9:16'],
-    resolutions: ['1080p', '1440p', '2160p'],
-    supportsAudio: true,
-  },
-  {
-    id: 'fal-ai/ltx-2.3/text-to-video/fast',
-    name: 'LTX 2.3 Fast',
-    provider: 'fal',
-    description: 'Lightricks LTX 2.3 Fast - Longer durations up to 20s',
-    capabilities: ['text-to-video'],
-    durations: [6, 8, 10, 12, 14, 16, 18, 20],
-    aspectRatios: ['16:9', '9:16'],
-    resolutions: ['1080p', '1440p', '2160p'],
-    supportsAudio: true,
-  },
-  {
-    id: 'fal-ai/ltx-2.3/image-to-video',
-    name: 'LTX 2.3',
-    provider: 'fal',
-    description: 'Lightricks LTX 2.3 image-to-video with audio',
-    capabilities: ['image-to-video'],
-    durations: [6, 8, 10],
-    aspectRatios: ['auto', '16:9', '9:16'],
-    resolutions: ['1080p', '1440p', '2160p'],
-    supportsAudio: true,
-    supportsEndFrame: true,
-    fieldMappings: {
-      imageUrl: 'image_url',
-      endImageUrl: 'end_image_url',
-    },
-  },
-  {
-    id: 'fal-ai/ltx-2.3/image-to-video/fast',
-    name: 'LTX 2.3 Fast',
-    provider: 'fal',
-    description: 'Lightricks LTX 2.3 Fast image-to-video - Longer durations',
-    capabilities: ['image-to-video'],
-    durations: [6, 8, 10, 12, 14, 16, 18, 20],
-    aspectRatios: ['auto', '16:9', '9:16'],
-    resolutions: ['1080p', '1440p', '2160p'],
-    supportsAudio: true,
-    supportsEndFrame: true,
-    fieldMappings: {
-      imageUrl: 'image_url',
-      endImageUrl: 'end_image_url',
-    },
-  },
-
-  // =============================================================================
-  // Pika 2.2 - Keyframes specialist
-  // =============================================================================
-  {
-    id: 'fal-ai/pika/v2.2/pikaframes',
-    name: 'Pika 2.2 Pikaframes',
-    provider: 'fal',
-    description: 'Pika keyframes - 2-5 images with transitions',
-    capabilities: ['keyframes'],
-    durations: [5, 10], // Per transition, max 25s total
-    resolutions: ['720p', '1080p'],
-    // Pika uses image_urls array, handled specially
   },
 ]
 
@@ -1055,16 +984,20 @@ export function getVideoModelById(
 
 export const AUDIO_MODELS: Array<ModelConfig> = [
   {
-    id: 'fal-ai/elevenlabs/tts/multilingual-v2',
-    name: 'ElevenLabs Multilingual v2',
+    id: 'elevenlabs/tts/eleven-v4',
+    name: 'Eleven v4',
     provider: 'fal',
-    description: 'High quality multilingual TTS with word timestamps',
+    description: 'ElevenLabs v4 - Most expressive voices, word timestamps',
+    tier: 'hero',
+    pricing: { kind: 'perKChars', usd: 0.08 },
   },
   {
-    id: 'fal-ai/elevenlabs/tts/turbo-v2.5',
-    name: 'ElevenLabs Turbo v2.5',
+    id: 'elevenlabs/tts/eleven-v4-turbo',
+    name: 'Eleven v4 Turbo',
     provider: 'fal',
-    description: 'Faster, lower latency TTS',
+    description: 'ElevenLabs v4 Turbo - Half the price, lower latency',
+    tier: 'standard',
+    pricing: { kind: 'perKChars', usd: 0.04 },
   },
 ]
 
@@ -1106,6 +1039,8 @@ export const MUSIC_MODELS: Array<MusicModelConfig> = [
     provider: 'fal',
     description:
       'Genre tags + lyrics, any length up to 4 minutes. The cheapest way to draft a track.',
+    tier: 'draft',
+    pricing: { kind: 'perSecond', usd: 0.0002 },
     promptStyle: 'tags',
     supportsLyrics: true,
     supportsInstrumental: true,
@@ -1122,6 +1057,8 @@ export const MUSIC_MODELS: Array<MusicModelConfig> = [
     provider: 'fal',
     description:
       'Full songs up to 5 minutes from a description plus your lyrics. Needs words — it will not run instrumental.',
+    tier: 'standard',
+    pricing: { kind: 'perSecond', usd: 0.002 },
     promptStyle: 'prompt',
     supportsLyrics: true,
     requiresLyrics: true,
@@ -1135,11 +1072,13 @@ export const MUSIC_MODELS: Array<MusicModelConfig> = [
     defaultDurationSec: 90,
   },
   {
-    id: 'fal-ai/elevenlabs/music',
-    name: 'ElevenLabs Music',
+    id: 'elevenlabs/music/v2.5',
+    name: 'ElevenLabs Music v2.5',
     provider: 'fal',
     description:
       'Prose prompt, studio quality, 3s-10min, with a hard instrumental switch.',
+    tier: 'hero',
+    pricing: { kind: 'perMinute', usd: 0.6 },
     promptStyle: 'prompt',
     supportsLyrics: false,
     supportsInstrumental: true,
@@ -1151,11 +1090,13 @@ export const MUSIC_MODELS: Array<MusicModelConfig> = [
     defaultDurationSec: 60,
   },
   {
-    id: 'fal-ai/lyria3/pro',
-    name: 'Lyria 3 Pro',
+    id: 'google/lyria-3.5',
+    name: 'Lyria 3.5',
     provider: 'fal',
     description:
       "Google's model — one prose prompt, no knobs. Writes and sings its own words, up to 3 minutes of 44.1kHz MP3.",
+    tier: 'standard',
+    pricing: { kind: 'flat', usd: 0.1 },
     promptStyle: 'prompt',
     supportsLyrics: false,
     supportsInstrumental: false,
@@ -1335,9 +1276,8 @@ export function getModelById(
 }
 
 export function getDefaultImageModel(): ModelConfig {
-  // Return Nano Banana 2 as the default
   return (
-    IMAGE_MODELS.find((m) => m.id === 'fal-ai/nano-banana-2') || IMAGE_MODELS[0]
+    IMAGE_MODELS.find((m) => m.id === DEFAULT_MODELS.image) || IMAGE_MODELS[0]
   )
 }
 
@@ -1366,11 +1306,7 @@ export function getDefaultAudioModel(): ModelConfig {
 }
 
 export function getDefaultEditModel(): EditModelConfig {
-  // Return Nano Banana 2 Edit as the default
-  return (
-    EDIT_MODELS.find((m) => m.id === 'fal-ai/nano-banana-2/edit') ||
-    EDIT_MODELS[0]
-  )
+  return EDIT_MODELS.find((m) => m.id === DEFAULT_MODELS.edit) || EDIT_MODELS[0]
 }
 
 export function getEditModelById(modelId: string): EditModelConfig | undefined {
@@ -1414,6 +1350,8 @@ export const VIDEO_UPSCALE_MODELS: Array<VideoUpscaleModelConfig> = [
     name: 'Topaz',
     provider: 'fal',
     description: 'Professional-grade, frame interpolation support',
+    tier: 'hero',
+    pricing: { kind: 'perSecond', usd: 0.01 },
     maxScale: 8,
     supportsFrameInterpolation: true,
   },
@@ -1422,6 +1360,8 @@ export const VIDEO_UPSCALE_MODELS: Array<VideoUpscaleModelConfig> = [
     name: 'Bytedance',
     provider: 'fal',
     description: 'Simple resolution targeting (1080p/2k/4k)',
+    tier: 'standard',
+    pricing: { kind: 'perSecond', usd: 0.0072 },
     targetResolutions: BYTEDANCE_VIDEO_TARGET_RESOLUTIONS.map((r) => r.id),
   },
 ]
@@ -1496,18 +1436,21 @@ export const TEXT_TO_3D_MODELS: Array<Model3DConfig> = [
     dropdownDescription: 'Fast, high-quality textured models with PBR support',
     type: 'text-to-3d',
     endpoint: 'fal-ai/hunyuan3d-v3/text-to-3d',
+    tier: 'standard',
     supportsPBR: true,
     outputFormats: ['glb', 'obj'],
   },
   {
-    id: 'meshy-v6-text',
-    name: 'Meshy 6 Preview',
+    id: 'meshy-v7-text',
+    name: 'Meshy 7.1',
     provider: 'meshy',
-    description: 'Production-ready with prompt expansion and art styles',
+    description: 'Production-ready meshes with prompt expansion',
     dropdownDescription:
-      'Production-ready with prompt expansion and art styles',
+      'Production-ready meshes with prompt expansion, rigging and PBR',
     type: 'text-to-3d',
-    endpoint: 'fal-ai/meshy/v6-preview/text-to-3d',
+    endpoint: 'meshy/v7.1/text-to-3d',
+    tier: 'hero',
+    pricing: { kind: 'flat', usd: 0.8 },
     supportsPBR: true,
     outputFormats: ['glb', 'fbx', 'obj', 'usdz'],
   },
@@ -1519,19 +1462,6 @@ export const TEXT_TO_3D_MODELS: Array<Model3DConfig> = [
 
 export const IMAGE_TO_3D_MODELS: Array<Model3DConfig> = [
   {
-    id: 'hunyuan3d-v3-sketch',
-    name: 'Hunyuan3D V3 Sketch',
-    provider: 'hunyuan',
-    description: 'Convert sketches to 3D',
-    dropdownDescription:
-      'Convert sketches/line art to 3D. Requires text description.',
-    type: 'image-to-3d',
-    endpoint: 'fal-ai/hunyuan3d-v3/sketch-to-3d',
-    requiresPrompt: true,
-    supportsPBR: true,
-    outputFormats: ['glb', 'obj'],
-  },
-  {
     id: 'hunyuan3d-v3-image',
     name: 'Hunyuan3D V3 Image',
     provider: 'hunyuan',
@@ -1540,31 +1470,36 @@ export const IMAGE_TO_3D_MODELS: Array<Model3DConfig> = [
       'General purpose. Supports up to 4 views (front, back, left, right).',
     type: 'image-to-3d',
     endpoint: 'fal-ai/hunyuan3d-v3/image-to-3d',
+    tier: 'standard',
     supportsMultipleImages: true,
     maxImages: 4,
     supportsPBR: true,
     outputFormats: ['glb', 'obj'],
   },
   {
-    id: 'meshy-v6-image',
-    name: 'Meshy 6 Image',
+    id: 'meshy-v7-image',
+    name: 'Meshy 7.1 Image',
     provider: 'meshy',
     description: 'Production-ready with extensive mesh controls',
     dropdownDescription:
       'Production-ready with extensive mesh controls and PBR.',
     type: 'image-to-3d',
-    endpoint: 'fal-ai/meshy/v6-preview/image-to-3d',
+    endpoint: 'meshy/v7.1/image-to-3d',
+    tier: 'hero',
+    pricing: { kind: 'flat', usd: 0.8 },
     supportsPBR: true,
     outputFormats: ['glb', 'fbx', 'obj', 'usdz'],
   },
   {
-    id: 'meshy-v5-multi',
-    name: 'Meshy 5 Multi-Image',
+    id: 'meshy-v7-multi',
+    name: 'Meshy 7.1 Multi-Image',
     provider: 'meshy',
     description: 'Multi-angle reconstruction',
     dropdownDescription: 'Use 1-4 images of same object from different angles.',
     type: 'image-to-3d',
-    endpoint: 'fal-ai/meshy/v5/multi-image-to-3d',
+    endpoint: 'meshy/v7.1/multi-image-to-3d',
+    tier: 'hero',
+    pricing: { kind: 'flat', usd: 0.8 },
     supportsMultipleImages: true,
     maxImages: 4,
     supportsPBR: true,
@@ -1579,6 +1514,7 @@ export const IMAGE_TO_3D_MODELS: Array<Model3DConfig> = [
       'High quality with material options. Supports up to 5 images.',
     type: 'image-to-3d',
     endpoint: 'fal-ai/hyper3d/rodin/v2',
+    pricing: { kind: 'flat', usd: 0.4 },
     supportsMultipleImages: true,
     maxImages: 5,
     supportsPBR: true,
@@ -1632,6 +1568,7 @@ export const IMAGE_TO_WORLD_MODELS: Array<Model3DConfig> = [
       'Transform images into explorable 3D panoramas/worlds.',
     type: 'image-to-world',
     endpoint: 'fal-ai/hunyuan_world/image-to-world',
+    pricing: { kind: 'flat', usd: 0.3 },
     requiresPrompt: true, // Requires labels
     outputFormats: [],
   },
@@ -1677,56 +1614,6 @@ export function getDefault3DModel(mode: Model3DMode): Model3DConfig {
 }
 
 // =============================================================================
-// AI Baby & Aging Generator Configuration
-// =============================================================================
-
-export const AGE_GROUPS = [
-  { id: 'baby', name: 'Baby', description: '0-12 months' },
-  { id: 'toddler', name: 'Toddler', description: '1-3 years' },
-  { id: 'preschool', name: 'Preschool', description: '3-5 years' },
-  { id: 'gradeschooler', name: 'Grade School', description: '6-12 years' },
-  { id: 'teen', name: 'Teen', description: '13-19 years' },
-  { id: 'adult', name: 'Adult', description: '20-40 years' },
-  { id: 'mid', name: 'Middle Age', description: '40-60 years' },
-  { id: 'senior', name: 'Senior', description: '60+ years' },
-] as const
-
-export type AgeGroup = (typeof AGE_GROUPS)[number]['id']
-export type AgingGender = 'male' | 'female'
-export type AgingSubMode = 'single' | 'multi'
-
-export interface AgingModelConfig extends ModelConfig {
-  type: AgingSubMode
-}
-
-export const AGING_MODELS: Array<AgingModelConfig> = [
-  {
-    id: 'half-moon-ai/ai-baby-and-aging-generator/single',
-    name: 'Single Person',
-    provider: 'fal',
-    description: 'Age progression/regression from one photo',
-    type: 'single',
-  },
-  {
-    id: 'half-moon-ai/ai-baby-and-aging-generator/multi',
-    name: 'Two Parents',
-    provider: 'fal',
-    description: 'Predict baby from parent photos',
-    type: 'multi',
-  },
-]
-
-export function getAgingModelByType(
-  type: AgingSubMode,
-): AgingModelConfig | undefined {
-  return AGING_MODELS.find((m) => m.type === type)
-}
-
-export function getDefaultAgingModel(): AgingModelConfig {
-  return AGING_MODELS[0]
-}
-
-// =============================================================================
 // Motion Control Configuration (Kling AI)
 // =============================================================================
 
@@ -1748,6 +1635,8 @@ export const MOTION_CONTROL_MODELS: Array<MotionControlModelConfig> = [
     provider: 'fal',
     description: 'Professional quality motion transfer with facial consistency',
     quality: 'pro',
+    tier: 'hero',
+    pricing: { kind: 'perSecond', usd: 0.168 },
     endpoint: 'fal-ai/kling-video/v3/pro/motion-control',
     maxDurationVideo: 30,
     maxDurationImage: 10,
@@ -1759,6 +1648,8 @@ export const MOTION_CONTROL_MODELS: Array<MotionControlModelConfig> = [
     provider: 'fal',
     description: 'Cost-effective motion transfer with facial consistency',
     quality: 'standard',
+    tier: 'standard',
+    pricing: { kind: 'perSecond', usd: 0.126 },
     endpoint: 'fal-ai/kling-video/v3/standard/motion-control',
     maxDurationVideo: 30,
     maxDurationImage: 10,
@@ -1774,4 +1665,38 @@ export function getMotionControlModelById(
 
 export function getDefaultMotionControlModel(): MotionControlModelConfig {
   return MOTION_CONTROL_MODELS[0] // Default to Pro
+}
+
+// =============================================================================
+// Defaults
+// =============================================================================
+
+/**
+ * One place for the model each feature falls back to. Every default must be
+ * an id in its catalog above (a unit test checks this), so retiring a model
+ * can never leave a feature pointing at an endpoint that no longer exists.
+ */
+export const DEFAULT_MODELS = {
+  image: 'bytedance/seedream/v5/flash/text-to-image',
+  edit: 'google/nano-banana-2.1/edit',
+  upscale: 'fal-ai/seedvr/upscale/image',
+  textToVideo: 'kling/v4/flash/text-to-video',
+  imageToVideo: 'kling/v4/flash/image-to-video',
+  keyframes: 'kling/v4/image-to-video',
+  tts: 'elevenlabs/tts/eleven-v4',
+} as const
+
+/**
+ * Use `preferred` if the catalog still offers it, otherwise `fallback`.
+ * Stored preferences (User.preferredImageModel, old job inputs) can name a
+ * model we have since retired; this keeps them from failing at fal.
+ */
+export function resolveModelId(
+  preferred: string | null | undefined,
+  catalog: ReadonlyArray<{ id: string }>,
+  fallback: string,
+): string {
+  return preferred && catalog.some((m) => m.id === preferred)
+    ? preferred
+    : fallback
 }

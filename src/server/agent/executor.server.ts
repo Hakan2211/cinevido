@@ -27,7 +27,13 @@ import {
   clampDuration as clampMusicDuration,
   generateMusic,
 } from '../services/music.server'
-import { MUSIC_MODELS } from '../services/types'
+import {
+  DEFAULT_MODELS,
+  IMAGE_MODELS,
+  MUSIC_MODELS,
+  VIDEO_MODELS,
+  resolveModelId,
+} from '../services/types'
 import { TOOL_NAMES } from './tools.server'
 import type { ProjectManifest, TrackKind } from '../services/index.server'
 import type {
@@ -182,7 +188,12 @@ export async function executeGenerateImage(
       fullPrompt += `, ${args.style} style`
     }
 
-    const modelId = user?.preferredImageModel || 'fal-ai/flux-pro/v1.1'
+    // A stored preference may name a model we have since retired
+    const modelId = resolveModelId(
+      user?.preferredImageModel,
+      IMAGE_MODELS,
+      DEFAULT_MODELS.image,
+    )
 
     // Create job in database
     const job = await prisma.generationJob.create({
@@ -197,18 +208,28 @@ export async function executeGenerateImage(
       },
     })
 
-    // Start async generation
-    const falJob = await generateImage({
-      prompt: fullPrompt,
-      model: modelId,
-      width,
-      height,
-    })
+    // Start async generation on the user's own fal key (BYOK)
+    const userApiKey = await getUserFalApiKey(context.userId)
+    const falJob = await generateImage(
+      {
+        prompt: fullPrompt,
+        model: modelId,
+        width,
+        height,
+      },
+      userApiKey,
+    )
 
     // Update job with external ID
     await prisma.generationJob.update({
       where: { id: job.id },
-      data: { externalId: falJob.requestId, status: 'processing' },
+      data: {
+        externalId: falJob.requestId,
+        statusUrl: falJob.statusUrl,
+        responseUrl: falJob.responseUrl,
+        cancelUrl: falJob.cancelUrl,
+        status: 'processing',
+      },
     })
 
     return {
@@ -261,8 +282,12 @@ export async function executeGenerateVideo(
       select: { preferredVideoModel: true, role: true },
     })
 
-    const modelId =
-      user?.preferredVideoModel || 'fal-ai/kling-video/v1.5/pro/image-to-video'
+    // Only image-to-video models qualify: the Director animates stills
+    const modelId = resolveModelId(
+      user?.preferredVideoModel,
+      VIDEO_MODELS.filter((m) => m.capabilities.includes('image-to-video')),
+      DEFAULT_MODELS.imageToVideo,
+    )
 
     // Create job in database
     const job = await prisma.generationJob.create({
@@ -281,19 +306,29 @@ export async function executeGenerateVideo(
       },
     })
 
-    // Start async generation
-    const falJob = await generateVideo({
-      generationType: 'image-to-video',
-      imageUrl: imageAsset.storageUrl,
-      prompt: args.motionPrompt,
-      model: modelId,
-      duration: args.duration || 5,
-    })
+    // Start async generation on the user's own fal key (BYOK)
+    const userApiKey = await getUserFalApiKey(context.userId)
+    const falJob = await generateVideo(
+      {
+        generationType: 'image-to-video',
+        imageUrl: imageAsset.storageUrl,
+        prompt: args.motionPrompt,
+        model: modelId,
+        duration: args.duration || 5,
+      },
+      userApiKey,
+    )
 
     // Update job with external ID
     await prisma.generationJob.update({
       where: { id: job.id },
-      data: { externalId: falJob.requestId, status: 'processing' },
+      data: {
+        externalId: falJob.requestId,
+        statusUrl: falJob.statusUrl,
+        responseUrl: falJob.responseUrl,
+        cancelUrl: falJob.cancelUrl,
+        status: 'processing',
+      },
     })
 
     return {
@@ -353,7 +388,7 @@ export async function executeGenerateVoiceover(
         type: 'audio',
         status: 'processing',
         provider: 'fal',
-        model: 'fal-ai/elevenlabs/tts/multilingual-v2',
+        model: DEFAULT_MODELS.tts,
         input: JSON.stringify({ text: args.text, voice }),
       },
     })
@@ -366,7 +401,7 @@ export async function executeGenerateVoiceover(
         text: args.text,
         voice,
       },
-      undefined, // userApiKey (uses service default)
+      await getUserFalApiKey(context.userId),
       storageConfig,
     )
 
@@ -380,7 +415,7 @@ export async function executeGenerateVoiceover(
         filename: `tts-${Date.now()}.mp3`,
         prompt: args.text.slice(0, 500),
         provider: 'fal',
-        model: 'fal-ai/elevenlabs/tts/multilingual-v2',
+        model: DEFAULT_MODELS.tts,
         metadata: JSON.stringify({
           wordTimestamps: result.wordTimestamps,
           voice,

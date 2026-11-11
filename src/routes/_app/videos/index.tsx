@@ -1,18 +1,15 @@
 /**
- * Videos Page - Unified Create & Gallery
+ * Video Lab — generate and upscale clips.
  *
- * Professional video generation interface with:
- * - 3 Tabs: Text to Video, Image to Video, Keyframes
- * - Fixed bottom prompt bar with mode-specific inputs
- * - Uniform grid with skeleton placeholders
- * - Hover-to-play video previews
- * - Hover actions (download, use in project, delete)
- * - Slide-out detail panel
- * - Keyboard shortcuts (Enter to generate, Esc to close)
+ * Left: one settings panel. The mode follows from what you give it: no frame
+ * is text-to-video, a start frame is image-to-video, start + end frames are
+ * keyframes — the model list follows. Models are grouped Draft / Workhorse /
+ * Hero with their fal rate, and Generate shows what the run will cost.
+ * Right: results, each with its model and estimated cost.
  */
 
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   useInfiniteQuery,
   useMutation,
@@ -21,6 +18,7 @@ import {
 } from '@tanstack/react-query'
 import {
   AlertTriangle,
+  ArrowUpCircle,
   Calendar,
   Check,
   Clock,
@@ -28,38 +26,39 @@ import {
   Film,
   FolderPlus,
   Image as ImageIcon,
+  Info,
   Loader2,
   Maximize2,
   MessageSquare,
+  MoreHorizontal,
   Play,
   Plus,
+  Square,
+  RectangleHorizontal,
+  RectangleVertical,
   Trash2,
+  Upload,
   Video,
   Wand2,
   X,
   Zap,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import {
+  TIER_LABELS,
+  estimateCost,
+  formatEstimate,
+  formatRate,
+} from '@/lib/pricing'
+import type { ModelTier } from '@/lib/pricing'
+import { cn } from '@/lib/utils'
 // NOTE: Server functions are dynamically imported in queryFn/mutationFn
 // to prevent Prisma and other server-only code from being bundled into the client.
 // See: https://tanstack.com/router/latest/docs/framework/react/start/server-functions
-import {
-  Alert,
-  AlertDescription,
-  AlertTitle,
-} from '../../../components/ui/alert'
 import { Button } from '../../../components/ui/button'
-import { Card } from '../../../components/ui/card'
-import { Textarea } from '../../../components/ui/textarea'
 import { Skeleton } from '../../../components/ui/skeleton'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '../../../components/ui/select'
-import { ModelSelect } from '../../../components/ui/model-select'
+import { Slider } from '../../../components/ui/slider'
+import { Switch } from '../../../components/ui/switch'
 import {
   Sheet,
   SheetContent,
@@ -73,24 +72,28 @@ import {
   DialogTitle,
 } from '../../../components/ui/dialog'
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '../../../components/ui/dropdown-menu'
+import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from '../../../components/ui/tooltip'
-import { Switch } from '../../../components/ui/switch'
-import { Label } from '../../../components/ui/label'
-import { VideoModeToggle } from '../../../components/videos/VideoModeToggle'
 import { VideoUpscalePanel } from '../../../components/videos/VideoUpscalePanel'
 import { ConfirmDialog } from '../../../components/ui/confirm-dialog'
 import { UploadDropZone } from '../../../components/images/UploadDropZone'
-import type { VideoMode } from '../../../components/videos/VideoModeToggle'
 import type {
   BytedanceVideoTargetFps,
   BytedanceVideoTargetResolution,
   SeedvrTargetResolution,
   SeedvrVideoOutputFormat,
   SeedvrVideoOutputQuality,
+  VideoCapability,
   VideoModelConfig,
 } from '../../../server/services/types'
 import { downloadFile, generateFilename } from '@/lib/download'
@@ -98,6 +101,8 @@ import { downloadFile, generateFilename } from '@/lib/download'
 export const Route = createFileRoute('/_app/videos/')({
   component: VideosPage,
 })
+
+const PROMPT_MAX = 2000
 
 interface GeneratedVideo {
   id: string
@@ -122,13 +127,21 @@ interface SelectedImage {
   prompt: string | null
 }
 
+type Tab = 'create' | 'upscale'
+
+const ASPECT_ICONS: Record<string, typeof Square> = {
+  '16:9': RectangleHorizontal,
+  '21:9': RectangleHorizontal,
+  '9:16': RectangleVertical,
+  '1:1': Square,
+}
+
 function VideosPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
-  // Mode state
-  const [mode, setMode] = useState<VideoMode>('text-to-video')
+  const [tab, setTab] = useState<Tab>('create')
 
   // Form state
   const [prompt, setPrompt] = useState('')
@@ -136,24 +149,16 @@ function VideosPage() {
   const [duration, setDuration] = useState<number>(5)
   const [aspectRatio, setAspectRatio] = useState('16:9')
   const [generateAudio, setGenerateAudio] = useState(true)
-
-  // Image-to-video state
-  const [selectedImage, setSelectedImage] = useState<SelectedImage | null>(null)
-
-  // Keyframes state
-  const [firstFrame, setFirstFrame] = useState<SelectedImage | null>(null)
-  const [lastFrame, setLastFrame] = useState<SelectedImage | null>(null)
-  // Pika multi-keyframe support
-  const [keyframes, setKeyframes] = useState<Array<SelectedImage>>([])
+  const [startFrame, setStartFrame] = useState<SelectedImage | null>(null)
+  const [endFrame, setEndFrame] = useState<SelectedImage | null>(null)
 
   // UI state
   const [selectedVideo, setSelectedVideo] = useState<GeneratedVideo | null>(
     null,
   )
-  const [imagePickerOpen, setImagePickerOpen] = useState(false)
   const [imagePickerTarget, setImagePickerTarget] = useState<
-    'image' | 'first' | 'last' | number
-  >('image')
+    'start' | 'end' | null
+  >(null)
   const [videoPickerOpen, setVideoPickerOpen] = useState(false)
 
   // Video upscale state
@@ -164,12 +169,10 @@ function VideosPage() {
   const [selectedUpscaleVideo, setSelectedUpscaleVideo] =
     useState<GeneratedVideo | null>(null)
   const [upscaleFactor, setUpscaleFactor] = useState(2)
-  // Topaz specific
   const [topazTargetFps, setTopazTargetFps] = useState<number | undefined>(
     undefined,
   )
   const [topazH264Output, setTopazH264Output] = useState(false)
-  // SeedVR specific
   const [seedvrUpscaleMode, setSeedvrUpscaleMode] = useState<
     'factor' | 'target'
   >('factor')
@@ -180,7 +183,6 @@ function VideosPage() {
     useState<SeedvrVideoOutputFormat>('X264 (.mp4)')
   const [seedvrOutputQuality, setSeedvrOutputQuality] =
     useState<SeedvrVideoOutputQuality>('high')
-  // Bytedance specific
   const [bytedanceTargetResolution, setBytedanceTargetResolution] =
     useState<BytedanceVideoTargetResolution>('1080p')
   const [bytedanceTargetFps, setBytedanceTargetFps] =
@@ -191,31 +193,30 @@ function VideosPage() {
   const [currentUpscaleJobId, setCurrentUpscaleJobId] = useState<string | null>(
     null,
   )
-
-  // Delete confirmation dialog state
   const [deleteDialog, setDeleteDialog] = useState<{
     open: boolean
     videoId: string | null
   }>({ open: false, videoId: null })
-
-  // Download state - track which video is downloading
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
 
-  // Pagination
   const limit = 12
   const loadMoreRef = useRef<HTMLDivElement>(null)
-
-  // Queue position toast deduplication
   const lastQueueToastRef = useRef<number | null>(null)
 
-  // Check for pre-selected image from Images page
+  // The mode follows from the frames you supply
+  const generationType: VideoCapability = startFrame
+    ? endFrame
+      ? 'keyframes'
+      : 'image-to-video'
+    : 'text-to-video'
+
+  // An image handed over from the Images page ("Animate")
   useEffect(() => {
     const stored = sessionStorage.getItem('animateImage')
     if (stored) {
       try {
         const data = JSON.parse(stored)
-        setSelectedImage({ id: data.id, url: data.url, prompt: null })
-        setMode('image-to-video')
+        setStartFrame({ id: data.id, url: data.url, prompt: null })
         sessionStorage.removeItem('animateImage')
       } catch {
         // ignore
@@ -223,7 +224,7 @@ function VideosPage() {
     }
   }, [])
 
-  // Fetch models
+  // Models
   const { data: modelsData } = useQuery({
     queryKey: ['videoModels'],
     queryFn: async () => {
@@ -231,50 +232,60 @@ function VideosPage() {
       return getVideoModelsFn()
     },
   })
+  const allModels: Array<VideoModelConfig> = modelsData?.models ?? []
+  const availableModels: Array<VideoModelConfig> = useMemo(
+    () => allModels.filter((m) => m.capabilities.includes(generationType)),
+    [allModels, generationType],
+  )
+  const supportsEndFrames = allModels.some((m) =>
+    m.capabilities.includes('keyframes'),
+  )
 
-  // Get filtered models based on current mode
-  const capabilityKey =
-    mode === 'text-to-video'
-      ? 'textToVideo'
-      : mode === 'image-to-video'
-        ? 'imageToVideo'
-        : 'keyframes'
-  const availableModels: Array<VideoModelConfig> =
-    modelsData?.byCapability[capabilityKey] || []
-
-  // Set default model when mode changes
+  // Keep the selection valid when the mode changes; the first model offered
+  // for a mode is its default (see DEFAULT_MODELS)
   useEffect(() => {
     if (
       availableModels.length > 0 &&
       !availableModels.find((m) => m.id === model)
     ) {
-      setModel(availableModels[0].id)
-      // Reset duration to model default
-      setDuration(availableModels[0].durations[0] || 5)
+      // Prefer the same model family in the new mode (Kling 4 Flash T2V → I2V)
+      const current = allModels.find((m) => m.id === model)
+      const sibling = current
+        ? availableModels.find((m) => m.name === current.name)
+        : undefined
+      const next = sibling ?? availableModels[0]
+      setModel(next.id)
+      if (!next.durations.includes(duration)) setDuration(next.durations[0])
     }
-  }, [mode, availableModels, model])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [availableModels])
 
   const selectedModel = availableModels.find((m) => m.id === model)
 
-  // Handle model change - also update duration to a valid value
   const handleModelChange = (newModelId: string) => {
     setModel(newModelId)
-    const newModel = availableModels.find((m) => m.id === newModelId)
-    if (newModel && newModel.durations.length > 0) {
-      // Only update duration if current duration is not valid for this model
-      if (!newModel.durations.includes(duration)) {
-        setDuration(newModel.durations[0])
-      }
+    const next = availableModels.find((m) => m.id === newModelId)
+    if (next && !next.durations.includes(duration)) {
+      // nearest allowed length
+      const nearest = [...next.durations].sort(
+        (a, b) => Math.abs(a - duration) - Math.abs(b - duration),
+      )[0]
+      setDuration(nearest)
+    }
+    if (next?.aspectRatios && !next.aspectRatios.includes(aspectRatio)) {
+      setAspectRatio(next.aspectRatios[0])
     }
   }
 
-  // Check if selected model is Pika (supports multi-keyframe)
-  const isPikaKeyframes =
-    mode === 'keyframes' &&
-    model.includes('pika') &&
-    model.includes('pikaframes')
+  const audioOn = selectedModel?.supportsAudio ? generateAudio : undefined
+  const costLabel = formatEstimate(
+    estimateCost(selectedModel?.pricing, {
+      durationSec: duration,
+      audio: audioOn,
+    }),
+  )
 
-  // Fetch videos with infinite scroll
+  // Library
   const {
     data: videosData,
     isLoading: videosLoading,
@@ -294,7 +305,6 @@ function VideosPage() {
     initialPageParam: 0,
   })
 
-  // Fetch user's images for picker
   const {
     data: imagesData,
     isLoading: imagesLoading,
@@ -305,15 +315,13 @@ function VideosPage() {
       const { listUserImagesFn } = await import('../../../server/image.server')
       return listUserImagesFn({ data: { limit: 50 } })
     },
-    enabled: imagePickerOpen,
+    enabled: imagePickerTarget !== null,
   })
 
-  // Flatten all pages into single array
   const videos = videosData?.pages.flatMap((page) => page.videos) ?? []
   const total = videosData?.pages[0]?.total ?? 0
   const images = imagesData?.images || []
 
-  // Intersection Observer for infinite scroll
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
@@ -323,15 +331,11 @@ function VideosPage() {
       },
       { threshold: 0.1 },
     )
-
-    if (loadMoreRef.current) {
-      observer.observe(loadMoreRef.current)
-    }
-
+    if (loadMoreRef.current) observer.observe(loadMoreRef.current)
     return () => observer.disconnect()
   }, [hasNextPage, isFetchingNextPage, fetchNextPage])
 
-  // Generate mutation
+  // Mutations
   const generateMutation = useMutation({
     mutationFn: async (input: { data: Record<string, unknown> }) => {
       const { generateVideoFn } = await import('../../../server/video.server')
@@ -339,16 +343,9 @@ function VideosPage() {
     },
     onSuccess: (result) => {
       setCurrentJobId(result.jobId)
-      // Clear prompt and selections after successful submission
-      setPrompt('')
-      setSelectedImage(null)
-      setFirstFrame(null)
-      setLastFrame(null)
-      setKeyframes([])
     },
   })
 
-  // Delete mutation
   const deleteMutation = useMutation({
     mutationFn: async (input: { data: { videoId: string } }) => {
       const { deleteVideoFn } = await import('../../../server/video.server')
@@ -360,7 +357,6 @@ function VideosPage() {
     },
   })
 
-  // Video upscale mutation
   const upscaleMutation = useMutation({
     mutationFn: async (input: { data: Record<string, unknown> }) => {
       const { upscaleVideoFn } =
@@ -372,7 +368,7 @@ function VideosPage() {
     },
   })
 
-  // Poll job status
+  // Job polling
   const { data: jobStatus } = useQuery({
     queryKey: ['videoJob', currentJobId],
     queryFn: async () => {
@@ -383,39 +379,32 @@ function VideosPage() {
     enabled: !!currentJobId,
     refetchInterval: (query) => {
       const status = query.state.data?.status
-      if (status === 'completed' || status === 'failed') {
-        return false
-      }
-      return 3000 // Videos take longer
+      return status === 'completed' || status === 'failed' ? false : 3000
     },
   })
 
-  // Handle job completion
   useEffect(() => {
     if (jobStatus?.status === 'completed') {
       setCurrentJobId(null)
       queryClient.invalidateQueries({ queryKey: ['videos'] })
-      // Auto-focus textarea for next prompt
-      textareaRef.current?.focus()
+      queryClient.invalidateQueries({ queryKey: ['falCredits'] })
     }
   }, [jobStatus, queryClient])
 
-  // Queue position toast notifications
   useEffect(() => {
     const queuePosition = jobStatus?.queuePosition
     if (queuePosition && queuePosition >= 50) {
-      // Group by range to avoid spam: 50-99, 100-199, 200+
       const range = queuePosition >= 200 ? 200 : queuePosition >= 100 ? 100 : 50
       if (lastQueueToastRef.current !== range) {
         lastQueueToastRef.current = range
         if (queuePosition >= 200) {
-          toast.error('fal.ai Overloaded', {
-            description: `Queue position: ${queuePosition}. Consider switching to a different model.`,
+          toast.error('fal.ai is overloaded', {
+            description: `Queue position ${queuePosition}. Consider switching to a different model.`,
             duration: 8000,
           })
         } else {
-          toast.warning('fal.ai High Demand', {
-            description: `Queue position: ${queuePosition}. Generation may take longer than usual.`,
+          toast.warning('fal.ai is busy', {
+            description: `Queue position ${queuePosition}. This may take longer than usual.`,
             duration: 6000,
           })
         }
@@ -425,7 +414,6 @@ function VideosPage() {
     }
   }, [jobStatus?.queuePosition])
 
-  // Poll video upscale job status
   const { data: upscaleJobStatus } = useQuery({
     queryKey: ['videoUpscaleJob', currentUpscaleJobId],
     queryFn: async () => {
@@ -438,262 +426,16 @@ function VideosPage() {
     enabled: !!currentUpscaleJobId,
     refetchInterval: (query) => {
       const status = query.state.data?.status
-      if (status === 'completed' || status === 'failed') {
-        return false
-      }
-      return 3000 // Video upscaling takes longer
+      return status === 'completed' || status === 'failed' ? false : 3000
     },
   })
 
-  // Handle upscale job completion
   useEffect(() => {
     if (upscaleJobStatus?.status === 'completed') {
       setCurrentUpscaleJobId(null)
       queryClient.invalidateQueries({ queryKey: ['videos'] })
     }
   }, [upscaleJobStatus, queryClient])
-
-  // Auto-resize textarea
-  const adjustTextareaHeight = useCallback(() => {
-    const textarea = textareaRef.current
-    if (textarea) {
-      textarea.style.height = 'auto'
-      const maxHeight = 120
-      textarea.style.height = `${Math.min(textarea.scrollHeight, maxHeight)}px`
-    }
-  }, [])
-
-  useEffect(() => {
-    adjustTextareaHeight()
-  }, [prompt, adjustTextareaHeight])
-
-  // Keyboard shortcuts
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (
-        e.key === 'Enter' &&
-        !e.shiftKey &&
-        document.activeElement === textareaRef.current
-      ) {
-        e.preventDefault()
-        handleGenerate()
-      }
-      if (e.key === 'Escape') {
-        setSelectedVideo(null)
-        setImagePickerOpen(false)
-      }
-    }
-
-    document.addEventListener('keydown', handleKeyDown)
-    return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [
-    prompt,
-    model,
-    duration,
-    mode,
-    selectedImage,
-    firstFrame,
-    lastFrame,
-    keyframes,
-  ])
-
-  const canGenerate = () => {
-    if (mode === 'upscale') return false // Upscale uses different button
-    if (!prompt.trim() || isGenerating) return false
-
-    switch (mode) {
-      case 'text-to-video':
-        return true
-      case 'image-to-video':
-        return !!selectedImage
-      case 'keyframes':
-        if (isPikaKeyframes) {
-          return keyframes.length >= 2
-        }
-        return !!firstFrame && !!lastFrame
-      default:
-        return false
-    }
-  }
-
-  const canUpscale = () => {
-    if (isUpscaling) return false
-    return !!(upscaleVideoUrl || selectedUpscaleVideo?.url)
-  }
-
-  // Cancel job when queue is too long
-  const handleCancelJob = useCallback(() => {
-    setCurrentJobId(null)
-    lastQueueToastRef.current = null
-    toast.info('Generation cancelled', {
-      description: 'Select a different model and try again.',
-    })
-  }, [])
-
-  const handleGenerate = () => {
-    if (!canGenerate()) return
-
-    const baseData = {
-      prompt: prompt.trim(),
-      model,
-      duration,
-      generateAudio,
-    }
-
-    if (mode === 'text-to-video') {
-      generateMutation.mutate({
-        data: {
-          ...baseData,
-          generationType: 'text-to-video',
-          aspectRatio,
-        },
-      })
-    } else if (mode === 'image-to-video') {
-      generateMutation.mutate({
-        data: {
-          ...baseData,
-          generationType: 'image-to-video',
-          imageUrl: selectedImage!.url,
-          sourceImageId: selectedImage!.id,
-        },
-      })
-    } else {
-      // mode === 'keyframes'
-      if (isPikaKeyframes && keyframes.length >= 2) {
-        generateMutation.mutate({
-          data: {
-            ...baseData,
-            generationType: 'keyframes',
-            keyframeUrls: keyframes.map((k) => k.url),
-          },
-        })
-      } else {
-        generateMutation.mutate({
-          data: {
-            ...baseData,
-            generationType: 'keyframes',
-            firstFrameUrl: firstFrame!.url,
-            lastFrameUrl: lastFrame!.url,
-          },
-        })
-      }
-    }
-  }
-
-  const openImagePicker = (target: 'image' | 'first' | 'last' | number) => {
-    setImagePickerTarget(target)
-    setImagePickerOpen(true)
-  }
-
-  const handleImageSelect = (image: {
-    id: string
-    url: string
-    prompt: string | null
-  }) => {
-    if (imagePickerTarget === 'image') {
-      setSelectedImage(image)
-      // Pre-fill prompt if image has one
-      if (image.prompt && !prompt) {
-        setPrompt(`Animate: ${image.prompt}`)
-      }
-    } else if (imagePickerTarget === 'first') {
-      setFirstFrame(image)
-    } else if (imagePickerTarget === 'last') {
-      setLastFrame(image)
-    } else if (typeof imagePickerTarget === 'number') {
-      // Pika multi-keyframe: add at specific index
-      const newKeyframes = [...keyframes]
-      newKeyframes[imagePickerTarget] = image
-      setKeyframes(newKeyframes)
-    }
-    setImagePickerOpen(false)
-    textareaRef.current?.focus()
-  }
-
-  const handleImageUploadComplete = async () => {
-    const result = await refetchImages()
-    const latestImage = result.data?.images?.[0]
-    if (latestImage) {
-      handleImageSelect(latestImage)
-    }
-  }
-
-  const addKeyframe = () => {
-    if (keyframes.length < 5) {
-      openImagePicker(keyframes.length)
-    }
-  }
-
-  const removeKeyframe = (index: number) => {
-    setKeyframes(keyframes.filter((_, i) => i !== index))
-  }
-
-  const handleDownload = async (url: string, videoId?: string) => {
-    const filename = generateFilename(url, 'video')
-    const trackingId = videoId || url
-
-    await downloadFile(url, filename, {
-      onStart: () => {
-        setDownloadingId(trackingId)
-        toast.info('Starting download...')
-      },
-      onComplete: () => {
-        setDownloadingId(null)
-        toast.success('Download complete!')
-      },
-      onError: (error) => {
-        setDownloadingId(null)
-        toast.error(`Download failed: ${error.message}`)
-      },
-    })
-  }
-
-  const handleDelete = (videoId: string) => {
-    setDeleteDialog({ open: true, videoId })
-  }
-
-  const handleConfirmDelete = () => {
-    if (!deleteDialog.videoId) return
-    deleteMutation.mutate({ data: { videoId: deleteDialog.videoId } })
-  }
-
-  // Video upscale handler
-  const handleVideoUpscale = () => {
-    const videoUrl = upscaleVideoUrl || selectedUpscaleVideo?.url
-    if (!videoUrl) return
-
-    upscaleMutation.mutate({
-      data: {
-        videoUrl,
-        model: upscaleModel,
-        sourceAssetId: selectedUpscaleVideo?.id,
-        upscaleFactor,
-        // Topaz
-        targetFps: topazTargetFps,
-        h264Output: topazH264Output,
-        // SeedVR
-        upscaleMode: seedvrUpscaleMode,
-        seedvrTargetResolution,
-        noiseScale: seedvrNoiseScale,
-        outputFormat: seedvrOutputFormat,
-        outputQuality: seedvrOutputQuality,
-        // Bytedance
-        bytedanceTargetResolution,
-        bytedanceTargetFps,
-      },
-    })
-  }
-
-  // Video picker handler
-  const handleVideoSelect = (video: GeneratedVideo) => {
-    setSelectedUpscaleVideo(video)
-    setUpscaleVideoUrl(video.url)
-    setVideoPickerOpen(false)
-  }
-
-  const handleAddToProject = () => {
-    navigate({ to: '/projects' })
-  }
 
   const isGenerating =
     generateMutation.isPending ||
@@ -711,157 +453,181 @@ function VideosPage() {
       upscaleJobStatus?.status !== 'failed'
     )
 
+  const canGenerate = !!prompt.trim() && !isGenerating && !!selectedModel
+
+  const handleGenerate = () => {
+    if (!canGenerate) return
+    const base = {
+      prompt: prompt.trim(),
+      model,
+      duration,
+      generateAudio,
+      aspectRatio,
+    }
+    if (generationType === 'text-to-video') {
+      generateMutation.mutate({
+        data: { ...base, generationType },
+      })
+    } else if (generationType === 'image-to-video') {
+      generateMutation.mutate({
+        data: {
+          ...base,
+          generationType,
+          imageUrl: startFrame!.url,
+          sourceImageId: startFrame!.id,
+        },
+      })
+    } else {
+      generateMutation.mutate({
+        data: {
+          ...base,
+          generationType,
+          firstFrameUrl: startFrame!.url,
+          lastFrameUrl: endFrame!.url,
+        },
+      })
+    }
+  }
+
+  const handleCancelJob = useCallback(() => {
+    setCurrentJobId(null)
+    lastQueueToastRef.current = null
+    toast.info('Stopped waiting for this clip', {
+      description: 'Pick a different model and try again.',
+    })
+  }, [])
+
+  // Keyboard: Ctrl/Cmd+Enter generates, Esc closes panels
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (
+        e.key === 'Enter' &&
+        (e.metaKey || e.ctrlKey) &&
+        document.activeElement === textareaRef.current
+      ) {
+        e.preventDefault()
+        handleGenerate()
+      }
+      if (e.key === 'Escape') {
+        setSelectedVideo(null)
+        setImagePickerTarget(null)
+      }
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  })
+
+  const handleImageSelect = (image: SelectedImage) => {
+    if (imagePickerTarget === 'start') {
+      setStartFrame(image)
+      if (image.prompt && !prompt) setPrompt(`Animate: ${image.prompt}`)
+    } else if (imagePickerTarget === 'end') {
+      setEndFrame(image)
+    }
+    setImagePickerTarget(null)
+    textareaRef.current?.focus()
+  }
+
+  const handleImageUploadComplete = async () => {
+    const result = await refetchImages()
+    const latestImage = result.data?.images?.[0]
+    if (latestImage) handleImageSelect(latestImage)
+  }
+
+  const handleDownload = async (url: string, videoId?: string) => {
+    const filename = generateFilename(url, 'video')
+    const trackingId = videoId || url
+    await downloadFile(url, filename, {
+      onStart: () => {
+        setDownloadingId(trackingId)
+        toast.info('Starting download...')
+      },
+      onComplete: () => {
+        setDownloadingId(null)
+        toast.success('Download complete!')
+      },
+      onError: (error) => {
+        setDownloadingId(null)
+        toast.error(`Download failed: ${error.message}`)
+      },
+    })
+  }
+
+  const handleVideoUpscale = () => {
+    const videoUrl = upscaleVideoUrl || selectedUpscaleVideo?.url
+    if (!videoUrl) return
+    upscaleMutation.mutate({
+      data: {
+        videoUrl,
+        model: upscaleModel,
+        sourceAssetId: selectedUpscaleVideo?.id,
+        upscaleFactor,
+        targetFps: topazTargetFps,
+        h264Output: topazH264Output,
+        upscaleMode: seedvrUpscaleMode,
+        seedvrTargetResolution,
+        noiseScale: seedvrNoiseScale,
+        outputFormat: seedvrOutputFormat,
+        outputQuality: seedvrOutputQuality,
+        bytedanceTargetResolution,
+        bytedanceTargetFps,
+      },
+    })
+  }
+
+  const handleUpscaleThis = (video: GeneratedVideo) => {
+    setSelectedUpscaleVideo(video)
+    setUpscaleVideoUrl(video.url)
+    setTab('upscale')
+    setSelectedVideo(null)
+  }
+
+  const handleAddToProject = () => navigate({ to: '/projects' })
+
+  const generateError =
+    generateMutation.isError || jobStatus?.status === 'failed'
+      ? generateMutation.error instanceof Error
+        ? generateMutation.error.message
+        : jobStatus?.error || 'Generation failed'
+      : null
+
   const progress = jobStatus?.progress || 0
-  // Video upscaling progress (can be used for progress indicator)
-  const _upscaleProgress = upscaleJobStatus?.progress || 0
-  void _upscaleProgress // Unused for now, but available for future progress UI
 
   return (
-    <div className="flex h-[calc(100vh-theme(spacing.16))] flex-col">
-      {/* Header with Mode Toggle */}
-      <div className="flex flex-wrap items-center justify-between gap-4 px-2 pb-6">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Videos</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            {total} video{total !== 1 ? 's' : ''} in your library
-          </p>
-        </div>
-        <VideoModeToggle mode={mode} onModeChange={setMode} />
-      </div>
-
-      {/* Main Grid Area - Scrollable */}
-      <div className="flex-1 overflow-y-auto pb-60">
-        {videosLoading && videos.length === 0 ? (
-          <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 px-2">
-            {[1, 2, 3, 4, 5, 6].map((i) => (
-              <Skeleton key={i} className="aspect-video rounded-2xl" />
-            ))}
-          </div>
-        ) : videos.length === 0 && !isGenerating ? (
-          <div className="flex flex-col items-center justify-center py-24">
-            <div className="rounded-2xl bg-gradient-to-br from-primary/20 to-accent/20 p-8 border border-primary/10">
-              <Video className="h-16 w-16 text-primary/70" />
+    <div className="flex h-full min-h-0 flex-col lg:flex-row">
+      {/* ================= Settings panel ================= */}
+      <aside className="flex w-full shrink-0 flex-col border-b border-border bg-card/40 lg:h-full lg:w-[400px] lg:border-r lg:border-b-0">
+        <div className="flex-1 space-y-6 overflow-y-auto p-6">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h1 className="text-xl font-semibold tracking-tight">
+                {tab === 'create' ? 'Generate Video' : 'Upscale Video'}
+              </h1>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {tab === 'create'
+                  ? 'Turn your ideas into cinematic video.'
+                  : 'Sharpen a clip up to 4K.'}
+              </p>
             </div>
-            <h3 className="mt-8 text-xl font-semibold">No videos yet</h3>
-            <p className="mt-3 text-muted-foreground text-center max-w-md">
-              {mode === 'text-to-video'
-                ? 'Describe your scene to generate a cinematic video'
-                : mode === 'image-to-video'
-                  ? 'Select an image and describe the motion to bring it to life'
-                  : 'Add keyframes to create a smooth transition video'}
-            </p>
-          </div>
-        ) : (
-          <>
-            <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 px-2">
-              {/* Generating placeholder - Premium Styling */}
-              {isGenerating && (
-                <Card className="aspect-video overflow-hidden rounded-2xl border-border/50 bg-card/50 p-0">
-                  <div className="relative h-full w-full bg-gradient-to-br from-muted to-muted/50">
-                    <div className="absolute inset-0 flex flex-col items-center justify-center p-4">
-                      <div className="rounded-full bg-primary/10 p-4">
-                        <Loader2 className="h-10 w-10 animate-spin text-primary" />
-                      </div>
-                      <p className="mt-4 text-sm font-medium text-foreground">
-                        {jobStatus?.status === 'processing'
-                          ? 'Creating video...'
-                          : 'Starting...'}
-                      </p>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        ~1-3 minutes
-                      </p>
-                      {progress > 0 && (
-                        <div className="mt-4 w-32">
-                          <div className="h-2 overflow-hidden rounded-full bg-primary/20">
-                            <div
-                              className="h-full bg-primary transition-all duration-300 rounded-full"
-                              style={{ width: `${progress}%` }}
-                            />
-                          </div>
-                          <p className="text-xs text-muted-foreground text-center mt-2">
-                            {progress}%
-                          </p>
-                        </div>
-                      )}
-
-                      {/* Queue position warning */}
-                      {jobStatus?.queuePosition &&
-                        jobStatus.queuePosition >= 50 && (
-                          <Alert
-                            variant={
-                              jobStatus.queuePosition >= 200
-                                ? 'destructive'
-                                : 'default'
-                            }
-                            className={`mt-4 w-full max-w-xs ${
-                              jobStatus.queuePosition >= 200
-                                ? ''
-                                : 'border-yellow-500/50 bg-yellow-500/10'
-                            }`}
-                          >
-                            <AlertTriangle className="h-4 w-4" />
-                            <AlertTitle className="text-sm">
-                              {jobStatus.queuePosition >= 200
-                                ? 'fal.ai Overloaded'
-                                : 'High Demand'}
-                            </AlertTitle>
-                            <AlertDescription className="text-xs">
-                              Queue position: {jobStatus.queuePosition}
-                              {jobStatus.queuePosition >= 200 && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="mt-2 w-full"
-                                  onClick={handleCancelJob}
-                                >
-                                  <X className="mr-1 h-3 w-3" />
-                                  Cancel & Switch Model
-                                </Button>
-                              )}
-                            </AlertDescription>
-                          </Alert>
-                        )}
-                    </div>
-                    <div className="absolute inset-0 -translate-x-full animate-[shimmer_2s_infinite] bg-gradient-to-r from-transparent via-white/5 to-transparent" />
-                  </div>
-                </Card>
-              )}
-
-              {/* Video cards */}
-              {videos.map((video) => (
-                <VideoCard
-                  key={video.id}
-                  video={video}
-                  onSelect={() => setSelectedVideo(video)}
-                  onDownload={() => handleDownload(video.url, video.id)}
-                  onAddToProject={handleAddToProject}
-                  onDelete={() => handleDelete(video.id)}
-                  isDownloading={downloadingId === video.id}
-                />
+            <div className="flex rounded-lg border border-border bg-background p-0.5">
+              {(['create', 'upscale'] as const).map((t) => (
+                <button
+                  key={t}
+                  onClick={() => setTab(t)}
+                  className={cn(
+                    'rounded-md px-2.5 py-1 text-xs font-medium capitalize transition-colors',
+                    tab === t
+                      ? 'bg-secondary text-foreground'
+                      : 'text-muted-foreground hover:text-foreground',
+                  )}
+                >
+                  {t}
+                </button>
               ))}
             </div>
+          </div>
 
-            {/* Infinite scroll trigger */}
-            <div
-              ref={loadMoreRef}
-              className="col-span-full flex justify-center py-8"
-            >
-              {isFetchingNextPage && (
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-              )}
-              {!hasNextPage && videos.length > 0 && (
-                <p className="text-sm text-muted-foreground">No more videos</p>
-              )}
-            </div>
-          </>
-        )}
-      </div>
-
-      {/* Fixed Bottom Panel - Premium Floating Action Bar */}
-      <div className="fixed bottom-0 left-0 right-0 md:left-64 p-4 pb-6">
-        <div className="mx-auto max-w-4xl rounded-2xl border border-border/50 bg-card/95 backdrop-blur-xl shadow-2xl shadow-black/20 p-5">
-          {/* Upscale Mode Panel */}
-          {mode === 'upscale' ? (
+          {tab === 'upscale' ? (
             <VideoUpscalePanel
               model={upscaleModel}
               onModelChange={setUpscaleModel}
@@ -893,7 +659,9 @@ function VideosPage() {
               onBytedanceTargetFpsChange={setBytedanceTargetFps}
               onUpscale={handleVideoUpscale}
               isUpscaling={isUpscaling}
-              hasVideo={canUpscale()}
+              hasVideo={
+                !isUpscaling && !!(upscaleVideoUrl || selectedUpscaleVideo?.url)
+              }
               error={
                 upscaleMutation.isError
                   ? upscaleMutation.error instanceof Error
@@ -906,288 +674,317 @@ function VideosPage() {
             />
           ) : (
             <>
-              {/* Mode-specific inputs - Premium Styling */}
-              {mode === 'image-to-video' && (
-                <div className="mb-4 flex gap-4 items-center">
-                  {/* Image Picker Thumbnail - Premium */}
-                  <button
-                    onClick={() => openImagePicker('image')}
-                    className="relative h-[80px] w-[80px] shrink-0 overflow-hidden rounded-xl border-2 border-dashed border-border/50 transition-all duration-200 hover:border-primary/50 hover:bg-primary/5 hover:shadow-lg hover:shadow-primary/10"
-                  >
-                    {selectedImage ? (
-                      <>
-                        <img
-                          src={selectedImage.url}
-                          alt="Selected"
-                          className="h-full w-full object-cover"
-                        />
-                        <div className="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-[1px] opacity-0 transition-opacity hover:opacity-100">
-                          <span className="text-xs font-medium text-white">
-                            Change
-                          </span>
-                        </div>
-                      </>
-                    ) : (
-                      <div className="flex h-full flex-col items-center justify-center gap-1">
-                        <Plus className="h-6 w-6 text-muted-foreground" />
-                        <span className="text-[10px] text-muted-foreground font-medium">
-                          Image
-                        </span>
-                      </div>
-                    )}
-                  </button>
-                  <div className="flex-1">
-                    <p className="font-medium text-sm">First Frame</p>
-                    <p className="text-xs text-muted-foreground">
-                      Select an image to animate
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {mode === 'keyframes' && !isPikaKeyframes && (
-                <div className="mb-4 flex gap-4 items-center">
-                  {/* First Frame - Premium */}
-                  <button
-                    onClick={() => openImagePicker('first')}
-                    className="relative h-[80px] w-[80px] shrink-0 overflow-hidden rounded-xl border-2 border-dashed border-border/50 transition-all duration-200 hover:border-primary/50 hover:bg-primary/5 hover:shadow-lg hover:shadow-primary/10"
-                  >
-                    {firstFrame ? (
-                      <>
-                        <img
-                          src={firstFrame.url}
-                          alt="First frame"
-                          className="h-full w-full object-cover"
-                        />
-                        <div className="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-[1px] opacity-0 transition-opacity hover:opacity-100">
-                          <span className="text-xs font-medium text-white">
-                            Change
-                          </span>
-                        </div>
-                      </>
-                    ) : (
-                      <div className="flex h-full flex-col items-center justify-center gap-1">
-                        <Plus className="h-6 w-6 text-muted-foreground" />
-                        <span className="text-[10px] text-muted-foreground font-medium">
-                          First
-                        </span>
-                      </div>
-                    )}
-                  </button>
-
-                  {/* Arrow - Premium */}
-                  <div className="flex items-center text-primary">
-                    <span className="text-xl font-bold">→</span>
-                  </div>
-
-                  {/* Last Frame - Premium */}
-                  <button
-                    onClick={() => openImagePicker('last')}
-                    className="relative h-[80px] w-[80px] shrink-0 overflow-hidden rounded-xl border-2 border-dashed border-border/50 transition-all duration-200 hover:border-primary/50 hover:bg-primary/5 hover:shadow-lg hover:shadow-primary/10"
-                  >
-                    {lastFrame ? (
-                      <>
-                        <img
-                          src={lastFrame.url}
-                          alt="Last frame"
-                          className="h-full w-full object-cover"
-                        />
-                        <div className="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-[1px] opacity-0 transition-opacity hover:opacity-100">
-                          <span className="text-xs font-medium text-white">
-                            Change
-                          </span>
-                        </div>
-                      </>
-                    ) : (
-                      <div className="flex h-full flex-col items-center justify-center gap-1">
-                        <Plus className="h-6 w-6 text-muted-foreground" />
-                        <span className="text-[10px] text-muted-foreground font-medium">
-                          Last
-                        </span>
-                      </div>
-                    )}
-                  </button>
-
-                  <div className="flex-1">
-                    <p className="font-medium text-sm">Keyframes</p>
-                    <p className="text-xs text-muted-foreground">
-                      Create a transition between images
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {/* Pika multi-keyframe UI */}
-              {mode === 'keyframes' && isPikaKeyframes && (
-                <div className="mb-3">
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="text-sm font-medium">
-                      Keyframes ({keyframes.length}/5)
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                      Add 2-5 images for smooth transitions
-                    </span>
-                  </div>
-                  <div className="flex gap-2 flex-wrap">
-                    {keyframes.map((kf, index) => (
-                      <div key={index} className="relative">
-                        <button
-                          onClick={() => openImagePicker(index)}
-                          className="relative h-[60px] w-[60px] overflow-hidden rounded-lg border"
-                        >
-                          <img
-                            src={kf.url}
-                            alt={`Frame ${index + 1}`}
-                            className="h-full w-full object-cover"
-                          />
-                        </button>
-                        <button
-                          onClick={() => removeKeyframe(index)}
-                          className="absolute -right-1 -top-1 rounded-full bg-destructive p-0.5 text-destructive-foreground"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      </div>
-                    ))}
-                    {keyframes.length < 5 && (
-                      <button
-                        onClick={addKeyframe}
-                        className="flex h-[60px] w-[60px] items-center justify-center rounded-lg border-2 border-dashed hover:border-primary hover:bg-accent/50"
-                      >
-                        <Plus className="h-5 w-5 text-muted-foreground" />
-                      </button>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* Prompt Input - Premium Styling */}
-              <div className="relative">
-                <Textarea
-                  ref={textareaRef}
-                  placeholder={
-                    mode === 'text-to-video'
-                      ? 'Describe your video scene...'
-                      : mode === 'image-to-video'
-                        ? 'Describe the motion...'
-                        : 'Describe the transition...'
-                  }
-                  value={prompt}
-                  onChange={(e) => setPrompt(e.target.value)}
-                  disabled={isGenerating}
-                  className="min-h-[80px] resize-none pr-28 text-base rounded-xl border-border/50 bg-background/50 focus:border-primary/50 focus:ring-primary/20 placeholder:text-muted-foreground/60 disabled:opacity-50 disabled:cursor-not-allowed"
-                  rows={2}
-                />
-                <Button
-                  size="default"
-                  className="absolute bottom-3 right-3 rounded-xl bg-primary hover:bg-primary/90 btn-primary-glow transition-all duration-200"
-                  onClick={handleGenerate}
-                  disabled={!canGenerate()}
-                >
-                  {isGenerating ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <>
-                      <Wand2 className="mr-2 h-4 w-4" />
-                      Generate
-                    </>
-                  )}
-                </Button>
-              </div>
-
-              {/* Settings Row - Premium Styling */}
-              <div className="mt-4 flex flex-wrap items-center gap-4">
-                {/* Model Selector with Icons */}
-                <ModelSelect
-                  value={model}
-                  onValueChange={handleModelChange}
-                  models={availableModels}
-                  showDescription={true}
-                  showProvider={true}
-                />
-
-                {/* Duration - Premium Pills */}
-                {selectedModel && selectedModel.durations.length > 1 && (
-                  <div className="flex rounded-xl border border-border/50 bg-background/50 p-1">
-                    {selectedModel.durations.map((d) => (
-                      <button
-                        key={d}
-                        onClick={() => setDuration(d)}
-                        className={`px-3 py-1.5 text-xs font-medium transition-all duration-200 rounded-lg ${
-                          duration === d
-                            ? 'bg-primary text-primary-foreground active-glow'
-                            : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
-                        }`}
-                      >
-                        {d}s
-                      </button>
-                    ))}
-                  </div>
-                )}
-
-                {/* Aspect Ratio (for text-to-video) - Premium */}
-                {mode === 'text-to-video' && selectedModel?.aspectRatios && (
-                  <Select value={aspectRatio} onValueChange={setAspectRatio}>
-                    <SelectTrigger className="h-9 w-24 rounded-xl border-border/50 bg-background/50">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-xl">
-                      {selectedModel.aspectRatios.map((ar) => (
-                        <SelectItem key={ar} value={ar}>
-                          {ar}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-
-                {/* Audio Toggle - Premium */}
-                {selectedModel?.supportsAudio && (
-                  <div className="flex items-center gap-2 rounded-xl border border-border/50 bg-background/50 px-3 py-2">
-                    <Switch
-                      id="audio"
-                      checked={generateAudio}
-                      onCheckedChange={setGenerateAudio}
-                    />
-                    <Label htmlFor="audio" className="text-xs font-medium">
-                      Audio
-                    </Label>
-                  </div>
-                )}
-              </div>
-
-              {/* Error Display - Premium */}
-              {(generateMutation.isError || jobStatus?.status === 'failed') && (
-                <div className="mt-3 rounded-xl bg-destructive/10 border border-destructive/20 px-4 py-2">
-                  <p className="text-sm text-destructive">
-                    {generateMutation.error instanceof Error
-                      ? generateMutation.error.message
-                      : jobStatus?.error || 'Generation failed'}
+              {/* Prompt */}
+              <Field label="Prompt">
+                <div className="rounded-xl border border-input bg-background focus-within:border-muted-foreground/60 transition-colors">
+                  <textarea
+                    ref={textareaRef}
+                    value={prompt}
+                    maxLength={PROMPT_MAX}
+                    onChange={(e) => setPrompt(e.target.value)}
+                    placeholder={
+                      generationType === 'text-to-video'
+                        ? 'Describe the scene — subject, action, camera, light…'
+                        : generationType === 'image-to-video'
+                          ? 'Describe the motion — what moves, how the camera moves…'
+                          : 'Describe how the first frame becomes the last…'
+                    }
+                    rows={5}
+                    className="block w-full resize-none bg-transparent px-3.5 pt-3 text-sm leading-relaxed outline-none placeholder:text-muted-foreground/70"
+                  />
+                  <p className="px-3.5 pb-2 text-right text-[11px] tabular-nums text-muted-foreground">
+                    {prompt.length}/{PROMPT_MAX}
                   </p>
+                </div>
+              </Field>
+
+              {/* Frames */}
+              <Field
+                label={startFrame ? 'Frames' : 'Start frame'}
+                hint={startFrame ? undefined : 'optional'}
+              >
+                {startFrame ? (
+                  <div className="grid grid-cols-2 gap-3">
+                    <FrameSlot
+                      image={startFrame}
+                      label="Start frame"
+                      onPick={() => setImagePickerTarget('start')}
+                      onClear={() => {
+                        setStartFrame(null)
+                        setEndFrame(null)
+                      }}
+                    />
+                    {supportsEndFrames && (
+                      <FrameSlot
+                        image={endFrame}
+                        label="End frame"
+                        optional
+                        onPick={() => setImagePickerTarget('end')}
+                        onClear={() => setEndFrame(null)}
+                      />
+                    )}
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setImagePickerTarget('start')}
+                    className="flex h-24 w-full flex-col items-center justify-center gap-1.5 rounded-xl border border-dashed border-border text-center transition-colors hover:border-muted-foreground/60 hover:bg-accent/40"
+                  >
+                    <Upload className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-xs font-medium">
+                      Upload or choose an image
+                    </span>
+                    <span className="text-[10px] text-muted-foreground">
+                      JPG, PNG · or pick from your library
+                    </span>
+                  </button>
+                )}
+                <p className="mt-2 text-xs text-muted-foreground">
+                  {generationType === 'text-to-video'
+                    ? 'Add an image to animate it instead of starting from text.'
+                    : generationType === 'image-to-video'
+                      ? 'Animating your image. Add an end frame to steer where it lands.'
+                      : 'Keyframes: the clip moves from the first image to the last.'}
+                </p>
+              </Field>
+
+              {/* Model */}
+              <Field label="Model">
+                <ModelRadioList
+                  models={availableModels}
+                  value={model}
+                  onChange={handleModelChange}
+                />
+              </Field>
+
+              {/* Duration */}
+              {selectedModel && selectedModel.durations.length > 1 && (
+                <Field
+                  label="Duration"
+                  aside={
+                    <span className="text-sm tabular-nums text-muted-foreground">
+                      {duration} seconds
+                    </span>
+                  }
+                >
+                  <Slider
+                    value={[
+                      Math.max(0, selectedModel.durations.indexOf(duration)),
+                    ]}
+                    min={0}
+                    max={selectedModel.durations.length - 1}
+                    step={1}
+                    onValueChange={([i]) =>
+                      setDuration(selectedModel.durations[i])
+                    }
+                  />
+                  <div className="mt-2 flex justify-between text-[11px] tabular-nums text-muted-foreground">
+                    {selectedModel.durations.map((d) => (
+                      <span key={d}>{d}s</span>
+                    ))}
+                  </div>
+                </Field>
+              )}
+
+              {/* Aspect ratio */}
+              {selectedModel?.aspectRatios &&
+                selectedModel.aspectRatios.length > 1 && (
+                  <Field label="Aspect ratio">
+                    <div className="grid grid-cols-3 gap-2">
+                      {selectedModel.aspectRatios.map((ar) => {
+                        const Icon = ASPECT_ICONS[ar] ?? RectangleHorizontal
+                        return (
+                          <button
+                            key={ar}
+                            onClick={() => setAspectRatio(ar)}
+                            className={cn(
+                              'flex h-11 items-center justify-center gap-2 rounded-lg border text-sm font-medium tabular-nums transition-colors',
+                              aspectRatio === ar
+                                ? 'border-primary/60 bg-primary/10 text-primary'
+                                : 'border-border text-muted-foreground hover:border-muted-foreground/60 hover:text-foreground',
+                            )}
+                          >
+                            <Icon className="h-4 w-4" />
+                            {ar}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </Field>
+                )}
+
+              {/* Audio */}
+              {selectedModel?.supportsAudio && (
+                <div className="flex items-center justify-between gap-4 rounded-xl border border-border px-4 py-3">
+                  <div>
+                    <p className="text-sm font-medium">Add audio</p>
+                    <p className="text-xs text-muted-foreground">
+                      Synchronised dialogue, SFX and music — roughly doubles the
+                      price
+                    </p>
+                  </div>
+                  <Switch
+                    checked={generateAudio}
+                    onCheckedChange={setGenerateAudio}
+                  />
+                </div>
+              )}
+
+              {generateError && (
+                <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                  {generateError}
                 </div>
               )}
             </>
           )}
         </div>
-      </div>
 
-      {/* Video Picker Dialog for Upscale */}
+        {/* Generate */}
+        {tab === 'create' && (
+          <div className="border-t border-border p-4">
+            <Button
+              size="lg"
+              className="w-full"
+              onClick={handleGenerate}
+              disabled={!canGenerate}
+            >
+              {isGenerating ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Generating…
+                </>
+              ) : (
+                <>
+                  <Wand2 className="h-4 w-4" />
+                  Generate
+                  {costLabel && (
+                    <span className="font-normal tabular-nums opacity-80">
+                      · {costLabel}
+                    </span>
+                  )}
+                </>
+              )}
+            </Button>
+            <p className="mt-2 text-center text-[11px] text-muted-foreground">
+              Billed to your fal account · Ctrl+Enter to generate
+            </p>
+          </div>
+        )}
+      </aside>
+
+      {/* ================= Results ================= */}
+      <section className="min-h-0 flex-1 overflow-y-auto p-6">
+        <div className="mb-5 flex items-center gap-3">
+          <h2 className="text-xl font-semibold tracking-tight">Results</h2>
+          <span className="rounded-md bg-muted px-2 py-0.5 text-xs tabular-nums text-muted-foreground">
+            {total}
+          </span>
+        </div>
+
+        {videosLoading && videos.length === 0 ? (
+          <div className="grid grid-cols-1 gap-5 md:grid-cols-2 2xl:grid-cols-3">
+            {[1, 2, 3, 4, 5, 6].map((i) => (
+              <Skeleton key={i} className="aspect-video rounded-xl" />
+            ))}
+          </div>
+        ) : videos.length === 0 && !isGenerating ? (
+          <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border py-28 text-center">
+            <Video className="h-10 w-10 text-muted-foreground/50" />
+            <h3 className="mt-5 text-lg font-medium">No videos yet</h3>
+            <p className="mt-2 max-w-sm text-sm text-muted-foreground">
+              Write a prompt on the left. Start on a Draft model to try the idea
+              cheaply, then re-run the keeper on a Hero model.
+            </p>
+          </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 gap-5 md:grid-cols-2 2xl:grid-cols-3">
+              {isGenerating && (
+                <div className="flex flex-col">
+                  <div className="relative aspect-video overflow-hidden rounded-xl border border-border bg-card">
+                    <div className="absolute inset-0 flex flex-col items-center justify-center p-4 text-center">
+                      <Loader2 className="h-7 w-7 animate-spin text-primary" />
+                      <p className="mt-3 text-sm font-medium">
+                        {jobStatus?.status === 'processing'
+                          ? 'Rendering…'
+                          : 'Queued…'}
+                      </p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Usually 1–3 minutes
+                      </p>
+                      {jobStatus?.queuePosition &&
+                        jobStatus.queuePosition >= 50 && (
+                          <div className="mt-3 flex items-center gap-2 text-xs text-primary">
+                            <AlertTriangle className="h-3.5 w-3.5" />
+                            Queue position {jobStatus.queuePosition}
+                            {jobStatus.queuePosition >= 200 && (
+                              <button
+                                onClick={handleCancelJob}
+                                className="underline"
+                              >
+                                stop waiting
+                              </button>
+                            )}
+                          </div>
+                        )}
+                    </div>
+                    <div className="absolute inset-x-0 bottom-0 h-1 bg-muted">
+                      <div
+                        className={cn(
+                          'h-full bg-primary transition-all duration-500',
+                          progress === 0 &&
+                            'w-1/4 animate-[indeterminate_1.6s_ease-in-out_infinite]',
+                        )}
+                        style={progress ? { width: `${progress}%` } : undefined}
+                      />
+                    </div>
+                  </div>
+                  <div className="mt-2.5 flex items-center justify-between text-sm">
+                    <span className="truncate font-medium">
+                      {selectedModel?.name}
+                    </span>
+                    <span className="tabular-nums text-muted-foreground">
+                      {costLabel}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {videos.map((video) => (
+                <VideoCard
+                  key={video.id}
+                  video={video}
+                  modelConfig={allModels.find((m) => m.id === video.model)}
+                  onSelect={() => setSelectedVideo(video)}
+                  onDownload={() => handleDownload(video.url, video.id)}
+                  onAddToProject={handleAddToProject}
+                  onUpscale={() => handleUpscaleThis(video)}
+                  onDelete={() =>
+                    setDeleteDialog({ open: true, videoId: video.id })
+                  }
+                  isDownloading={downloadingId === video.id}
+                />
+              ))}
+            </div>
+
+            <div ref={loadMoreRef} className="flex justify-center py-8">
+              {isFetchingNextPage && (
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              )}
+            </div>
+          </>
+        )}
+      </section>
+
+      {/* Video picker for upscale */}
       <Dialog open={videoPickerOpen} onOpenChange={setVideoPickerOpen}>
         <DialogContent className="max-w-3xl">
           <DialogHeader>
             <DialogTitle>Select a video to upscale</DialogTitle>
           </DialogHeader>
-          {videosLoading ? (
-            <div className="flex h-64 items-center justify-center">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-            </div>
-          ) : videos.length === 0 ? (
-            <div className="flex h-64 flex-col items-center justify-center">
-              <Video className="h-12 w-12 text-muted-foreground" />
-              <p className="mt-4 text-muted-foreground">No videos yet</p>
-              <p className="text-sm text-muted-foreground mt-2">
-                Generate some videos first to upscale them
-              </p>
+          {videos.length === 0 ? (
+            <div className="flex h-48 flex-col items-center justify-center text-sm text-muted-foreground">
+              <Video className="mb-3 h-10 w-10" />
+              Generate a video first to upscale it.
             </div>
           ) : (
             <div className="grid max-h-[60vh] gap-3 overflow-y-auto sm:grid-cols-2 md:grid-cols-3">
@@ -1195,7 +992,11 @@ function VideosPage() {
                 <button
                   key={video.id}
                   className="group relative aspect-video overflow-hidden rounded-xl bg-muted"
-                  onClick={() => handleVideoSelect(video)}
+                  onClick={() => {
+                    setSelectedUpscaleVideo(video)
+                    setUpscaleVideoUrl(video.url)
+                    setVideoPickerOpen(false)
+                  }}
                 >
                   <video
                     src={video.url}
@@ -1211,12 +1012,6 @@ function VideosPage() {
                   <div className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
                     <Check className="h-8 w-8 text-white" />
                   </div>
-                  {video.durationSeconds && (
-                    <div className="absolute bottom-2 left-2 flex items-center gap-1 rounded-full bg-black/60 px-2 py-1 text-xs text-white">
-                      <Clock className="h-3 w-3" />
-                      {video.durationSeconds}s
-                    </div>
-                  )}
                 </button>
               ))}
             </div>
@@ -1224,41 +1019,43 @@ function VideosPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Image Picker Dialog */}
-      <Dialog open={imagePickerOpen} onOpenChange={setImagePickerOpen}>
+      {/* Image picker for frames */}
+      <Dialog
+        open={imagePickerTarget !== null}
+        onOpenChange={(open) => !open && setImagePickerTarget(null)}
+      >
         <DialogContent className="max-w-3xl">
           <DialogHeader>
             <DialogTitle>
-              {imagePickerTarget === 'image'
-                ? 'Select an image to animate'
-                : imagePickerTarget === 'first'
-                  ? 'Select first frame'
-                  : imagePickerTarget === 'last'
-                    ? 'Select last frame'
-                    : `Select frame ${imagePickerTarget + 1}`}
+              {imagePickerTarget === 'end'
+                ? 'Choose the end frame'
+                : 'Choose a start frame'}
             </DialogTitle>
           </DialogHeader>
           <UploadDropZone onUploadComplete={handleImageUploadComplete} />
           {imagesLoading ? (
-            <div className="flex h-64 items-center justify-center">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <div className="flex h-48 items-center justify-center">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
           ) : images.length === 0 ? (
-            <div className="flex h-64 flex-col items-center justify-center">
-              <ImageIcon className="h-12 w-12 text-muted-foreground" />
-              <p className="mt-4 text-muted-foreground">No images yet</p>
+            <div className="flex h-48 flex-col items-center justify-center">
+              <ImageIcon className="h-10 w-10 text-muted-foreground" />
+              <p className="mt-3 text-sm text-muted-foreground">
+                No images yet — upload one above, or
+              </p>
               <Button
-                className="mt-4"
+                variant="secondary"
+                className="mt-3"
                 onClick={() =>
                   navigate({ to: '/images', search: { mode: 'generate' } })
                 }
               >
-                <Plus className="mr-2 h-4 w-4" />
-                Create Image First
+                <Plus className="h-4 w-4" />
+                Create an image
               </Button>
             </div>
           ) : (
-            <div className="grid max-h-[60vh] gap-3 overflow-y-auto sm:grid-cols-3 md:grid-cols-4">
+            <div className="grid max-h-[50vh] gap-3 overflow-y-auto sm:grid-cols-3 md:grid-cols-4">
               {images.map((image) => (
                 <button
                   key={image.id}
@@ -1271,7 +1068,7 @@ function VideosPage() {
                     className="absolute inset-0 h-full w-full object-cover transition-transform group-hover:scale-105"
                   />
                   <div className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
-                    <Check className="h-8 w-8 text-white" />
+                    <Check className="h-7 w-7 text-white" />
                   </div>
                 </button>
               ))}
@@ -1280,16 +1077,15 @@ function VideosPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Detail Panel */}
+      {/* Detail panel */}
       <Sheet open={!!selectedVideo} onOpenChange={() => setSelectedVideo(null)}>
-        <SheetContent className="w-full sm:max-w-xl overflow-y-auto p-0">
-          <SheetHeader className="px-6 pt-6 pb-4 border-b border-border/30">
-            <SheetTitle>Video Details</SheetTitle>
+        <SheetContent className="w-full overflow-y-auto p-0 sm:max-w-xl">
+          <SheetHeader className="border-b border-border px-6 pt-6 pb-4">
+            <SheetTitle>Video details</SheetTitle>
           </SheetHeader>
           {selectedVideo && (
-            <div className="space-y-6 px-6 pb-6 pt-6">
-              {/* Video Preview with Glow Border */}
-              <div className="overflow-hidden rounded-2xl border border-primary/20 premium-glow bg-black">
+            <div className="space-y-5 p-6">
+              <div className="overflow-hidden rounded-xl border border-border bg-black">
                 <video
                   src={selectedVideo.url}
                   className="w-full"
@@ -1299,10 +1095,9 @@ function VideosPage() {
                 />
               </div>
 
-              {/* Prompt Card */}
               {selectedVideo.prompt && (
-                <div className="rounded-xl border border-border/30 bg-card/50 p-4">
-                  <div className="flex items-center gap-2 text-muted-foreground mb-2">
+                <div className="rounded-xl border border-border bg-card p-4">
+                  <div className="mb-2 flex items-center gap-2 text-muted-foreground">
                     <MessageSquare className="h-4 w-4" />
                     <span className="text-sm font-medium">Prompt</span>
                   </div>
@@ -1312,132 +1107,77 @@ function VideosPage() {
                 </div>
               )}
 
-              {/* Metadata Card */}
-              <div className="rounded-xl border border-border/30 bg-card/50 p-4">
-                <div className="grid grid-cols-2 gap-4">
-                  {selectedVideo.metadata?.generationType && (
-                    <div className="flex items-start gap-3">
-                      <div className="rounded-lg bg-primary/10 p-2">
-                        <Film className="h-4 w-4 text-primary" />
-                      </div>
-                      <div>
-                        <span className="text-xs text-muted-foreground">
-                          Type
-                        </span>
-                        <p className="text-sm font-medium capitalize">
-                          {selectedVideo.metadata.generationType.replace(
-                            /-/g,
-                            ' ',
-                          )}
-                        </p>
-                      </div>
-                    </div>
+              <div className="grid grid-cols-2 gap-3 rounded-xl border border-border bg-card p-4">
+                {selectedVideo.metadata?.generationType && (
+                  <Meta icon={Film} label="Type">
+                    <span className="capitalize">
+                      {selectedVideo.metadata.generationType.replace(/-/g, ' ')}
+                    </span>
+                  </Meta>
+                )}
+                {selectedVideo.model && (
+                  <Meta icon={Zap} label="Model">
+                    {allModels.find((m) => m.id === selectedVideo.model)
+                      ?.name ?? selectedVideo.model.split('/').pop()}
+                  </Meta>
+                )}
+                {selectedVideo.durationSeconds && (
+                  <Meta icon={Clock} label="Duration">
+                    {selectedVideo.durationSeconds}s
+                  </Meta>
+                )}
+                {selectedVideo.metadata?.aspectRatio && (
+                  <Meta icon={Maximize2} label="Aspect ratio">
+                    {selectedVideo.metadata.aspectRatio}
+                  </Meta>
+                )}
+                <Meta icon={Calendar} label="Created">
+                  {new Date(selectedVideo.createdAt).toLocaleDateString(
+                    'en-US',
+                    { month: 'short', day: 'numeric', year: 'numeric' },
                   )}
-                  {selectedVideo.model && (
-                    <div className="flex items-start gap-3">
-                      <div className="rounded-lg bg-primary/10 p-2">
-                        <Zap className="h-4 w-4 text-primary" />
-                      </div>
-                      <div>
-                        <span className="text-xs text-muted-foreground">
-                          Model
-                        </span>
-                        <p className="text-sm font-medium">
-                          {selectedVideo.model.split('/').pop()}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                  {selectedVideo.durationSeconds && (
-                    <div className="flex items-start gap-3">
-                      <div className="rounded-lg bg-primary/10 p-2">
-                        <Clock className="h-4 w-4 text-primary" />
-                      </div>
-                      <div>
-                        <span className="text-xs text-muted-foreground">
-                          Duration
-                        </span>
-                        <p className="text-sm font-medium">
-                          {selectedVideo.durationSeconds}s
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                  {selectedVideo.metadata?.aspectRatio && (
-                    <div className="flex items-start gap-3">
-                      <div className="rounded-lg bg-primary/10 p-2">
-                        <Maximize2 className="h-4 w-4 text-primary" />
-                      </div>
-                      <div>
-                        <span className="text-xs text-muted-foreground">
-                          Aspect Ratio
-                        </span>
-                        <p className="text-sm font-medium">
-                          {selectedVideo.metadata.aspectRatio}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                  <div className="flex items-start gap-3">
-                    <div className="rounded-lg bg-primary/10 p-2">
-                      <Calendar className="h-4 w-4 text-primary" />
-                    </div>
-                    <div>
-                      <span className="text-xs text-muted-foreground">
-                        Created
-                      </span>
-                      <p className="text-sm font-medium">
-                        {new Date(selectedVideo.createdAt).toLocaleDateString(
-                          'en-US',
-                          {
-                            month: 'short',
-                            day: 'numeric',
-                            year: 'numeric',
-                          },
-                        )}
-                      </p>
-                    </div>
-                  </div>
-                </div>
+                </Meta>
               </div>
 
-              {/* Primary Action: Add to Project */}
-              <Button
-                className="w-full rounded-xl bg-primary hover:bg-primary/90 btn-primary-glow h-11"
-                onClick={handleAddToProject}
-              >
-                <FolderPlus className="mr-2 h-4 w-4" />
-                Add to Project
-              </Button>
+              <div className="grid grid-cols-2 gap-3">
+                <Button onClick={handleAddToProject}>
+                  <FolderPlus className="h-4 w-4" />
+                  Add to project
+                </Button>
+                <Button
+                  variant="secondary"
+                  disabled={downloadingId === selectedVideo.id}
+                  onClick={() =>
+                    handleDownload(selectedVideo.url, selectedVideo.id)
+                  }
+                >
+                  {downloadingId === selectedVideo.id ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Download className="h-4 w-4" />
+                  )}
+                  Download
+                </Button>
+                <Button
+                  variant="secondary"
+                  className="col-span-2"
+                  onClick={() => handleUpscaleThis(selectedVideo)}
+                >
+                  <ArrowUpCircle className="h-4 w-4" />
+                  Upscale this clip
+                </Button>
+              </div>
 
-              {/* Secondary Action: Download */}
-              <Button
-                variant="outline"
-                className="w-full rounded-xl border-border/50 hover:bg-primary/10 hover:border-primary/30 hover:text-primary disabled:opacity-50"
-                disabled={downloadingId === selectedVideo.id}
-                onClick={() =>
-                  handleDownload(selectedVideo.url, selectedVideo.id)
-                }
-              >
-                {downloadingId === selectedVideo.id ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <Download className="mr-2 h-4 w-4" />
-                )}
-                {downloadingId === selectedVideo.id
-                  ? 'Downloading...'
-                  : 'Download'}
-              </Button>
-
-              {/* Delete Button - Separated at Bottom */}
-              <div className="pt-2 border-t border-border/30">
+              <div className="border-t border-border pt-3">
                 <Button
                   variant="ghost"
-                  className="w-full rounded-xl text-destructive hover:bg-destructive/10 hover:text-destructive"
-                  onClick={() => handleDelete(selectedVideo.id)}
+                  className="w-full text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  onClick={() =>
+                    setDeleteDialog({ open: true, videoId: selectedVideo.id })
+                  }
                 >
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Delete Video
+                  <Trash2 className="h-4 w-4" />
+                  Delete video
                 </Button>
               </div>
             </div>
@@ -1445,159 +1185,335 @@ function VideosPage() {
         </SheetContent>
       </Sheet>
 
-      {/* Delete Confirmation Dialog */}
       <ConfirmDialog
         open={deleteDialog.open}
         onOpenChange={(open) => setDeleteDialog((prev) => ({ ...prev, open }))}
-        title="Delete Video?"
+        title="Delete video?"
         description="This action cannot be undone. The video will be permanently removed from your library."
         confirmText="Delete"
         variant="destructive"
-        onConfirm={handleConfirmDelete}
+        onConfirm={() =>
+          deleteDialog.videoId &&
+          deleteMutation.mutate({ data: { videoId: deleteDialog.videoId } })
+        }
         isLoading={deleteMutation.isPending}
       />
     </div>
   )
 }
 
-// Video Card Component - Premium Design
+// =============================================================================
+// Pieces
+// =============================================================================
+
+function Field({
+  label,
+  hint,
+  aside,
+  children,
+}: {
+  label: string
+  hint?: string
+  aside?: React.ReactNode
+  children: React.ReactNode
+}) {
+  return (
+    <div>
+      <div className="mb-2 flex items-center justify-between">
+        <p className="text-sm font-medium">
+          {label}
+          {hint && (
+            <span className="ml-1.5 font-normal text-muted-foreground">
+              ({hint})
+            </span>
+          )}
+        </p>
+        {aside}
+      </div>
+      {children}
+    </div>
+  )
+}
+
+function Meta({
+  icon: Icon,
+  label,
+  children,
+}: {
+  icon: typeof Film
+  label: string
+  children: React.ReactNode
+}) {
+  return (
+    <div className="flex items-start gap-3">
+      <div className="rounded-lg bg-primary/10 p-2">
+        <Icon className="h-4 w-4 text-primary" />
+      </div>
+      <div className="min-w-0">
+        <span className="text-xs text-muted-foreground">{label}</span>
+        <p className="truncate text-sm font-medium">{children}</p>
+      </div>
+    </div>
+  )
+}
+
+function FrameSlot({
+  image,
+  label,
+  optional,
+  onPick,
+  onClear,
+}: {
+  image: SelectedImage | null
+  label: string
+  optional?: boolean
+  onPick: () => void
+  onClear: () => void
+}) {
+  if (!image) {
+    return (
+      <button
+        onClick={onPick}
+        className="flex aspect-video flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-border text-muted-foreground transition-colors hover:border-muted-foreground/60 hover:bg-accent/40 hover:text-foreground"
+      >
+        <Plus className="h-4 w-4" />
+        <span className="text-xs font-medium">{label}</span>
+        {optional && <span className="text-[10px]">optional</span>}
+      </button>
+    )
+  }
+  return (
+    <div className="group relative aspect-video overflow-hidden rounded-xl border border-border">
+      <img src={image.url} alt={label} className="h-full w-full object-cover" />
+      <span className="absolute bottom-1.5 left-1.5 rounded bg-black/70 px-1.5 py-0.5 text-[10px] font-medium">
+        {label}
+      </span>
+      <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/60 opacity-0 transition-opacity group-hover:opacity-100">
+        <button
+          onClick={onPick}
+          className="rounded-md bg-white/15 px-2 py-1 text-xs font-medium text-white hover:bg-white/25"
+        >
+          Change
+        </button>
+        <button
+          onClick={onClear}
+          className="rounded-md bg-white/15 p-1 text-white hover:bg-white/25"
+          aria-label={`Remove ${label.toLowerCase()}`}
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
+      </div>
+    </div>
+  )
+}
+
+const TIER_ORDER: Array<ModelTier | 'other'> = [
+  'draft',
+  'standard',
+  'hero',
+  'other',
+]
+const TIER_HINTS: Record<ModelTier | 'other', string> = {
+  draft: 'Best for quick tests',
+  standard: 'Great balance of quality and cost',
+  hero: 'Highest quality for final results',
+  other: '',
+}
+
+function ModelRadioList({
+  models,
+  value,
+  onChange,
+}: {
+  models: Array<VideoModelConfig>
+  value: string
+  onChange: (id: string) => void
+}) {
+  if (models.length === 0) {
+    return <Skeleton className="h-48 rounded-xl" />
+  }
+  return (
+    <div className="overflow-hidden rounded-xl border border-border">
+      {TIER_ORDER.map((tier) => {
+        const group = models.filter((m) => (m.tier ?? 'other') === tier)
+        if (group.length === 0) return null
+        return (
+          <div key={tier} className="border-b border-border last:border-b-0">
+            <p className="flex items-baseline gap-2 bg-muted/40 px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              {tier === 'other' ? 'Other' : TIER_LABELS[tier]}
+              <span className="font-normal normal-case tracking-normal text-muted-foreground/70">
+                {TIER_HINTS[tier]}
+              </span>
+            </p>
+            {group.map((m) => {
+              const checked = m.id === value
+              return (
+                <TooltipProvider key={m.id} delayDuration={500}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        onClick={() => onChange(m.id)}
+                        className={cn(
+                          'flex w-full items-center gap-3 px-3.5 py-2.5 text-left text-sm transition-colors',
+                          checked ? 'bg-primary/[0.08]' : 'hover:bg-accent/50',
+                        )}
+                      >
+                        <span
+                          className={cn(
+                            'flex h-4 w-4 shrink-0 items-center justify-center rounded-full border',
+                            checked ? 'border-primary' : 'border-border',
+                          )}
+                        >
+                          {checked && (
+                            <span className="h-2 w-2 rounded-full bg-primary" />
+                          )}
+                        </span>
+                        <span
+                          className={cn(
+                            'flex-1 truncate',
+                            checked && 'font-medium',
+                          )}
+                        >
+                          {m.name}
+                        </span>
+                        {m.supportsAudio && (
+                          <span className="rounded bg-muted px-1 text-[10px] text-muted-foreground">
+                            audio
+                          </span>
+                        )}
+                        <span className="text-xs tabular-nums text-muted-foreground">
+                          {formatRate(m.pricing)}
+                        </span>
+                      </button>
+                    </TooltipTrigger>
+                    {m.description && (
+                      <TooltipContent side="right" className="max-w-xs">
+                        {m.description}
+                      </TooltipContent>
+                    )}
+                  </Tooltip>
+                </TooltipProvider>
+              )
+            })}
+          </div>
+        )
+      })}
+      <p className="flex items-center gap-1.5 border-t border-border px-3.5 py-2 text-[11px] text-muted-foreground">
+        <Info className="h-3 w-3" />
+        Rates are fal's prices at the model's default resolution.
+      </p>
+    </div>
+  )
+}
+
 interface VideoCardProps {
   video: GeneratedVideo
+  modelConfig: VideoModelConfig | undefined
   onSelect: () => void
   onDownload: () => void
   onAddToProject: () => void
+  onUpscale: () => void
   onDelete: () => void
   isDownloading?: boolean
 }
 
 function VideoCard({
   video,
+  modelConfig,
   onSelect,
   onDownload,
   onAddToProject,
+  onUpscale,
   onDelete,
   isDownloading = false,
 }: VideoCardProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
-
-  const handleMouseEnter = () => {
-    videoRef.current?.play()
-  }
-
-  const handleMouseLeave = () => {
-    if (videoRef.current) {
-      videoRef.current.pause()
-      videoRef.current.currentTime = 0
-    }
-  }
+  // Cost of a finished clip, estimated from its model and length (fal does
+  // not report per-request cost back to us)
+  const cost =
+    modelConfig && video.durationSeconds
+      ? formatEstimate(
+          estimateCost(modelConfig.pricing, {
+            durationSec: video.durationSeconds,
+          }),
+        )
+      : null
 
   return (
-    <TooltipProvider delayDuration={300}>
-      <Card
-        className="group cursor-pointer overflow-hidden rounded-2xl border-border/30 bg-card/30 p-0 transition-all duration-300 hover:border-primary/30 hover:shadow-xl hover:shadow-primary/5"
+    <div className="group flex flex-col">
+      <button
+        className="relative aspect-video overflow-hidden rounded-xl border border-border bg-muted text-left"
         onClick={onSelect}
-        onMouseEnter={handleMouseEnter}
-        onMouseLeave={handleMouseLeave}
+        onMouseEnter={() => videoRef.current?.play()}
+        onMouseLeave={() => {
+          if (videoRef.current) {
+            videoRef.current.pause()
+            videoRef.current.currentTime = 0
+          }
+        }}
       >
-        <div className="relative aspect-video bg-muted/50 overflow-hidden">
-          <video
-            ref={videoRef}
-            src={video.url}
-            className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.02]"
-            muted
-            loop
-            playsInline
-          />
-
-          {/* Play icon when not hovering */}
-          <div className="absolute inset-0 flex items-center justify-center bg-black/20 transition-all duration-300 group-hover:opacity-0">
-            <div className="rounded-full bg-white/20 backdrop-blur-sm p-4 transition-transform group-hover:scale-90">
-              <Play className="h-10 w-10 text-white drop-shadow-lg" />
-            </div>
-          </div>
-
-          {/* Duration badge - Premium */}
-          {video.durationSeconds && (
-            <div className="absolute bottom-3 left-3 flex items-center gap-1.5 rounded-full bg-black/60 backdrop-blur-sm px-3 py-1.5 text-xs font-medium text-white">
-              <Clock className="h-3 w-3" />
-              {video.durationSeconds}s
-            </div>
-          )}
-
-          {/* Hover overlay with frosted glass effect */}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 transition-all duration-300 group-hover:opacity-100 backdrop-blur-[2px]">
-            {/* Action buttons - Premium */}
-            <div className="absolute right-3 top-3 flex gap-2 translate-y-2 opacity-0 transition-all duration-300 group-hover:translate-y-0 group-hover:opacity-100">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    size="icon"
-                    variant="secondary"
-                    className="h-9 w-9 rounded-xl bg-white/10 backdrop-blur-md border-white/20 hover:bg-white/20 text-white disabled:opacity-50"
-                    disabled={isDownloading}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      onDownload()
-                    }}
-                  >
-                    {isDownloading ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Download className="h-4 w-4" />
-                    )}
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  {isDownloading ? 'Downloading...' : 'Download'}
-                </TooltipContent>
-              </Tooltip>
-
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    size="icon"
-                    variant="secondary"
-                    className="h-9 w-9 rounded-xl bg-white/10 backdrop-blur-md border-white/20 hover:bg-white/20 text-white"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      onAddToProject()
-                    }}
-                  >
-                    <FolderPlus className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Add to Project</TooltipContent>
-              </Tooltip>
-
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    size="icon"
-                    variant="secondary"
-                    className="h-9 w-9 rounded-xl bg-white/10 backdrop-blur-md border-white/20 hover:bg-destructive/80 text-white"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      onDelete()
-                    }}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Delete</TooltipContent>
-              </Tooltip>
-            </div>
-
-            {/* Prompt preview at bottom - Premium */}
-            {video.prompt && (
-              <div className="absolute bottom-0 left-0 right-0 p-4 translate-y-2 opacity-0 transition-all duration-300 group-hover:translate-y-0 group-hover:opacity-100">
-                <p className="line-clamp-3 text-sm text-white/90 leading-relaxed">
-                  {video.prompt}
-                </p>
-              </div>
-            )}
-          </div>
-        </div>
-      </Card>
-    </TooltipProvider>
+        <video
+          ref={videoRef}
+          src={video.url}
+          className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.02]"
+          muted
+          loop
+          playsInline
+        />
+        <span className="absolute bottom-2.5 left-2.5 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 backdrop-blur-sm transition-opacity group-hover:opacity-0">
+          <Play className="h-3.5 w-3.5 fill-white text-white" />
+        </span>
+        {video.durationSeconds && (
+          <span className="absolute top-2.5 right-2.5 rounded-md bg-black/70 px-1.5 py-0.5 text-xs font-medium tabular-nums text-white">
+            0:{String(Math.round(video.durationSeconds)).padStart(2, '0')}
+          </span>
+        )}
+      </button>
+      <div className="mt-2.5 flex items-center gap-2 text-sm">
+        <span className="truncate font-medium">
+          {modelConfig?.name ?? video.model?.split('/').slice(-2).join(' ')}
+        </span>
+        {cost && (
+          <span className="ml-auto shrink-0 tabular-nums text-muted-foreground">
+            {cost.replace('≈ ', '')}
+          </span>
+        )}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              className={cn(
+                'shrink-0 rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-foreground',
+                !cost && 'ml-auto',
+              )}
+              aria-label="Video actions"
+            >
+              <MoreHorizontal className="h-4 w-4" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={onDownload} disabled={isDownloading}>
+              <Download className="mr-2 h-4 w-4" />
+              Download
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={onAddToProject}>
+              <FolderPlus className="mr-2 h-4 w-4" />
+              Add to project
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={onUpscale}>
+              <ArrowUpCircle className="mr-2 h-4 w-4" />
+              Upscale
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onClick={onDelete}
+              className="text-destructive focus:text-destructive"
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              Delete
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    </div>
   )
 }

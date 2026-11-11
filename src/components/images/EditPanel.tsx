@@ -21,6 +21,7 @@ import {
 import {
   EDIT_MODELS,
   GPT_IMAGE_OUTPUT_FORMATS,
+  getEditModelById,
   gptImageQualityTiers,
   isGptImageEditModel,
 } from '@/server/services/types'
@@ -29,6 +30,7 @@ import type {
   GptImageQuality,
 } from '@/server/services/types'
 import { cn } from '@/lib/utils'
+import { estimateCost, formatEstimate } from '@/lib/pricing'
 
 interface EditPanelProps {
   prompt: string
@@ -66,6 +68,13 @@ export function EditPanel({
 }: EditPanelProps) {
   const isGptImage2Edit = isGptImageEditModel(model)
   const canGenerate = selectedCount > 0 && prompt.trim() && !isGenerating
+  // Edits are priced per output image; megapixel models assume ~1MP output
+  const costLabel = formatEstimate(
+    estimateCost(getEditModelById(model)?.pricing, {
+      quality: gptEditQuality,
+      resolution: '1K',
+    }),
+  )
 
   // Status message based on selection state
   const getStatusMessage = () => {
@@ -86,7 +95,7 @@ export function EditPanel({
           placeholder="Describe what to change... (e.g., 'Change the background to a sunset')"
           value={prompt}
           onChange={(e) => onPromptChange(e.target.value)}
-          className="min-h-[80px] resize-none pr-28 text-base rounded-xl border-border/50 bg-background/50 focus:border-primary/50 focus:ring-primary/20 placeholder:text-muted-foreground/60 disabled:opacity-50"
+          className="min-h-[80px] resize-none pr-40 text-base rounded-xl border-border/50 bg-background/50 focus:border-primary/50 focus:ring-primary/20 placeholder:text-muted-foreground/60 disabled:opacity-50"
           rows={2}
           disabled={selectedCount === 0}
         />
@@ -102,6 +111,11 @@ export function EditPanel({
             <>
               <Paintbrush className="mr-2 h-4 w-4" />
               Edit
+              {costLabel && (
+                <span className="ml-2 border-l border-primary-foreground/30 pl-2 text-xs font-normal tabular-nums opacity-80">
+                  {costLabel}
+                </span>
+              )}
             </>
           )}
         </Button>

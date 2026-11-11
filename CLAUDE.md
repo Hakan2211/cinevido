@@ -147,3 +147,9 @@ docker run -p 3000:3000 -v ./data:/app/prisma/data my-app
 ```
 
 The container automatically runs migrations on startup and seeds the database on first run.
+
+## Roadmap
+
+The relaunch plan (model catalog, pricing, redesign, Director v2) and the rules
+every change follows are in [`docs/ROADMAP.md`](docs/ROADMAP.md); mockups are in
+`docs/design/mockups/`. Read it before working on models, pricing, UI or the Director.

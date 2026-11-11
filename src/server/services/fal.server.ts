@@ -11,20 +11,18 @@
  */
 
 import {
+  DEFAULT_MODELS,
   IMAGE_MODELS,
+  aspectRatioToGptImageSize,
   VIDEO_MODELS,
   clampGptImageQuality,
   get3DModelById,
-  getAgingModelByType,
   getModelById,
   getMotionControlModelById,
   getVideoModelById,
   isGptImageModel,
 } from './types'
 import type {
-  AgeGroup,
-  AgingGender,
-  AgingSubMode,
   CharacterOrientation,
   GptImageQuality,
   Model3DConfig,
@@ -177,9 +175,10 @@ export async function generateImage(
   input: ImageGenerationInput,
   userApiKey?: string,
 ): Promise<GenerationJob> {
-  const modelId = input.model || 'fal-ai/nano-banana-2'
-  // Validate model exists (throws if not found)
-  getModelById(modelId, IMAGE_MODELS)
+  const modelId = input.model || DEFAULT_MODELS.image
+  if (!getModelById(modelId, IMAGE_MODELS)) {
+    throw new Error(`Unknown image model: ${modelId}`)
+  }
 
   console.log('[FAL] generateImage called:', {
     modelId,
@@ -254,21 +253,12 @@ export async function generateVideo(
   userApiKey?: string,
 ): Promise<GenerationJob> {
   // Determine default model based on generation type
-  let defaultModelId: string
-  switch (input.generationType) {
-    case 'text-to-video':
-      defaultModelId = 'fal-ai/kling-video/o3/standard/text-to-video'
-      break
-    case 'image-to-video':
-      defaultModelId = 'fal-ai/kling-video/o3/standard/image-to-video'
-      break
-    case 'keyframes':
-      defaultModelId = 'fal-ai/veo3.1/first-last-frame-to-video'
-      break
-    default:
-      defaultModelId = 'fal-ai/kling-video/o3/standard/text-to-video'
-  }
-
+  const defaultModelId =
+    input.generationType === 'image-to-video'
+      ? DEFAULT_MODELS.imageToVideo
+      : input.generationType === 'keyframes'
+        ? DEFAULT_MODELS.keyframes
+        : DEFAULT_MODELS.textToVideo
   const modelId = input.model || defaultModelId
   const modelConfig = getVideoModelById(modelId)
 
@@ -528,169 +518,6 @@ export function getVideoModels(): Array<VideoModelConfig> {
 }
 
 // =============================================================================
-// AI Baby & Aging Generation
-// =============================================================================
-
-export interface AgingGenerationInput {
-  subMode: AgingSubMode
-  ageGroup: AgeGroup
-  gender: AgingGender
-  prompt?: string
-  imageSize?: { width: number; height: number }
-  numImages?: number
-  seed?: number
-  outputFormat?: 'jpeg' | 'png'
-  // Single mode - age progression/regression from one photo
-  idImageUrls?: Array<string>
-  // Multi mode - baby prediction from two parent photos
-  motherImageUrls?: Array<string>
-  fatherImageUrls?: Array<string>
-  fatherWeight?: number // 0-1, default 0.5
-}
-
-/**
- * Start an aging/baby generation job (queued)
- * Supports:
- * - Single: Age progression/regression from a single face photo
- * - Multi: Baby prediction from two parent photos
- *
- * @param input - Aging generation parameters
- * @param userApiKey - Optional user's fal.ai API key (for BYOK)
- */
-export async function generateAging(
-  input: AgingGenerationInput,
-  userApiKey?: string,
-): Promise<GenerationJob> {
-  const modelConfig = getAgingModelByType(input.subMode)
-  if (!modelConfig) {
-    throw new Error(`Unknown aging mode: ${input.subMode}`)
-  }
-
-  const modelId = modelConfig.id
-
-  console.log('[FAL] generateAging called:', {
-    modelId,
-    subMode: input.subMode,
-    ageGroup: input.ageGroup,
-    gender: input.gender,
-  })
-
-  if (MOCK_FAL) {
-    console.log('[FAL] Using MOCK mode for aging')
-    return mockGenerateJob(modelId)
-  }
-
-  const apiKey = getApiKey(userApiKey)
-
-  // Build the request payload based on the sub-mode
-  const payload = buildAgingPayload(input)
-  const submitUrl = `${FAL_API_URL}/${modelId}`
-
-  console.log('[FAL] Submitting aging to:', submitUrl)
-  console.log('[FAL] Aging payload:', JSON.stringify(payload, null, 2))
-
-  const response = await fetch(submitUrl, {
-    method: 'POST',
-    headers: {
-      Authorization: `Key ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  })
-
-  console.log('[FAL] Aging submit response status:', response.status)
-
-  if (!response.ok) {
-    const error = await response.text()
-    console.error('[FAL] Aging submit error:', error)
-    throw new Error(`Fal.ai error: ${response.status} - ${error}`)
-  }
-
-  const data: FalQueueResponse = await response.json()
-  console.log('[FAL] Aging submit success:', {
-    request_id: data.request_id,
-    status_url: data.status_url,
-    response_url: data.response_url,
-  })
-
-  return {
-    requestId: data.request_id,
-    status: 'pending',
-    model: modelId,
-    provider: 'fal',
-    statusUrl: data.status_url,
-    responseUrl: data.response_url,
-    cancelUrl: data.cancel_url,
-  }
-}
-
-/**
- * Build payload for aging generation based on sub-mode
- */
-function buildAgingPayload(
-  input: AgingGenerationInput,
-): Record<string, unknown> {
-  const payload: Record<string, unknown> = {
-    age_group: input.ageGroup,
-    gender: input.gender,
-  }
-
-  // Optional prompt
-  if (input.prompt?.trim()) {
-    payload.prompt = input.prompt.trim()
-  }
-
-  // Image size
-  if (input.imageSize) {
-    payload.image_size = {
-      width: input.imageSize.width,
-      height: input.imageSize.height,
-    }
-  }
-
-  // Number of images
-  if (input.numImages && input.numImages > 1) {
-    payload.num_images = input.numImages
-  }
-
-  // Seed for reproducibility
-  if (input.seed !== undefined) {
-    payload.seed = input.seed
-  }
-
-  // Output format
-  if (input.outputFormat) {
-    payload.output_format = input.outputFormat
-  }
-
-  // Sub-mode specific fields
-  if (input.subMode === 'single') {
-    // Single person mode - requires id_image_urls
-    if (!input.idImageUrls || input.idImageUrls.length === 0) {
-      throw new Error('idImageUrls is required for single person aging')
-    }
-    payload.id_image_urls = input.idImageUrls
-  } else {
-    // Multi person mode - requires mother and father images
-    if (!input.motherImageUrls || input.motherImageUrls.length === 0) {
-      throw new Error('motherImageUrls is required for baby prediction')
-    }
-    if (!input.fatherImageUrls || input.fatherImageUrls.length === 0) {
-      throw new Error('fatherImageUrls is required for baby prediction')
-    }
-    payload.mother_image_urls = input.motherImageUrls
-    payload.father_image_urls = input.fatherImageUrls
-
-    // Father weight (influence balance)
-    if (input.fatherWeight !== undefined) {
-      payload.father_weight = input.fatherWeight
-    }
-  }
-
-  return payload
-}
-
-// =============================================================================
 // Motion Control Generation (Kling AI)
 // =============================================================================
 
@@ -835,369 +662,150 @@ export async function generateMotionControl(
 // Payload Builders
 // =============================================================================
 
-function buildImagePayload(input: ImageGenerationInput, modelId: string) {
+/** "1024x576" → "16:9"; the UI only offers these five shapes (plus GPT custom) */
+function aspectFromDims(width: number, height: number): string {
+  const ratio = width / height
+  const known: Array<[string, number]> = [
+    ['1:1', 1],
+    ['16:9', 16 / 9],
+    ['9:16', 9 / 16],
+    ['4:3', 4 / 3],
+    ['3:4', 3 / 4],
+  ]
+  let best = known[0]
+  for (const k of known) {
+    if (Math.abs(k[1] - ratio) < Math.abs(best[1] - ratio)) best = k
+  }
+  return best[0]
+}
+
+// Exported for the schema check in services/payloads.live.test.ts
+export function buildImagePayload(
+  input: ImageGenerationInput,
+  modelId: string,
+) {
+  const config = getModelById(modelId, IMAGE_MODELS)
+  if (!config) throw new Error(`Unknown image model: ${modelId}`)
   const payload: Record<string, unknown> = {
     prompt: input.prompt,
   }
 
   const width = input.width || 1024
   const height = input.height || 1024
+  const aspect = aspectFromDims(width, height)
 
-  // === GPT Image 2 / 2.5 - uses image_size (preset or {width,height}), quality, output_format ===
+  // === GPT Image 2.6 - image_size (preset or {width,height}), quality, output_format ===
   if (isGptImageModel(modelId)) {
     payload.quality = clampGptImageQuality(modelId, input.quality)
     // Prefer the preset if supplied; otherwise pass custom dimensions
-    if (input.imageSizePreset) {
-      payload.image_size = input.imageSizePreset
-    } else {
-      payload.image_size = { width, height }
-    }
+    payload.image_size = input.imageSizePreset || { width, height }
     payload.output_format = input.outputFormat || 'png'
-    if (input.numImages) payload.num_images = input.numImages
   }
-  // === Recraft V3 - has style parameter and preset sizes ===
-  else if (modelId.includes('recraft')) {
-    payload.style = input.style || 'realistic_image'
-    // Recraft uses preset size strings
-    const aspectMap: Record<string, string> = {
-      '1024x1024': 'square',
-      '1024x576': 'landscape_16_9',
-      '576x1024': 'portrait_16_9',
-      '1024x768': 'landscape_4_3',
-      '768x1024': 'portrait_4_3',
-    }
-    payload.size = aspectMap[`${width}x${height}`] || 'square'
-  }
-  // === Nano Banana models - use aspect_ratio string ===
-  else if (modelId.includes('nano-banana')) {
-    const aspectMap: Record<string, string> = {
-      '1024x1024': '1:1',
-      '1024x576': '16:9',
-      '576x1024': '9:16',
-      '1024x768': '4:3',
-      '768x1024': '3:4',
-    }
-    payload.aspect_ratio = aspectMap[`${width}x${height}`] || '1:1'
-    if (input.numImages) payload.num_images = input.numImages
-  }
-  // === ImagineArt - uses aspect_ratio string ===
-  else if (modelId.includes('imagineart')) {
-    const aspectMap: Record<string, string> = {
-      '1024x1024': '1:1',
-      '1024x576': '16:9',
-      '576x1024': '9:16',
-      '1024x768': '4:3',
-      '768x1024': '3:4',
-      '2048x2048': '1:1',
-    }
-    payload.aspect_ratio = aspectMap[`${width}x${height}`] || '1:1'
-  }
-  // === Seedream - uses image_size object ===
-  else if (modelId.includes('seedream')) {
-    payload.image_size = { width, height }
-    if (input.numImages) payload.num_images = input.numImages
-  }
-  // === Bria - uses aspect_ratio string ===
-  else if (modelId.includes('bria')) {
-    const aspectMap: Record<string, string> = {
-      '1024x1024': '1:1',
-      '1024x576': '16:9',
-      '576x1024': '9:16',
-      '1024x768': '4:3',
-      '768x1024': '3:4',
-    }
-    payload.aspect_ratio = aspectMap[`${width}x${height}`] || '1:1'
-    if (input.negativePrompt) {
-      payload.negative_prompt = input.negativePrompt
+  // === Nano Banana / FLUX 3 - aspect_ratio string ===
+  else if (
+    modelId.includes('nano-banana') ||
+    modelId === 'blackforestlabs/flux-3/text-to-image'
+  ) {
+    payload.aspect_ratio = aspect
+    if (modelId === 'blackforestlabs/flux-3/text-to-image') {
+      payload.resolution = '1k'
     }
   }
-  // === Wan - uses image_size object and max_images ===
-  else if (modelId.includes('wan')) {
-    payload.image_size = { width, height }
-    if (input.numImages) payload.max_images = input.numImages
+  // === Seedream 5 / MiniMax H3 - native 2K, take explicit dimensions ===
+  else if (
+    modelId.startsWith('bytedance/seedream/v5') ||
+    modelId.startsWith('minimax/h3-image')
+  ) {
+    payload.image_size = { width: width * 2, height: height * 2 }
   }
-  // === Flux 2 models - use image_size object ===
-  else if (modelId.includes('flux-2')) {
-    payload.image_size = { width, height }
-    if (input.numImages) payload.num_images = input.numImages
-  }
-  // === Grok Imagine - uses aspect_ratio string ===
-  else if (modelId.includes('grok-imagine-image')) {
-    const aspectMap: Record<string, string> = {
-      '1024x1024': '1:1',
-      '1024x576': '16:9',
-      '576x1024': '9:16',
-      '1024x768': '4:3',
-      '768x1024': '3:4',
-    }
-    payload.aspect_ratio = aspectMap[`${width}x${height}`] || '1:1'
-    if (input.numImages) payload.num_images = input.numImages
-  }
-  // === Default / Standard models ===
+  // === FLUX.3 Klein, Krea 3, Ideogram 4.5, Recraft 4.1 - image_size preset ===
   else {
-    payload.image_size = { width, height }
-    payload.num_images = input.numImages || 1
+    payload.image_size = aspectRatioToGptImageSize(aspect)
   }
 
-  // Common optional fields (for models that support them)
-  if (input.negativePrompt && !modelId.includes('bria')) {
+  if (config.supportsNumImages && input.numImages) {
+    payload.num_images = Math.min(input.numImages, config.maxNumImages ?? 4)
+  }
+  if (config.supportsNegativePrompt && input.negativePrompt) {
     payload.negative_prompt = input.negativePrompt
   }
-
-  if (input.seed !== undefined) {
+  if (config.supportsSeed && input.seed !== undefined) {
     payload.seed = input.seed
   }
 
   return payload
 }
 
-function buildVideoPayload(
+// Exported for the schema check in services/payloads.live.test.ts
+export function buildVideoPayload(
   input: VideoGenerationInput,
   modelId: string,
   modelConfig: VideoModelConfig,
 ): Record<string, unknown> {
-  const payload: Record<string, unknown> = {}
+  const payload: Record<string, unknown> = {
+    prompt: input.prompt,
+  }
 
-  // Always include prompt
-  payload.prompt = input.prompt
-
-  // Handle different generation types
   switch (input.generationType) {
     case 'text-to-video':
-      // Text-to-video: just prompt + settings
-      // No image required
       break
 
     case 'image-to-video': {
-      // Image-to-video: need first frame image
-      const imageField = modelConfig.fieldMappings?.imageUrl || 'image_url'
       if (!input.imageUrl) {
         throw new Error('imageUrl is required for image-to-video generation')
       }
-      payload[imageField] = input.imageUrl
+      payload[modelConfig.fieldMappings?.imageUrl || 'image_url'] =
+        input.imageUrl
       break
     }
 
     case 'keyframes': {
-      // Keyframes: handle Pika multi-frame vs standard first+last frame
-      if (modelId.includes('pika') && modelId.includes('pikaframes')) {
-        // Pika Pikaframes: uses image_urls array
-        if (input.keyframeUrls && input.keyframeUrls.length >= 2) {
-          payload.image_urls = input.keyframeUrls
-          if (input.keyframeTransitions) {
-            payload.transitions = input.keyframeTransitions
-          }
-        } else if (input.firstFrameUrl && input.lastFrameUrl) {
-          // Fallback to first+last as 2-frame array
-          payload.image_urls = [input.firstFrameUrl, input.lastFrameUrl]
-        } else {
-          throw new Error('Pika keyframes requires at least 2 images')
-        }
-      } else {
-        // Standard first+last frame (Veo 3.1, Seedance)
-        const firstFrameField =
-          modelConfig.fieldMappings?.imageUrl || 'first_frame_url'
-        const lastFrameField =
-          modelConfig.fieldMappings?.endImageUrl || 'last_frame_url'
-
-        if (!input.firstFrameUrl || !input.lastFrameUrl) {
-          throw new Error(
-            'firstFrameUrl and lastFrameUrl are required for keyframes generation',
-          )
-        }
-        payload[firstFrameField] = input.firstFrameUrl
-        payload[lastFrameField] = input.lastFrameUrl
+      if (!input.firstFrameUrl || !input.lastFrameUrl) {
+        throw new Error(
+          'firstFrameUrl and lastFrameUrl are required for keyframes generation',
+        )
       }
+      payload[modelConfig.fieldMappings?.imageUrl || 'image_url'] =
+        input.firstFrameUrl
+      payload[modelConfig.fieldMappings?.endImageUrl || 'end_image_url'] =
+        input.lastFrameUrl
       break
     }
   }
 
-  // =============================================================================
-  // Model-specific payload building
-  // =============================================================================
-
-  // --- Kling 2.6 ---
-  // Kling API expects duration as a NUMBER (5, 10)
-  if (modelId.includes('kling-video/v2.6')) {
-    payload.duration = input.duration || 5
-    // Aspect ratio (for text-to-video)
-    if (input.aspectRatio) {
-      payload.aspect_ratio = input.aspectRatio
-    }
-    // Audio generation
-    if (input.generateAudio !== undefined) {
-      payload.generate_audio = input.generateAudio
-    } else {
-      payload.generate_audio = true // default on
-    }
-    // Negative prompt
-    if (input.negativePrompt) {
-      payload.negative_prompt = input.negativePrompt
-    }
+  // Duration: every model takes seconds, but spelled differently
+  const duration = input.duration || modelConfig.durations[0] || 5
+  if (modelId.includes('veo3.1')) {
+    payload.duration = `${duration}s` // enum "4s" | "6s" | "8s"
+  } else if (modelId.startsWith('bytedance/seedance-2.5')) {
+    payload.duration = String(duration) // enum "4".."30"
+  } else {
+    payload.duration = duration // integer (Kling, Omni) or float (H3)
   }
 
-  // --- Kling v3 ---
-  // Kling v3 API expects duration as a STRING ("5"), uses start_image_url
-  // Must match BEFORE o3 since both contain 'kling-video/'
-  else if (modelId.includes('kling-video/v3')) {
-    payload.duration = String(input.duration || 5)
-    // Aspect ratio (for text-to-video)
-    if (input.aspectRatio) {
-      payload.aspect_ratio = input.aspectRatio
-    }
-    // Audio generation
-    if (input.generateAudio !== undefined) {
-      payload.generate_audio = input.generateAudio
-    } else {
-      payload.generate_audio = true // default on
-    }
-    // Negative prompt
-    if (input.negativePrompt) {
-      payload.negative_prompt = input.negativePrompt
-    }
+  // Only send settings the model's schema declares — the config lists them
+  if (
+    input.aspectRatio &&
+    modelConfig.aspectRatios?.includes(input.aspectRatio)
+  ) {
+    payload.aspect_ratio = input.aspectRatio
   }
-
-  // --- Kling 3.0 (O3) ---
-  // Kling O3 API expects duration as a STRING ("5") not a number
-  else if (modelId.includes('kling-video/o3')) {
-    payload.duration = String(input.duration || 5)
-    // Aspect ratio (for text-to-video)
-    if (input.aspectRatio) {
-      payload.aspect_ratio = input.aspectRatio
-    }
-    // Audio generation
-    if (input.generateAudio !== undefined) {
-      payload.generate_audio = input.generateAudio
-    } else {
-      payload.generate_audio = true // default on
-    }
-    // Note: O3 does not support negative_prompt
+  if (input.resolution && modelConfig.resolutions?.includes(input.resolution)) {
+    payload.resolution = input.resolution
   }
-
-  // --- Sora 2 ---
-  // Sora API expects duration as a NUMBER (4, 8, 12)
-  else if (modelId.includes('sora-2')) {
-    payload.duration = input.duration || 4
-    if (input.aspectRatio) {
-      payload.aspect_ratio = input.aspectRatio
-    }
-    if (input.resolution) {
-      payload.resolution = input.resolution
-    }
+  if (modelConfig.supportsAudio) {
+    payload.generate_audio = input.generateAudio ?? true
   }
-
-  // --- Veo 3.1 ---
-  // Veo API expects duration with 's' suffix: '4s', '6s', '8s'
-  else if (modelId.includes('veo3.1')) {
-    const dur = input.duration || 8
-    payload.duration = `${dur}s`
-    if (input.aspectRatio) {
-      payload.aspect_ratio = input.aspectRatio
-    }
-    if (input.resolution) {
-      payload.resolution = input.resolution
-    }
-    if (input.generateAudio !== undefined) {
-      payload.generate_audio = input.generateAudio
-    } else {
-      payload.generate_audio = true
-    }
-    if (input.negativePrompt) {
-      payload.negative_prompt = input.negativePrompt
-    }
+  if (modelConfig.supportsNegativePrompt && input.negativePrompt) {
+    payload.negative_prompt = input.negativePrompt
   }
-
-  // --- Wan 2.6 ---
-  // Wan API expects duration as a NUMBER (5)
-  else if (modelId.includes('wan/v2.6')) {
-    payload.duration = input.duration || 5
-    if (input.aspectRatio) {
-      payload.aspect_ratio = input.aspectRatio
-    }
-    if (input.resolution) {
-      payload.resolution = input.resolution
-    }
-    if (input.negativePrompt) {
-      payload.negative_prompt = input.negativePrompt
-    }
-  }
-
-  // --- Seedance 1.5 ---
-  // Seedance API expects duration as a NUMBER (5, 10)
-  else if (modelId.includes('seedance')) {
-    payload.duration = input.duration || 5
-    if (input.aspectRatio) {
-      payload.aspect_ratio = input.aspectRatio
-    }
-    if (input.resolution) {
-      payload.resolution = input.resolution
-    }
-    if (input.generateAudio !== undefined) {
-      payload.generate_audio = input.generateAudio
-    } else {
-      payload.generate_audio = true
-    }
-  }
-
-  // --- MiniMax H3 Max Turbo ---
-  // Float duration, uppercase resolution enum, prompt_expansion_mode required
-  else if (modelId.includes('minimax/h3-')) {
-    payload.duration = input.duration || 5
-    if (input.resolution) {
-      payload.resolution = input.resolution
-    }
-    payload.prompt_expansion_mode = 'balanced'
-  }
-
-  // --- MiniMax Hailuo ---
-  // Hailuo has fixed duration, uses prompt_optimizer
-  else if (modelId.includes('minimax/hailuo')) {
-    payload.prompt_optimizer = true
-  }
-
-  // --- Grok Imagine Video ---
-  // Grok API expects duration as a NUMBER (6), supports aspect_ratio and resolution
-  else if (modelId.includes('grok-imagine-video')) {
-    payload.duration = input.duration || 6
-    if (input.aspectRatio) {
-      payload.aspect_ratio = input.aspectRatio
-    }
-    if (input.resolution) {
-      payload.resolution = input.resolution
-    }
-  }
-
-  // --- LTX 2.3 ---
-  // LTX API expects duration as a NUMBER, supports resolution, aspect_ratio, generate_audio
-  else if (modelId.includes('ltx-2.3')) {
-    payload.duration = input.duration || 6
-    if (input.aspectRatio) {
-      payload.aspect_ratio = input.aspectRatio
-    }
-    if (input.resolution) {
-      payload.resolution = input.resolution
-    }
-    if (input.generateAudio !== undefined) {
-      payload.generate_audio = input.generateAudio
-    } else {
-      payload.generate_audio = true // default on
-    }
-  }
-
-  // --- Pika ---
-  // Pika uses transition-based timing, no duration param
-  else if (modelId.includes('pika')) {
-    if (input.resolution) {
-      payload.resolution = input.resolution
-    }
-    if (input.negativePrompt) {
-      payload.negative_prompt = input.negativePrompt
-    }
-  }
-
-  // Common: seed
-  if (input.seed !== undefined) {
+  if (modelConfig.supportsSeed && input.seed !== undefined) {
     payload.seed = input.seed
+  }
+
+  // MiniMax H3 requires this field even though it has a default
+  if (modelId.startsWith('minimax/h3-')) {
+    payload.prompt_expansion_mode = 'balanced'
   }
 
   return payload
@@ -1488,7 +1096,8 @@ export async function generate3DModel(
 /**
  * Build payload for 3D model generation based on model type
  */
-function build3DModelPayload(
+// Exported for the schema check in services/payloads.live.test.ts
+export function build3DModelPayload(
   input: Model3DGenerationInput,
   modelConfig: Model3DConfig,
 ): Record<string, unknown> {
@@ -1506,12 +1115,11 @@ function build3DModelPayload(
   }
 
   // =============================================================================
-  // Meshy 6 Preview Text-to-3D
+  // Meshy 7.1 Text-to-3D
   // =============================================================================
-  else if (modelConfig.id === 'meshy-v6-text') {
+  else if (modelConfig.id === 'meshy-v7-text') {
     payload.prompt = input.prompt
     payload.mode = input.mode || 'full'
-    if (input.artStyle) payload.art_style = input.artStyle
     if (input.seed !== undefined) payload.seed = input.seed
     if (input.topology) payload.topology = input.topology
     if (input.targetPolycount) payload.target_polycount = input.targetPolycount
@@ -1524,16 +1132,6 @@ function build3DModelPayload(
       payload.enable_prompt_expansion = input.enablePromptExpansion
     if (input.texturePrompt) payload.texture_prompt = input.texturePrompt
     if (input.textureImageUrl) payload.texture_image_url = input.textureImageUrl
-  }
-
-  // =============================================================================
-  // Hunyuan3D V3 Sketch-to-3D
-  // =============================================================================
-  else if (modelConfig.id === 'hunyuan3d-v3-sketch') {
-    payload.input_image_url = input.imageUrl
-    payload.prompt = input.prompt
-    if (input.enablePbr !== undefined) payload.enable_pbr = input.enablePbr
-    if (input.faceCount) payload.face_count = input.faceCount
   }
 
   // =============================================================================
@@ -1551,9 +1149,9 @@ function build3DModelPayload(
   }
 
   // =============================================================================
-  // Meshy 6 Image-to-3D
+  // Meshy 7.1 Image-to-3D
   // =============================================================================
-  else if (modelConfig.id === 'meshy-v6-image') {
+  else if (modelConfig.id === 'meshy-v7-image') {
     payload.image_url = input.imageUrl || input.imageUrls?.[0]
     if (input.topology) payload.topology = input.topology
     if (input.targetPolycount) payload.target_polycount = input.targetPolycount
@@ -1569,9 +1167,9 @@ function build3DModelPayload(
   }
 
   // =============================================================================
-  // Meshy 5 Multi-Image-to-3D
+  // Meshy 7.1 Multi-Image-to-3D
   // =============================================================================
-  else if (modelConfig.id === 'meshy-v5-multi') {
+  else if (modelConfig.id === 'meshy-v7-multi') {
     payload.image_urls = input.imageUrls || [input.imageUrl]
     if (input.topology) payload.topology = input.topology
     if (input.targetPolycount) payload.target_polycount = input.targetPolycount

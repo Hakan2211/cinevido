@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion'
-import { Baby, Box, Image, Key, Video, Wand2, Zap } from 'lucide-react'
+import { Box, Image, Key, Video, Wand2, Zap } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const features = [
@@ -29,15 +29,6 @@ const features = [
     color: 'text-emerald-500',
     bgColor: 'bg-emerald-500/10',
     borderColor: 'border-emerald-500/20',
-  },
-  {
-    icon: Baby,
-    title: 'AI Age Transform',
-    description:
-      'Predict babies from parent photos, age faces forward or backward, create future versions.',
-    color: 'text-pink-500',
-    bgColor: 'bg-pink-500/10',
-    borderColor: 'border-pink-500/20',
   },
   {
     icon: Zap,

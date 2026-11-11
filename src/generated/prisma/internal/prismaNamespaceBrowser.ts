@@ -96,6 +96,8 @@ export const UserScalarFieldEnum = {
   falApiKey: 'falApiKey',
   falApiKeyLastFour: 'falApiKeyLastFour',
   falApiKeyAddedAt: 'falApiKeyAddedAt',
+  falBillingKey: 'falBillingKey',
+  falBillingKeyLastFour: 'falBillingKeyLastFour',
   bunnyStorageZone: 'bunnyStorageZone',
   bunnyApiKey: 'bunnyApiKey',
   bunnyApiKeyLastFour: 'bunnyApiKeyLastFour',

@@ -8,24 +8,19 @@ import { Button } from '../ui/button'
  */
 export function SetupBanner() {
   return (
-    <div className="bg-gradient-to-r from-blue-500/10 via-indigo-500/10 to-blue-500/10 border-b border-blue-500/20">
-      <div className="flex items-center justify-between px-4 py-2">
+    <div className="border-b border-primary/20 bg-primary/[0.07]">
+      <div className="flex items-center justify-between px-4 py-2 md:px-6">
         <div className="flex items-center gap-2 text-sm">
-          <Key className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-          <span className="text-blue-800 dark:text-blue-200">
+          <Key className="h-4 w-4 text-primary" />
+          <span className="text-foreground/90">
             <span className="font-medium">Almost there!</span>
             <span className="hidden sm:inline">
               {' '}
-              - Connect your fal.ai API key to start generating
+              — connect your fal.ai API key to start generating
             </span>
           </span>
         </div>
-        <Button
-          size="sm"
-          variant="default"
-          className="bg-blue-600 hover:bg-blue-700 text-white h-7 text-xs"
-          asChild
-        >
+        <Button size="sm" variant="default" className="h-7 text-xs" asChild>
           <Link to="/setup">
             Complete Setup
             <ArrowRight className="ml-1.5 h-3 w-3" />
