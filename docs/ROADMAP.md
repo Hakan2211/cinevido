@@ -107,7 +107,7 @@ the real thing or leave it out — never ship a control that does nothing.
 - [x] Low-balance threshold (`User.lowBalanceUsd`, default $2) set under Usage; the credit pill turns amber below it and red below a quarter of it
 - [x] Tests: `src/lib/job-cost.test.ts`
 
-### Phase 5 — Director v2: the agentic production loop (mockups 4 + 5)
+### Phase 5 — Director v2: the agentic production loop (mockups 4 + 5) ✅ (2026-11-11)
 The core of the product. Today the Director is a chat with 7 tools that fires
 generations one at a time. v2 turns a brief into an approved, budgeted plan and
 runs it.
@@ -166,7 +166,7 @@ assemble on the timeline — without typing a second message.
 - [x] **Provider marks** (`src/lib/model-icons.tsx`): monochrome per the design sheet; Google / OpenAI / BFL logos, lettermarks for the rest (Krea "Kr", Ideogram "Id", Meshy "Me", ElevenLabs "11", …) instead of guessed logos; now shown in every lab's `ModelRadioList` and the landing catalog. Deleted the unused `model-select.tsx`
 - [x] **Landing**: hero "Ideas become films." without orbs or gradient text; Models section read from the catalog (names, tiers, fal rates — no more retired models); new Director section; wordmark in header/footer; leftover blue/violet/green swapped for tokens; 5 unused legacy sections deleted
 - [x] **Login / signup**: wordmark above the form, new card style
-- [x] **Price drift** (Admin → Price drift): `src/lib/price-drift.ts` (+ tests) compares each catalog rule to fal's pricing API (`src/server/price-drift.server.ts`, batches of 40, admin's key). First run, 62 endpoints: 44 match, 3 unpriced (MiniMax H3 Image — fal bills "units"), 11 in units we can't compare (GPT Image, Nano Banana 2.1, Seedance tokens, Hunyuan3D, Ideogram), **4 drift: MiniMax H3 Max / Turbo** (fal base $0.035/s and $0.0175/s vs our 480P rates $0.05/s / $0.025/s) — check the model pages before changing them
+- [x] **Price drift** (Admin → Price drift): `src/lib/price-drift.ts` (+ tests) compares each catalog rule to fal's pricing API (`src/server/price-drift.server.ts`, batches of 40, admin's key). First run, 62 endpoints: 44 match, 3 unpriced (MiniMax H3 Image — fal bills "units"), 11 in units we can't compare (GPT Image, Nano Banana 2.1, Seedance tokens, Hunyuan3D, Ideogram), **4 drift: MiniMax H3 Max / Turbo** (fal base $0.035/s and $0.0175/s vs our 480P rates $0.05/s / $0.025/s) — checked 2026-11-11: fal's pages show a 30% promo (Nov 1–15, 2026) that the pricing API quotes; standard rates from Nov 16 are $0.025/$0.04/$0.08 (Turbo) and $0.05/$0.08/$0.16 (Max) per second at 480P/768P/1080P, which is what the catalog has. No change
 
 ---
 
@@ -245,3 +245,6 @@ assemble on the timeline — without typing a second message.
   is bundled into the browser. Shared schemas live in `src/lib/`.
 - **2026-11-11** — No paid end-to-end Director run as a test (≈$8.50 is too
   much). Verify in `MOCK_GENERATION` mode and with single cheap live calls.
+- **2026-11-11** — Price drift during a fal promotion is not drift: the catalog
+  keeps standard rates (we quote high, never low). MiniMax H3 Max / Turbo flagged
+  for this reason until the promo ends on 2026-11-15.
