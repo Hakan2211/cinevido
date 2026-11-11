@@ -138,8 +138,7 @@ runs it.
 
 Files: `src/server/agent/*` (tools, executor, system prompt),
 `src/components/studio/*` (Workspace, ChatPanel, new StoryboardBoard, JobsPanel),
-`src/routes/api/chat.ts`. Studio is admin-only today
-(`src/routes/_app/projects/$projectId.tsx`); open it up when v2 is solid.
+`src/routes/api/chat.ts`. Studio is open to all users since 2026-11-11.
 
 **Done when:** "30-second coffee ad" on Home produces a priced 6-shot plan,
 drafts render within budget, review lets you keep/retry, finals render and
@@ -154,14 +153,14 @@ assemble on the timeline — without typing a second message.
 - [x] Studio tabs **Director** (assets · chat with PlanCard + budget pill + Draft|Final · Jobs + Spend) / **Storyboard** (mockup 5) / **Edit** (old layout); Edit plan dialog; mobile gets a Board tab
 - [x] Verified: full loop in `MOCK_GENERATION` mode (6 drafts → refuse over budget → 4 keep + 1 promote → finals + voice + music → assembled in order, idempotent; spend = Σ job estimates); self-check live on fal's sample clip (match → ok, wrong brief → "retry suggested", $0.0002 each)
 - [x] ~~One real end-to-end run from Home (≈$8.50)~~ — dropped: too expensive for a test; the mock-mode loop plus the live self-check stand in
-- [ ] Open Studio to non-admins
+- [x] Studio, Projects and Home's Create flow open to every user (2026-11-11). Before opening: `/api/chat` GET/DELETE and `runAgent` now check the project is the caller's, and every generation endpoint that files an asset under a client-sent `projectId` goes through `ownedProjectId()` (`src/server/project-access.server.ts`)
 - [ ] Later: Project Bible, Recipes (item 7)
 
 ### Phase 6 — Polish ✅ (2026-11-11)
 - [x] **Projects** (`/projects`): same cards as Home (16:9 thumb, name, "Edited … ago", design-sheet status chip, duration), delete in a "…" menu, folders as a plain left column, empty state points to Home. Cards without `thumbnailUrl` show the project's first image (`FIRST_IMAGE` in `project.server.ts`, Home too). Dropped the "All Projects" count (it summed only foldered projects)
 - [x] **Library** (`/library`, top-bar "Library"; Home's "Recent creations → View all"): every image / video / audio (voice, music, SFX) / 3D model, tabs with counts (`?kind=`), infinite scroll (`listLibraryFn`, `getLibraryCountsFn` in `src/server/library.server.ts`), hover-play videos, inline audio play, preview dialog with Animate / Download / Open in lab / Open project. No delete — that stays in the labs
 - [x] **Provider marks** (`src/lib/model-icons.tsx`): monochrome per the design sheet; Google / OpenAI / BFL logos, lettermarks for the rest (Krea "Kr", Ideogram "Id", Meshy "Me", ElevenLabs "11", …) instead of guessed logos; now shown in every lab's `ModelRadioList` and the landing catalog. Deleted the unused `model-select.tsx`
-- [x] **Landing**: hero "Ideas become films." without orbs or gradient text; Models section read from the catalog (names, tiers, fal rates — no more retired models); new Director section marked *In preview*; wordmark in header/footer; leftover blue/violet/green swapped for tokens; 5 unused legacy sections deleted
+- [x] **Landing**: hero "Ideas become films." without orbs or gradient text; Models section read from the catalog (names, tiers, fal rates — no more retired models); new Director section; wordmark in header/footer; leftover blue/violet/green swapped for tokens; 5 unused legacy sections deleted
 - [x] **Login / signup**: wordmark above the form, new card style
 - [x] **Price drift** (Admin → Price drift): `src/lib/price-drift.ts` (+ tests) compares each catalog rule to fal's pricing API (`src/server/price-drift.server.ts`, batches of 40, admin's key). First run, 62 endpoints: 44 match, 3 unpriced (MiniMax H3 Image — fal bills "units"), 11 in units we can't compare (GPT Image, Nano Banana 2.1, Seedance tokens, Hunyuan3D, Ideogram), **4 drift: MiniMax H3 Max / Turbo** (fal base $0.035/s and $0.0175/s vs our 480P rates $0.05/s / $0.025/s) — check the model pages before changing them
 
@@ -222,7 +221,7 @@ assemble on the timeline — without typing a second message.
   manual look, not called drift.
 - **2026-11-11** — Provider marks are monochrome; providers without a logo we
   can reproduce faithfully get a lettermark rather than an invented logo.
-- **2026-11-11** — Landing leads with the labs; the Director is shown as
-  *In preview* until the Studio opens to non-admins (Phase 5).
+- **2026-11-11** — Studio opened to all users; the landing leads with the
+  Director again (the interim *In preview* badge is gone).
 - **2026-11-11** — No paid end-to-end Director run as a test (≈$8.50 is too
   much). Verify in `MOCK_GENERATION` mode and with single cheap live calls.

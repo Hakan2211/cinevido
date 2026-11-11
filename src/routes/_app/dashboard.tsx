@@ -102,9 +102,6 @@ function projectNameFrom(brief: string): string {
 
 function HomePage() {
   const navigate = useNavigate()
-  const routeContext = Route.useRouteContext()
-  const isAdmin =
-    (routeContext.user as { role?: string } | undefined)?.role === 'admin'
   const [brief, setBrief] = useState('')
   const [format, setFormat] = useState<FormatId>('16:9')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -115,7 +112,6 @@ function HomePage() {
       const { listProjectsFn } = await import('@/server/project.server')
       return listProjectsFn({ data: { limit: 4 } })
     },
-    enabled: isAdmin,
   })
 
   const { data: creations, isLoading: creationsLoading } = useQuery({
@@ -152,11 +148,6 @@ function HomePage() {
   const handleCreate = () => {
     const text = brief.trim()
     if (!text || create.isPending) return
-    if (!isAdmin) {
-      // The Studio is still admin-only; everyone else starts in the labs
-      navigate({ to: '/videos' })
-      return
-    }
     create.mutate(text)
   }
 
@@ -252,7 +243,7 @@ function HomePage() {
       </section>
 
       {/* Recent projects */}
-      {isAdmin && (projectsLoading || projects.length > 0) && (
+      {(projectsLoading || projects.length > 0) && (
         <section className="pb-12">
           <SectionHeader title="Recent projects" to="/projects" />
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">

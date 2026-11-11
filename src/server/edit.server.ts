@@ -6,6 +6,7 @@
  * - Upscaling (enhance resolution with AI)
  */
 
+import { ownedProjectId } from './project-access.server'
 import { editJobCost, imageUpscaleJobCost } from '../lib/job-cost'
 import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod'
@@ -141,7 +142,7 @@ export const editImageFn = createServerFn({ method: 'POST' })
     const dbJob = await prisma.generationJob.create({
       data: {
         userId: context.user.id,
-        projectId: data.projectId || null,
+        projectId: await ownedProjectId(data.projectId, context.user.id),
         type: 'edit',
         status: 'pending',
         provider: 'fal',
@@ -228,7 +229,7 @@ export const upscaleImageFn = createServerFn({ method: 'POST' })
     const dbJob = await prisma.generationJob.create({
       data: {
         userId: context.user.id,
-        projectId: data.projectId || null,
+        projectId: await ownedProjectId(data.projectId, context.user.id),
         type: 'upscale',
         status: 'pending',
         provider: 'fal',

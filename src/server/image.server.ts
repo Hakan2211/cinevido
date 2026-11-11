@@ -5,6 +5,7 @@
  * Handles generation jobs, asset creation, and user image library.
  */
 
+import { ownedProjectId } from './project-access.server'
 import { imageJobCost } from '../lib/job-cost'
 import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod'
@@ -124,7 +125,7 @@ export const generateImageFn = createServerFn({ method: 'POST' })
     const dbJob = await prisma.generationJob.create({
       data: {
         userId: context.user.id,
-        projectId: data.projectId || null,
+        projectId: await ownedProjectId(data.projectId, context.user.id),
         type: 'image',
         status: 'pending',
         provider: 'fal',

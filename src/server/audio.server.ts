@@ -6,6 +6,7 @@
  * "sfx" and land on the SFX lane. Music has its own module (music.server.ts).
  */
 
+import { ownedProjectId } from './project-access.server'
 import { sfxJobCost } from '../lib/job-cost'
 import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod'
@@ -59,7 +60,7 @@ export const createSfxFn = createServerFn({ method: 'POST' })
     const job = await prisma.generationJob.create({
       data: {
         userId: context.user.id,
-        projectId: data.projectId,
+        projectId: await ownedProjectId(data.projectId, context.user.id),
         type: 'sfx',
         status: 'processing',
         provider: 'fal',
@@ -79,7 +80,7 @@ export const createSfxFn = createServerFn({ method: 'POST' })
       const asset = await prisma.asset.create({
         data: {
           userId: context.user.id,
-          projectId: data.projectId,
+          projectId: await ownedProjectId(data.projectId, context.user.id),
           type: 'sfx',
           storageUrl: result.audioUrl,
           filename: `sfx-${Date.now()}.mp3`,

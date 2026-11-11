@@ -146,6 +146,7 @@ export async function* runAgent(input: AgentInput): AsyncGenerator<AgentEvent> {
     const project = await prisma.project.findUnique({
       where: { id: projectId },
       select: {
+        userId: true,
         name: true,
         width: true,
         height: true,
@@ -155,7 +156,7 @@ export async function* runAgent(input: AgentInput): AsyncGenerator<AgentEvent> {
       },
     })
 
-    if (!project) {
+    if (!project || project.userId !== userId) {
       yield { type: 'error', data: { message: 'Project not found' } }
       return
     }

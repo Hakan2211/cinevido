@@ -4,12 +4,7 @@
  * left, search / status / sort above, bulk select for move and delete.
  */
 
-import {
-  Link,
-  createFileRoute,
-  redirect,
-  useNavigate,
-} from '@tanstack/react-router'
+import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState, useCallback } from 'react'
 import { formatDistanceToNow } from 'date-fns'
@@ -72,12 +67,6 @@ interface ProjectsSearch {
 }
 
 export const Route = createFileRoute('/_app/projects/')({
-  beforeLoad: ({ context }) => {
-    // Only admins can access projects for now (feature in development)
-    if (context.user?.role !== 'admin') {
-      throw redirect({ to: '/dashboard' })
-    }
-  },
   component: ProjectsPage,
   validateSearch: (search: Record<string, unknown>): ProjectsSearch => ({
     q: typeof search.q === 'string' ? search.q : undefined,

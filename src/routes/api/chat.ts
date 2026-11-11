@@ -7,6 +7,7 @@
 
 import { createFileRoute } from '@tanstack/react-router'
 import { auth } from '../../lib/auth.server'
+import { prisma } from '../../db.server'
 import {
   clearChatHistory,
   getChatHistory,
@@ -78,6 +79,21 @@ async function getSessionFromRequest(request: Request) {
   }
 }
 
+/** Whether the signed-in user owns the project */
+async function ownsProject(projectId: string, userId: string) {
+  const project = await prisma.project.findUnique({
+    where: { id: projectId },
+    select: { userId: true },
+  })
+  return project?.userId === userId
+}
+
+const notFound = () =>
+  new Response(JSON.stringify({ error: 'Project not found' }), {
+    status: 404,
+    headers: { 'Content-Type': 'application/json' },
+  })
+
 // =============================================================================
 // Route Handler
 // =============================================================================
@@ -118,6 +134,10 @@ export const Route = createFileRoute('/api/chat')({
               headers: { 'Content-Type': 'application/json' },
             },
           )
+        }
+
+        if (!(await ownsProject(body.projectId, session.user.id))) {
+          return notFound()
         }
 
         // Create the agent generator
@@ -169,6 +189,10 @@ export const Route = createFileRoute('/api/chat')({
           )
         }
 
+        if (!(await ownsProject(projectId, session.user.id))) {
+          return notFound()
+        }
+
         // Get chat history
         const history = await getChatHistory(projectId)
 
@@ -202,6 +226,10 @@ export const Route = createFileRoute('/api/chat')({
               headers: { 'Content-Type': 'application/json' },
             },
           )
+        }
+
+        if (!(await ownsProject(projectId, session.user.id))) {
+          return notFound()
         }
 
         // Clear chat history

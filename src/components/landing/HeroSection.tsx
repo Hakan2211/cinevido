@@ -56,10 +56,10 @@ export function HeroSection() {
             Ideas become films.
           </h1>
           <p className="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground">
-            Image, video, voice, music and 3D labs with the best models on fal,
-            each with its price on the Generate button. Coming next: the
-            Director, which turns a one-line brief into a priced shot plan,
-            drafts you review, and finals on a timeline.
+            Describe what you want to make. The Director writes a priced shot
+            plan, renders cheap drafts you review, then renders the finals and
+            cuts them on a timeline. Plus labs for every image, video, voice,
+            music and 3D model, each with its price on the button.
           </p>
           <div className="mt-9 flex flex-col justify-center gap-3 sm:flex-row">
             {primary}
@@ -67,10 +67,10 @@ export function HeroSection() {
               variant="secondary"
               size="lg"
               className="min-w-[180px]"
-              onClick={() => scrollTo('models')}
+              onClick={() => scrollTo('director')}
             >
               <Play className="h-4 w-4 fill-current" />
-              See the models
+              How it works
             </Button>
           </div>
         </div>

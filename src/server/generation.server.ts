@@ -5,6 +5,7 @@
  * Jobs are queued and processed asynchronously with status polling.
  */
 
+import { ownedProjectId } from './project-access.server'
 import { imageJobCost, speechJobCost, videoJobCost } from '../lib/job-cost'
 import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod'
@@ -80,7 +81,7 @@ export const createImageJobFn = createServerFn({ method: 'POST' })
     const job = await prisma.generationJob.create({
       data: {
         userId: context.user.id,
-        projectId: data.projectId,
+        projectId: await ownedProjectId(data.projectId, context.user.id),
         type: 'image',
         status: 'pending',
         provider: 'fal',
@@ -149,7 +150,7 @@ export const createVideoJobFn = createServerFn({ method: 'POST' })
     const job = await prisma.generationJob.create({
       data: {
         userId: context.user.id,
-        projectId: data.projectId,
+        projectId: await ownedProjectId(data.projectId, context.user.id),
         type: 'video',
         status: 'pending',
         provider: 'fal',
@@ -223,7 +224,7 @@ export const createAudioJobFn = createServerFn({ method: 'POST' })
     const job = await prisma.generationJob.create({
       data: {
         userId: context.user.id,
-        projectId: data.projectId,
+        projectId: await ownedProjectId(data.projectId, context.user.id),
         type: 'audio',
         status: 'processing', // Audio is synchronous
         provider: 'fal',
@@ -255,7 +256,7 @@ export const createAudioJobFn = createServerFn({ method: 'POST' })
       const asset = await prisma.asset.create({
         data: {
           userId: context.user.id,
-          projectId: data.projectId,
+          projectId: await ownedProjectId(data.projectId, context.user.id),
           type: 'audio',
           storageUrl: result.audioUrl,
           filename: `tts-${Date.now()}.mp3`,

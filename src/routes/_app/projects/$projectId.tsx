@@ -7,7 +7,7 @@
  * - Right: Asset Library + Generate panel
  */
 
-import { createFileRoute, redirect } from '@tanstack/react-router'
+import { createFileRoute } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { Workspace } from '../../../components/studio/Workspace'
 
@@ -16,12 +16,6 @@ import { Workspace } from '../../../components/studio/Workspace'
 // See: https://tanstack.com/router/latest/docs/framework/react/start/server-functions
 
 export const Route = createFileRoute('/_app/projects/$projectId')({
-  beforeLoad: ({ context }) => {
-    // Only admins can access projects for now (feature in development)
-    if (context.user?.role !== 'admin') {
-      throw redirect({ to: '/dashboard' })
-    }
-  },
   component: ProjectWorkspacePage,
 })
 

@@ -8,8 +8,7 @@ import {
 
 /**
  * How the Director turns a brief into a film — the production loop from
- * src/lib/production.ts, in five steps. Marked "In preview" while the Studio
- * is admin-only (docs/ROADMAP.md, Phase 5); drop the badge when it opens.
+ * src/lib/production.ts, in five steps.
  */
 const STEPS = [
   {
@@ -44,11 +43,8 @@ export function DirectorSection() {
     <section id="director" className="border-t border-border py-24 lg:py-32">
       <div className="container mx-auto px-4 lg:px-8">
         <div className="mx-auto mb-14 max-w-2xl text-center">
-          <p className="flex items-center justify-center gap-3 text-[11px] font-medium uppercase tracking-[0.3em] text-muted-foreground">
+          <p className="text-[11px] font-medium uppercase tracking-[0.3em] text-muted-foreground">
             The Director
-            <span className="rounded-full bg-primary/15 px-2 py-0.5 tracking-normal normal-case text-primary">
-              In preview
-            </span>
           </p>
           <h2 className="mt-4 text-3xl font-medium tracking-tight md:text-4xl">
             From one sentence to a cut, without losing control of the bill
