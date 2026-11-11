@@ -1,10 +1,8 @@
 /**
- * Video Workspace Component
- *
- * The main 3-column layout for video editing:
- * - Left: Chat/AI Director panel (equal width)
- * - Center: Video preview + Timeline
- * - Right: Asset Library + Generate panel (equal width)
+ * Studio — a project's workspace, in three tabs:
+ * - Director (mockup 4): assets | chat with the plan | jobs + spend
+ * - Storyboard (mockup 5): review drafts, render finals
+ * - Edit: preview + timeline, with the chat and assets alongside
  *
  * Includes polling for:
  * - Active generation jobs
@@ -14,7 +12,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { GripHorizontal } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
+import { cn } from '@/lib/utils'
 import { ChatPanel } from './ChatPanel'
+import { useProduction } from './director/useProduction'
+import { JobsPanel, SpendCard } from './director/JobsPanel'
+import { StoryboardBoard } from './director/StoryboardBoard'
+import type { ComposerMode } from './ChatPanel'
 
 // NOTE: Server functions are dynamically imported in queryFn/callbacks
 // to prevent Prisma and other server-only code from being bundled into the client.
@@ -69,9 +73,29 @@ const TIMELINE_MIN_H = 190
 const TIMELINE_MAX_H = 700
 const TIMELINE_DEFAULT_H = 320
 
+type StudioTab = 'director' | 'storyboard' | 'edit'
+
+const TABS: Array<{ id: StudioTab; label: string }> = [
+  { id: 'director', label: 'Director' },
+  { id: 'storyboard', label: 'Storyboard' },
+  { id: 'edit', label: 'Edit' },
+]
+
 export function Workspace({ project }: WorkspaceProps) {
   const queryClient = useQueryClient()
   const isMobile = useIsMobile()
+
+  const [tab, setTab] = useState<StudioTab>('director')
+  const modeKey = `cinevido:composer-mode:${project.id}`
+  const [composerMode, setComposerModeState] = useState<ComposerMode>(() =>
+    typeof window !== 'undefined' && localStorage.getItem(modeKey) === 'final'
+      ? 'final'
+      : 'draft',
+  )
+  const setComposerMode = (mode: ComposerMode) => {
+    setComposerModeState(mode)
+    localStorage.setItem(modeKey, mode)
+  }
 
   // Local state for the manifest (optimistic updates)
   const [manifest, setManifest] = useState<ProjectManifest>(project.manifest)
@@ -187,6 +211,20 @@ export function Workspace({ project }: WorkspaceProps) {
     }
   }, [project.id])
 
+  // Director v2: the production runner. New renders land in the asset
+  // library; an assembled cut lands on the timeline.
+  const production = useProduction(project.id, {
+    onAssetsChanged: () => {
+      void queryClient.invalidateQueries({ queryKey: ['project', project.id] })
+    },
+    onAssembled: () => {
+      void refreshManifest()
+      toast.success('Finals assembled on the timeline', {
+        action: { label: 'Open editor', onClick: () => setTab('edit') },
+      })
+    },
+  })
+
   // Poll for manifest changes when there are active jobs or chat is being used
   useEffect(() => {
     // Only poll if there are active jobs (AI might be modifying timeline)
@@ -247,6 +285,35 @@ export function Workspace({ project }: WorkspaceProps) {
   // Render
   // =============================================================================
 
+  const chat = (mode: 'panel' | 'center') => (
+    <ChatPanel
+      projectId={project.id}
+      manifest={manifest}
+      onManifestChange={handleManifestChange}
+      collapsed={mode === 'panel' && leftPanelCollapsed}
+      onToggleCollapse={() => setLeftPanelCollapsed(!leftPanelCollapsed)}
+      mode={mode}
+      production={production}
+      composerMode={composerMode}
+      onComposerModeChange={setComposerMode}
+      onOpenStoryboard={() => setTab('storyboard')}
+    />
+  )
+
+  const assets = (collapsible: boolean) => (
+    <AssetPanel
+      projectId={project.id}
+      assets={project.assets}
+      manifest={manifest}
+      onManifestChange={handleManifestChange}
+      fps={project.fps}
+      collapsed={collapsible && rightPanelCollapsed}
+      onToggleCollapse={() =>
+        collapsible && setRightPanelCollapsed(!rightPanelCollapsed)
+      }
+    />
+  )
+
   // Render mobile workspace on small screens
   if (isMobile) {
     return <MobileWorkspace project={project} />
@@ -255,47 +322,77 @@ export function Workspace({ project }: WorkspaceProps) {
   return (
     <div className="flex h-full w-full max-w-full flex-col overflow-hidden bg-background">
       {/* Header */}
-      <header className="flex h-12 items-center justify-between border-b px-4">
-        <div className="flex items-center gap-4">
-          <h1 className="font-semibold truncate max-w-[200px]">
-            {project.name}
-          </h1>
-          <span className="text-xs text-muted-foreground">
-            {project.width}x{project.height} @ {project.fps}fps
+      <header className="flex h-12 shrink-0 items-center justify-between gap-4 border-b border-border px-4">
+        <div className="flex min-w-0 items-center gap-3">
+          <h1 className="max-w-[240px] truncate font-semibold">{project.name}</h1>
+          <span className="hidden text-xs text-muted-foreground lg:inline">
+            {project.width}×{project.height} · {project.fps}fps
           </span>
         </div>
-        <div className="flex items-center gap-2">
-          {/* Active jobs indicator */}
+        <nav className="flex h-full items-stretch gap-1" aria-label="Studio views">
+          {TABS.map((t) => (
+            <button
+              key={t.id}
+              onClick={() => setTab(t.id)}
+              className={cn(
+                'border-b-2 px-3 text-sm font-medium transition-colors',
+                tab === t.id
+                  ? 'border-primary text-foreground'
+                  : 'border-transparent text-muted-foreground hover:text-foreground',
+              )}
+            >
+              {t.label}
+            </button>
+          ))}
+        </nav>
+        <div className="flex items-center gap-3">
           {activeJobs.length > 0 && (
-            <div className="flex items-center gap-2 rounded-full bg-yellow-500/10 px-3 py-1 text-xs text-yellow-600">
-              <span className="h-2 w-2 animate-pulse rounded-full bg-yellow-500" />
+            <div className="flex items-center gap-2 rounded-full bg-secondary px-3 py-1 text-xs text-muted-foreground">
+              <span className="h-2 w-2 animate-pulse rounded-full bg-primary" />
               {activeJobs.length} job{activeJobs.length > 1 ? 's' : ''} running
             </div>
           )}
-          <span className="text-sm text-muted-foreground">
+          <span className="text-sm tabular-nums text-muted-foreground">
             {Math.floor(project.duration / project.fps)}s
           </span>
-          <button className="rounded bg-primary px-3 py-1 text-sm text-primary-foreground hover:bg-primary/90">
-            Export
-          </button>
         </div>
       </header>
 
-      {/* Main content area */}
-      <div className="flex min-w-0 flex-1 w-full max-w-full overflow-hidden">
+      {tab === 'director' && (
+        <div className="flex min-h-0 flex-1 gap-3 p-3">
+          <aside className="hidden w-[300px] shrink-0 overflow-hidden rounded-xl border border-border bg-card lg:block">
+            {assets(false)}
+          </aside>
+          <main className="min-w-0 flex-1 overflow-hidden rounded-xl border border-border bg-background">
+            {chat('center')}
+          </main>
+          <aside className="hidden w-[320px] shrink-0 flex-col gap-3 xl:flex">
+            <JobsPanel production={production} onOpenStoryboard={() => setTab('storyboard')} />
+            <SpendCard production={production} />
+          </aside>
+        </div>
+      )}
+
+      {tab === 'storyboard' && (
+        <div className="min-h-0 flex-1">
+          <StoryboardBoard production={production} onOpenEditor={() => setTab('edit')} />
+        </div>
+      )}
+
+      {/* Edit: preview + timeline (kept mounted so the player keeps its place) */}
+      <div
+        className={cn(
+          'flex min-w-0 flex-1 w-full max-w-full overflow-hidden',
+          tab !== 'edit' && 'hidden',
+        )}
+      >
         {/* Left Panel - Chat */}
         <aside
           className={`border-r bg-muted/30 transition-all overflow-hidden ${
             leftPanelCollapsed ? 'w-12 shrink-0' : 'flex-[0_1_280px] min-w-48'
           }`}
         >
-          <ChatPanel
-            projectId={project.id}
-            manifest={manifest}
-            onManifestChange={handleManifestChange}
-            collapsed={leftPanelCollapsed}
-            onToggleCollapse={() => setLeftPanelCollapsed(!leftPanelCollapsed)}
-          />
+          {chat('panel')}
         </aside>
 
         {/* Center - Preview + Timeline */}
@@ -392,17 +489,7 @@ export function Workspace({ project }: WorkspaceProps) {
             rightPanelCollapsed ? 'w-12 shrink-0' : 'flex-[0_1_280px] min-w-48'
           }`}
         >
-          <AssetPanel
-            projectId={project.id}
-            assets={project.assets}
-            manifest={manifest}
-            onManifestChange={handleManifestChange}
-            fps={project.fps}
-            collapsed={rightPanelCollapsed}
-            onToggleCollapse={() =>
-              setRightPanelCollapsed(!rightPanelCollapsed)
-            }
-          />
+          {assets(true)}
         </aside>
       </div>
     </div>

@@ -38,11 +38,6 @@ export interface ByokStatus {
   billingKeyLastFour: string | null
 }
 
-export interface FalUsage {
-  monthlyUsage: number
-  currency: string
-}
-
 // =============================================================================
 // Get BYOK Status
 // =============================================================================
@@ -242,77 +237,6 @@ export const testApiKeyConnectionFn = createServerFn({ method: 'POST' })
   })
 
 // =============================================================================
-// Get fal.ai Usage
-// =============================================================================
-
-/**
- * Fetch the user's fal.ai usage for the current month
- */
-export const getFalUsageFn = createServerFn({ method: 'GET' })
-  .middleware([authMiddleware])
-  .handler(async ({ context }): Promise<FalUsage | null> => {
-    const prisma = await getPrisma()
-    const user = await prisma.user.findUnique({
-      where: { id: context.user.id },
-      select: { falApiKey: true },
-    })
-
-    if (!user?.falApiKey) {
-      return null
-    }
-
-    try {
-      // Dynamic import encryption utilities (server-only)
-      const { decryptApiKey } = await getEncryption()
-
-      const decryptedKey = decryptApiKey(user.falApiKey)
-
-      // Get usage for the current month
-      const now = new Date()
-      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
-      const startIso = startOfMonth.toISOString()
-
-      const response = await fetch(
-        `https://api.fal.ai/v1/models/usage?expand=summary&start=${startIso}`,
-        {
-          method: 'GET',
-          headers: {
-            Authorization: `Key ${decryptedKey}`,
-          },
-        },
-      )
-
-      if (!response.ok) {
-        console.error('[BYOK] Failed to fetch fal.ai usage:', response.status)
-        return null
-      }
-
-      const data = await response.json()
-
-      // Calculate total cost from summary
-      interface UsageSummaryItem {
-        cost: number
-        currency: string
-      }
-
-      const summary = data.summary as Array<UsageSummaryItem> | undefined
-      const totalCost =
-        summary?.reduce(
-          (sum: number, item: UsageSummaryItem) => sum + (item.cost || 0),
-          0,
-        ) || 0
-
-      return {
-        monthlyUsage: Math.round(totalCost * 100) / 100, // Round to 2 decimal places
-        currency: 'USD',
-      }
-    } catch (error) {
-      console.error('[BYOK] Error fetching fal.ai usage:', error)
-      return null
-    }
-  })
-
-// =============================================================================
 // Helper: Get User's Decrypted API Key (for use in other services)
 // =============================================================================
 
@@ -435,7 +359,7 @@ async function fetchFalCredits(key: string): Promise<FalCredits> {
  * The key that may read this user's balance: their own billing key, or — for
  * admins only — the server's FAL_BILLING_KEY. Never another user's account.
  */
-async function getBillingKey(userId: string): Promise<string | null> {
+export async function getBillingKey(userId: string): Promise<string | null> {
   const prisma = await getPrisma()
   const user = await prisma.user.findUnique({
     where: { id: userId },
@@ -451,18 +375,47 @@ async function getBillingKey(userId: string): Promise<string | null> {
   return null
 }
 
+/** Below this balance the credit pill turns amber; below a quarter of it, red */
+export const DEFAULT_LOW_BALANCE_USD = 2
+
+async function getLowBalanceUsd(userId: string): Promise<number> {
+  const prisma = await getPrisma()
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { lowBalanceUsd: true },
+  })
+  return user?.lowBalanceUsd ?? DEFAULT_LOW_BALANCE_USD
+}
+
 export const getFalCreditsFn = createServerFn({ method: 'GET' })
   .middleware([authMiddleware])
-  .handler(async ({ context }): Promise<FalCredits> => {
-    const cached = creditsCache.get(context.user.id)
-    if (cached && Date.now() - cached.at < CREDITS_TTL_MS) return cached.value
+  .handler(
+    async ({ context }): Promise<FalCredits & { lowBalanceUsd: number }> => {
+      const lowBalanceUsd = await getLowBalanceUsd(context.user.id)
+      const cached = creditsCache.get(context.user.id)
+      if (cached && Date.now() - cached.at < CREDITS_TTL_MS) {
+        return { ...cached.value, lowBalanceUsd }
+      }
 
-    const key = await getBillingKey(context.user.id)
-    const value: FalCredits = key
-      ? await fetchFalCredits(key)
-      : { status: 'no-key' }
-    creditsCache.set(context.user.id, { at: Date.now(), value })
-    return value
+      const key = await getBillingKey(context.user.id)
+      const value: FalCredits = key
+        ? await fetchFalCredits(key)
+        : { status: 'no-key' }
+      creditsCache.set(context.user.id, { at: Date.now(), value })
+      return { ...value, lowBalanceUsd }
+    },
+  )
+
+export const setLowBalanceFn = createServerFn({ method: 'POST' })
+  .middleware([authMiddleware])
+  .inputValidator(z.object({ usd: z.number().min(0).max(10_000) }))
+  .handler(async ({ data, context }) => {
+    const prisma = await getPrisma()
+    await prisma.user.update({
+      where: { id: context.user.id },
+      data: { lowBalanceUsd: data.usd },
+    })
+    return { lowBalanceUsd: data.usd }
   })
 
 const saveBillingKeySchema = z.object({

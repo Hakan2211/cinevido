@@ -7,14 +7,11 @@
 
 import { prisma } from '../../db.server'
 import { getUserFalApiKey } from '../byok.server'
-import {
-  chatCompletion,
-  chatCompletionStream,
-  getDefaultModel,
-} from '../services/index.server'
+import { chatCompletion, getDefaultModel } from '../services/index.server'
 import { AGENT_TOOLS } from './tools.server'
 import { getSystemPrompt } from './system-prompt.server'
-import { executeTool } from './executor.server'
+import { executeTool, summarizePlan } from './executor.server'
+import { parsePlan } from '../../lib/production'
 import type { ChatMessage, ToolCall } from '../services/index.server'
 import type { ToolContext, ToolResult } from './executor.server'
 
@@ -27,6 +24,8 @@ export interface AgentInput {
   userId: string
   userMessage: string
   model?: string
+  /** composer toggle: drafts first, or straight to finals */
+  mode?: 'draft' | 'final'
 }
 
 export type AgentEventType =
@@ -117,7 +116,10 @@ async function saveMessage(
     data: {
       projectId,
       role: message.role,
-      content: message.content || '',
+      content:
+        typeof message.content === 'string'
+          ? message.content
+          : JSON.stringify(message.content),
       toolCalls: toolCalls ? JSON.stringify(toolCalls) : null,
       toolCallId: message.tool_call_id,
       toolName: message.name,
@@ -135,7 +137,7 @@ async function saveMessage(
  * Run the agent loop - processes user message and yields events
  */
 export async function* runAgent(input: AgentInput): AsyncGenerator<AgentEvent> {
-  const { projectId, userId, userMessage, model } = input
+  const { projectId, userId, userMessage, model, mode } = input
 
   const context: ToolContext = { userId, projectId }
 
@@ -143,7 +145,14 @@ export async function* runAgent(input: AgentInput): AsyncGenerator<AgentEvent> {
     // Load project info for system prompt context
     const project = await prisma.project.findUnique({
       where: { id: projectId },
-      select: { name: true, width: true, height: true, fps: true },
+      select: {
+        name: true,
+        width: true,
+        height: true,
+        fps: true,
+        budgetUsd: true,
+        plan: true,
+      },
     })
 
     if (!project) {
@@ -168,6 +177,12 @@ export async function* runAgent(input: AgentInput): AsyncGenerator<AgentEvent> {
       projectName: project.name,
       projectDimensions: { width: project.width, height: project.height },
       fps: project.fps,
+      budgetUsd: project.budgetUsd,
+      mode,
+      plan: (() => {
+        const plan = parsePlan(project.plan)
+        return plan ? summarizePlan(plan, project.budgetUsd) : undefined
+      })(),
     })
 
     // Load existing chat history
@@ -290,36 +305,19 @@ export async function* runAgent(input: AgentInput): AsyncGenerator<AgentEvent> {
         continue
       }
 
-      // No tool calls - stream the final response
-      if (assistantMessage.content) {
-        // For the final response, use streaming
-        const streamMessages = [...messages]
-
-        // Remove the last non-streaming response and re-request with streaming
-        // This ensures we get a proper streamed response
-        for await (const chunk of chatCompletionStream(
-          {
-            messages: streamMessages,
-            model: llmModel,
-            tools: AGENT_TOOLS,
-            toolChoice: 'none', // No more tool calls for final response
-            temperature: 0.7,
-          },
-          userApiKey,
-        )) {
-          const delta = chunk.choices[0]?.delta
-          if (delta?.content) {
-            yield { type: 'text', data: { content: delta.content } }
-          }
-        }
-
-        // Save the final assistant message
-        const finalMessage: ChatMessage = {
+      // No tool calls: this is the reply. It is already here, so send it
+      // as it is rather than paying for the same completion a second time
+      // just to stream it.
+      const reply =
+        typeof assistantMessage.content === 'string'
+          ? assistantMessage.content
+          : ''
+      if (reply) {
+        yield { type: 'text', data: { content: reply } }
+        const messageId = await saveMessage(projectId, {
           role: 'assistant',
-          content: assistantMessage.content,
-        }
-        const messageId = await saveMessage(projectId, finalMessage)
-
+          content: reply,
+        })
         yield { type: 'done', data: { messageId } }
         return
       }

@@ -20,8 +20,18 @@ export type UserModel = runtime.Types.Result.DefaultSelection<Prisma.$UserPayloa
 
 export type AggregateUser = {
   _count: UserCountAggregateOutputType | null
+  _avg: UserAvgAggregateOutputType | null
+  _sum: UserSumAggregateOutputType | null
   _min: UserMinAggregateOutputType | null
   _max: UserMaxAggregateOutputType | null
+}
+
+export type UserAvgAggregateOutputType = {
+  lowBalanceUsd: number | null
+}
+
+export type UserSumAggregateOutputType = {
+  lowBalanceUsd: number | null
 }
 
 export type UserMinAggregateOutputType = {
@@ -45,6 +55,7 @@ export type UserMinAggregateOutputType = {
   falApiKeyAddedAt: Date | null
   falBillingKey: string | null
   falBillingKeyLastFour: string | null
+  lowBalanceUsd: number | null
   bunnyStorageZone: string | null
   bunnyApiKey: string | null
   bunnyApiKeyLastFour: string | null
@@ -79,6 +90,7 @@ export type UserMaxAggregateOutputType = {
   falApiKeyAddedAt: Date | null
   falBillingKey: string | null
   falBillingKeyLastFour: string | null
+  lowBalanceUsd: number | null
   bunnyStorageZone: string | null
   bunnyApiKey: string | null
   bunnyApiKeyLastFour: string | null
@@ -113,6 +125,7 @@ export type UserCountAggregateOutputType = {
   falApiKeyAddedAt: number
   falBillingKey: number
   falBillingKeyLastFour: number
+  lowBalanceUsd: number
   bunnyStorageZone: number
   bunnyApiKey: number
   bunnyApiKeyLastFour: number
@@ -127,6 +140,14 @@ export type UserCountAggregateOutputType = {
   _all: number
 }
 
+
+export type UserAvgAggregateInputType = {
+  lowBalanceUsd?: true
+}
+
+export type UserSumAggregateInputType = {
+  lowBalanceUsd?: true
+}
 
 export type UserMinAggregateInputType = {
   id?: true
@@ -149,6 +170,7 @@ export type UserMinAggregateInputType = {
   falApiKeyAddedAt?: true
   falBillingKey?: true
   falBillingKeyLastFour?: true
+  lowBalanceUsd?: true
   bunnyStorageZone?: true
   bunnyApiKey?: true
   bunnyApiKeyLastFour?: true
@@ -183,6 +205,7 @@ export type UserMaxAggregateInputType = {
   falApiKeyAddedAt?: true
   falBillingKey?: true
   falBillingKeyLastFour?: true
+  lowBalanceUsd?: true
   bunnyStorageZone?: true
   bunnyApiKey?: true
   bunnyApiKeyLastFour?: true
@@ -217,6 +240,7 @@ export type UserCountAggregateInputType = {
   falApiKeyAddedAt?: true
   falBillingKey?: true
   falBillingKeyLastFour?: true
+  lowBalanceUsd?: true
   bunnyStorageZone?: true
   bunnyApiKey?: true
   bunnyApiKeyLastFour?: true
@@ -269,6 +293,18 @@ export type UserAggregateArgs<ExtArgs extends runtime.Types.Extensions.InternalA
   /**
    * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
    * 
+   * Select which fields to average
+  **/
+  _avg?: UserAvgAggregateInputType
+  /**
+   * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+   * 
+   * Select which fields to sum
+  **/
+  _sum?: UserSumAggregateInputType
+  /**
+   * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+   * 
    * Select which fields to find the minimum value
   **/
   _min?: UserMinAggregateInputType
@@ -299,6 +335,8 @@ export type UserGroupByArgs<ExtArgs extends runtime.Types.Extensions.InternalArg
   take?: number
   skip?: number
   _count?: UserCountAggregateInputType | true
+  _avg?: UserAvgAggregateInputType
+  _sum?: UserSumAggregateInputType
   _min?: UserMinAggregateInputType
   _max?: UserMaxAggregateInputType
 }
@@ -324,6 +362,7 @@ export type UserGroupByOutputType = {
   falApiKeyAddedAt: Date | null
   falBillingKey: string | null
   falBillingKeyLastFour: string | null
+  lowBalanceUsd: number | null
   bunnyStorageZone: string | null
   bunnyApiKey: string | null
   bunnyApiKeyLastFour: string | null
@@ -336,6 +375,8 @@ export type UserGroupByOutputType = {
   createdAt: Date
   updatedAt: Date
   _count: UserCountAggregateOutputType | null
+  _avg: UserAvgAggregateOutputType | null
+  _sum: UserSumAggregateOutputType | null
   _min: UserMinAggregateOutputType | null
   _max: UserMaxAggregateOutputType | null
 }
@@ -379,6 +420,7 @@ export type UserWhereInput = {
   falApiKeyAddedAt?: Prisma.DateTimeNullableFilter<"User"> | Date | string | null
   falBillingKey?: Prisma.StringNullableFilter<"User"> | string | null
   falBillingKeyLastFour?: Prisma.StringNullableFilter<"User"> | string | null
+  lowBalanceUsd?: Prisma.FloatNullableFilter<"User"> | number | null
   bunnyStorageZone?: Prisma.StringNullableFilter<"User"> | string | null
   bunnyApiKey?: Prisma.StringNullableFilter<"User"> | string | null
   bunnyApiKeyLastFour?: Prisma.StringNullableFilter<"User"> | string | null
@@ -421,6 +463,7 @@ export type UserOrderByWithRelationInput = {
   falApiKeyAddedAt?: Prisma.SortOrderInput | Prisma.SortOrder
   falBillingKey?: Prisma.SortOrderInput | Prisma.SortOrder
   falBillingKeyLastFour?: Prisma.SortOrderInput | Prisma.SortOrder
+  lowBalanceUsd?: Prisma.SortOrderInput | Prisma.SortOrder
   bunnyStorageZone?: Prisma.SortOrderInput | Prisma.SortOrder
   bunnyApiKey?: Prisma.SortOrderInput | Prisma.SortOrder
   bunnyApiKeyLastFour?: Prisma.SortOrderInput | Prisma.SortOrder
@@ -466,6 +509,7 @@ export type UserWhereUniqueInput = Prisma.AtLeast<{
   falApiKeyAddedAt?: Prisma.DateTimeNullableFilter<"User"> | Date | string | null
   falBillingKey?: Prisma.StringNullableFilter<"User"> | string | null
   falBillingKeyLastFour?: Prisma.StringNullableFilter<"User"> | string | null
+  lowBalanceUsd?: Prisma.FloatNullableFilter<"User"> | number | null
   bunnyStorageZone?: Prisma.StringNullableFilter<"User"> | string | null
   bunnyApiKey?: Prisma.StringNullableFilter<"User"> | string | null
   bunnyApiKeyLastFour?: Prisma.StringNullableFilter<"User"> | string | null
@@ -508,6 +552,7 @@ export type UserOrderByWithAggregationInput = {
   falApiKeyAddedAt?: Prisma.SortOrderInput | Prisma.SortOrder
   falBillingKey?: Prisma.SortOrderInput | Prisma.SortOrder
   falBillingKeyLastFour?: Prisma.SortOrderInput | Prisma.SortOrder
+  lowBalanceUsd?: Prisma.SortOrderInput | Prisma.SortOrder
   bunnyStorageZone?: Prisma.SortOrderInput | Prisma.SortOrder
   bunnyApiKey?: Prisma.SortOrderInput | Prisma.SortOrder
   bunnyApiKeyLastFour?: Prisma.SortOrderInput | Prisma.SortOrder
@@ -520,8 +565,10 @@ export type UserOrderByWithAggregationInput = {
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
   _count?: Prisma.UserCountOrderByAggregateInput
+  _avg?: Prisma.UserAvgOrderByAggregateInput
   _max?: Prisma.UserMaxOrderByAggregateInput
   _min?: Prisma.UserMinOrderByAggregateInput
+  _sum?: Prisma.UserSumOrderByAggregateInput
 }
 
 export type UserScalarWhereWithAggregatesInput = {
@@ -548,6 +595,7 @@ export type UserScalarWhereWithAggregatesInput = {
   falApiKeyAddedAt?: Prisma.DateTimeNullableWithAggregatesFilter<"User"> | Date | string | null
   falBillingKey?: Prisma.StringNullableWithAggregatesFilter<"User"> | string | null
   falBillingKeyLastFour?: Prisma.StringNullableWithAggregatesFilter<"User"> | string | null
+  lowBalanceUsd?: Prisma.FloatNullableWithAggregatesFilter<"User"> | number | null
   bunnyStorageZone?: Prisma.StringNullableWithAggregatesFilter<"User"> | string | null
   bunnyApiKey?: Prisma.StringNullableWithAggregatesFilter<"User"> | string | null
   bunnyApiKeyLastFour?: Prisma.StringNullableWithAggregatesFilter<"User"> | string | null
@@ -582,6 +630,7 @@ export type UserCreateInput = {
   falApiKeyAddedAt?: Date | string | null
   falBillingKey?: string | null
   falBillingKeyLastFour?: string | null
+  lowBalanceUsd?: number | null
   bunnyStorageZone?: string | null
   bunnyApiKey?: string | null
   bunnyApiKeyLastFour?: string | null
@@ -624,6 +673,7 @@ export type UserUncheckedCreateInput = {
   falApiKeyAddedAt?: Date | string | null
   falBillingKey?: string | null
   falBillingKeyLastFour?: string | null
+  lowBalanceUsd?: number | null
   bunnyStorageZone?: string | null
   bunnyApiKey?: string | null
   bunnyApiKeyLastFour?: string | null
@@ -666,6 +716,7 @@ export type UserUpdateInput = {
   falApiKeyAddedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   falBillingKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   falBillingKeyLastFour?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  lowBalanceUsd?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   bunnyStorageZone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   bunnyApiKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   bunnyApiKeyLastFour?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -708,6 +759,7 @@ export type UserUncheckedUpdateInput = {
   falApiKeyAddedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   falBillingKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   falBillingKeyLastFour?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  lowBalanceUsd?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   bunnyStorageZone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   bunnyApiKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   bunnyApiKeyLastFour?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -750,6 +802,7 @@ export type UserCreateManyInput = {
   falApiKeyAddedAt?: Date | string | null
   falBillingKey?: string | null
   falBillingKeyLastFour?: string | null
+  lowBalanceUsd?: number | null
   bunnyStorageZone?: string | null
   bunnyApiKey?: string | null
   bunnyApiKeyLastFour?: string | null
@@ -784,6 +837,7 @@ export type UserUpdateManyMutationInput = {
   falApiKeyAddedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   falBillingKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   falBillingKeyLastFour?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  lowBalanceUsd?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   bunnyStorageZone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   bunnyApiKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   bunnyApiKeyLastFour?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -818,6 +872,7 @@ export type UserUncheckedUpdateManyInput = {
   falApiKeyAddedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   falBillingKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   falBillingKeyLastFour?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  lowBalanceUsd?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   bunnyStorageZone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   bunnyApiKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   bunnyApiKeyLastFour?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -852,6 +907,7 @@ export type UserCountOrderByAggregateInput = {
   falApiKeyAddedAt?: Prisma.SortOrder
   falBillingKey?: Prisma.SortOrder
   falBillingKeyLastFour?: Prisma.SortOrder
+  lowBalanceUsd?: Prisma.SortOrder
   bunnyStorageZone?: Prisma.SortOrder
   bunnyApiKey?: Prisma.SortOrder
   bunnyApiKeyLastFour?: Prisma.SortOrder
@@ -863,6 +919,10 @@ export type UserCountOrderByAggregateInput = {
   preferredVoiceId?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
+}
+
+export type UserAvgOrderByAggregateInput = {
+  lowBalanceUsd?: Prisma.SortOrder
 }
 
 export type UserMaxOrderByAggregateInput = {
@@ -886,6 +946,7 @@ export type UserMaxOrderByAggregateInput = {
   falApiKeyAddedAt?: Prisma.SortOrder
   falBillingKey?: Prisma.SortOrder
   falBillingKeyLastFour?: Prisma.SortOrder
+  lowBalanceUsd?: Prisma.SortOrder
   bunnyStorageZone?: Prisma.SortOrder
   bunnyApiKey?: Prisma.SortOrder
   bunnyApiKeyLastFour?: Prisma.SortOrder
@@ -920,6 +981,7 @@ export type UserMinOrderByAggregateInput = {
   falApiKeyAddedAt?: Prisma.SortOrder
   falBillingKey?: Prisma.SortOrder
   falBillingKeyLastFour?: Prisma.SortOrder
+  lowBalanceUsd?: Prisma.SortOrder
   bunnyStorageZone?: Prisma.SortOrder
   bunnyApiKey?: Prisma.SortOrder
   bunnyApiKeyLastFour?: Prisma.SortOrder
@@ -931,6 +993,10 @@ export type UserMinOrderByAggregateInput = {
   preferredVoiceId?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
+}
+
+export type UserSumOrderByAggregateInput = {
+  lowBalanceUsd?: Prisma.SortOrder
 }
 
 export type UserScalarRelationFilter = {
@@ -952,6 +1018,14 @@ export type BoolFieldUpdateOperationsInput = {
 
 export type NullableDateTimeFieldUpdateOperationsInput = {
   set?: Date | string | null
+}
+
+export type NullableFloatFieldUpdateOperationsInput = {
+  set?: number | null
+  increment?: number
+  decrement?: number
+  multiply?: number
+  divide?: number
 }
 
 export type DateTimeFieldUpdateOperationsInput = {
@@ -1091,6 +1165,7 @@ export type UserCreateWithoutSessionsInput = {
   falApiKeyAddedAt?: Date | string | null
   falBillingKey?: string | null
   falBillingKeyLastFour?: string | null
+  lowBalanceUsd?: number | null
   bunnyStorageZone?: string | null
   bunnyApiKey?: string | null
   bunnyApiKeyLastFour?: string | null
@@ -1132,6 +1207,7 @@ export type UserUncheckedCreateWithoutSessionsInput = {
   falApiKeyAddedAt?: Date | string | null
   falBillingKey?: string | null
   falBillingKeyLastFour?: string | null
+  lowBalanceUsd?: number | null
   bunnyStorageZone?: string | null
   bunnyApiKey?: string | null
   bunnyApiKeyLastFour?: string | null
@@ -1189,6 +1265,7 @@ export type UserUpdateWithoutSessionsInput = {
   falApiKeyAddedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   falBillingKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   falBillingKeyLastFour?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  lowBalanceUsd?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   bunnyStorageZone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   bunnyApiKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   bunnyApiKeyLastFour?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -1230,6 +1307,7 @@ export type UserUncheckedUpdateWithoutSessionsInput = {
   falApiKeyAddedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   falBillingKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   falBillingKeyLastFour?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  lowBalanceUsd?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   bunnyStorageZone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   bunnyApiKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   bunnyApiKeyLastFour?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -1271,6 +1349,7 @@ export type UserCreateWithoutAccountsInput = {
   falApiKeyAddedAt?: Date | string | null
   falBillingKey?: string | null
   falBillingKeyLastFour?: string | null
+  lowBalanceUsd?: number | null
   bunnyStorageZone?: string | null
   bunnyApiKey?: string | null
   bunnyApiKeyLastFour?: string | null
@@ -1312,6 +1391,7 @@ export type UserUncheckedCreateWithoutAccountsInput = {
   falApiKeyAddedAt?: Date | string | null
   falBillingKey?: string | null
   falBillingKeyLastFour?: string | null
+  lowBalanceUsd?: number | null
   bunnyStorageZone?: string | null
   bunnyApiKey?: string | null
   bunnyApiKeyLastFour?: string | null
@@ -1369,6 +1449,7 @@ export type UserUpdateWithoutAccountsInput = {
   falApiKeyAddedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   falBillingKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   falBillingKeyLastFour?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  lowBalanceUsd?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   bunnyStorageZone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   bunnyApiKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   bunnyApiKeyLastFour?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -1410,6 +1491,7 @@ export type UserUncheckedUpdateWithoutAccountsInput = {
   falApiKeyAddedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   falBillingKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   falBillingKeyLastFour?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  lowBalanceUsd?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   bunnyStorageZone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   bunnyApiKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   bunnyApiKeyLastFour?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -1451,6 +1533,7 @@ export type UserCreateWithoutProjectFoldersInput = {
   falApiKeyAddedAt?: Date | string | null
   falBillingKey?: string | null
   falBillingKeyLastFour?: string | null
+  lowBalanceUsd?: number | null
   bunnyStorageZone?: string | null
   bunnyApiKey?: string | null
   bunnyApiKeyLastFour?: string | null
@@ -1492,6 +1575,7 @@ export type UserUncheckedCreateWithoutProjectFoldersInput = {
   falApiKeyAddedAt?: Date | string | null
   falBillingKey?: string | null
   falBillingKeyLastFour?: string | null
+  lowBalanceUsd?: number | null
   bunnyStorageZone?: string | null
   bunnyApiKey?: string | null
   bunnyApiKeyLastFour?: string | null
@@ -1549,6 +1633,7 @@ export type UserUpdateWithoutProjectFoldersInput = {
   falApiKeyAddedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   falBillingKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   falBillingKeyLastFour?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  lowBalanceUsd?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   bunnyStorageZone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   bunnyApiKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   bunnyApiKeyLastFour?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -1590,6 +1675,7 @@ export type UserUncheckedUpdateWithoutProjectFoldersInput = {
   falApiKeyAddedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   falBillingKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   falBillingKeyLastFour?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  lowBalanceUsd?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   bunnyStorageZone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   bunnyApiKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   bunnyApiKeyLastFour?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -1631,6 +1717,7 @@ export type UserCreateWithoutProjectsInput = {
   falApiKeyAddedAt?: Date | string | null
   falBillingKey?: string | null
   falBillingKeyLastFour?: string | null
+  lowBalanceUsd?: number | null
   bunnyStorageZone?: string | null
   bunnyApiKey?: string | null
   bunnyApiKeyLastFour?: string | null
@@ -1672,6 +1759,7 @@ export type UserUncheckedCreateWithoutProjectsInput = {
   falApiKeyAddedAt?: Date | string | null
   falBillingKey?: string | null
   falBillingKeyLastFour?: string | null
+  lowBalanceUsd?: number | null
   bunnyStorageZone?: string | null
   bunnyApiKey?: string | null
   bunnyApiKeyLastFour?: string | null
@@ -1729,6 +1817,7 @@ export type UserUpdateWithoutProjectsInput = {
   falApiKeyAddedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   falBillingKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   falBillingKeyLastFour?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  lowBalanceUsd?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   bunnyStorageZone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   bunnyApiKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   bunnyApiKeyLastFour?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -1770,6 +1859,7 @@ export type UserUncheckedUpdateWithoutProjectsInput = {
   falApiKeyAddedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   falBillingKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   falBillingKeyLastFour?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  lowBalanceUsd?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   bunnyStorageZone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   bunnyApiKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   bunnyApiKeyLastFour?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -1811,6 +1901,7 @@ export type UserCreateWithoutAssetsInput = {
   falApiKeyAddedAt?: Date | string | null
   falBillingKey?: string | null
   falBillingKeyLastFour?: string | null
+  lowBalanceUsd?: number | null
   bunnyStorageZone?: string | null
   bunnyApiKey?: string | null
   bunnyApiKeyLastFour?: string | null
@@ -1852,6 +1943,7 @@ export type UserUncheckedCreateWithoutAssetsInput = {
   falApiKeyAddedAt?: Date | string | null
   falBillingKey?: string | null
   falBillingKeyLastFour?: string | null
+  lowBalanceUsd?: number | null
   bunnyStorageZone?: string | null
   bunnyApiKey?: string | null
   bunnyApiKeyLastFour?: string | null
@@ -1909,6 +2001,7 @@ export type UserUpdateWithoutAssetsInput = {
   falApiKeyAddedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   falBillingKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   falBillingKeyLastFour?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  lowBalanceUsd?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   bunnyStorageZone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   bunnyApiKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   bunnyApiKeyLastFour?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -1950,6 +2043,7 @@ export type UserUncheckedUpdateWithoutAssetsInput = {
   falApiKeyAddedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   falBillingKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   falBillingKeyLastFour?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  lowBalanceUsd?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   bunnyStorageZone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   bunnyApiKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   bunnyApiKeyLastFour?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -1991,6 +2085,7 @@ export type UserCreateWithoutGenerationJobsInput = {
   falApiKeyAddedAt?: Date | string | null
   falBillingKey?: string | null
   falBillingKeyLastFour?: string | null
+  lowBalanceUsd?: number | null
   bunnyStorageZone?: string | null
   bunnyApiKey?: string | null
   bunnyApiKeyLastFour?: string | null
@@ -2032,6 +2127,7 @@ export type UserUncheckedCreateWithoutGenerationJobsInput = {
   falApiKeyAddedAt?: Date | string | null
   falBillingKey?: string | null
   falBillingKeyLastFour?: string | null
+  lowBalanceUsd?: number | null
   bunnyStorageZone?: string | null
   bunnyApiKey?: string | null
   bunnyApiKeyLastFour?: string | null
@@ -2089,6 +2185,7 @@ export type UserUpdateWithoutGenerationJobsInput = {
   falApiKeyAddedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   falBillingKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   falBillingKeyLastFour?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  lowBalanceUsd?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   bunnyStorageZone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   bunnyApiKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   bunnyApiKeyLastFour?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -2130,6 +2227,7 @@ export type UserUncheckedUpdateWithoutGenerationJobsInput = {
   falApiKeyAddedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   falBillingKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   falBillingKeyLastFour?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  lowBalanceUsd?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   bunnyStorageZone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   bunnyApiKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   bunnyApiKeyLastFour?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -2171,6 +2269,7 @@ export type UserCreateWithoutSubscriptionEventsInput = {
   falApiKeyAddedAt?: Date | string | null
   falBillingKey?: string | null
   falBillingKeyLastFour?: string | null
+  lowBalanceUsd?: number | null
   bunnyStorageZone?: string | null
   bunnyApiKey?: string | null
   bunnyApiKeyLastFour?: string | null
@@ -2212,6 +2311,7 @@ export type UserUncheckedCreateWithoutSubscriptionEventsInput = {
   falApiKeyAddedAt?: Date | string | null
   falBillingKey?: string | null
   falBillingKeyLastFour?: string | null
+  lowBalanceUsd?: number | null
   bunnyStorageZone?: string | null
   bunnyApiKey?: string | null
   bunnyApiKeyLastFour?: string | null
@@ -2269,6 +2369,7 @@ export type UserUpdateWithoutSubscriptionEventsInput = {
   falApiKeyAddedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   falBillingKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   falBillingKeyLastFour?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  lowBalanceUsd?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   bunnyStorageZone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   bunnyApiKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   bunnyApiKeyLastFour?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -2310,6 +2411,7 @@ export type UserUncheckedUpdateWithoutSubscriptionEventsInput = {
   falApiKeyAddedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   falBillingKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   falBillingKeyLastFour?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  lowBalanceUsd?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   bunnyStorageZone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   bunnyApiKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   bunnyApiKeyLastFour?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -2351,6 +2453,7 @@ export type UserCreateWithoutModel3DAssetsInput = {
   falApiKeyAddedAt?: Date | string | null
   falBillingKey?: string | null
   falBillingKeyLastFour?: string | null
+  lowBalanceUsd?: number | null
   bunnyStorageZone?: string | null
   bunnyApiKey?: string | null
   bunnyApiKeyLastFour?: string | null
@@ -2392,6 +2495,7 @@ export type UserUncheckedCreateWithoutModel3DAssetsInput = {
   falApiKeyAddedAt?: Date | string | null
   falBillingKey?: string | null
   falBillingKeyLastFour?: string | null
+  lowBalanceUsd?: number | null
   bunnyStorageZone?: string | null
   bunnyApiKey?: string | null
   bunnyApiKeyLastFour?: string | null
@@ -2449,6 +2553,7 @@ export type UserUpdateWithoutModel3DAssetsInput = {
   falApiKeyAddedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   falBillingKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   falBillingKeyLastFour?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  lowBalanceUsd?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   bunnyStorageZone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   bunnyApiKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   bunnyApiKeyLastFour?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -2490,6 +2595,7 @@ export type UserUncheckedUpdateWithoutModel3DAssetsInput = {
   falApiKeyAddedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   falBillingKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   falBillingKeyLastFour?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  lowBalanceUsd?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   bunnyStorageZone?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   bunnyApiKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   bunnyApiKeyLastFour?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -2625,6 +2731,7 @@ export type UserSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = r
   falApiKeyAddedAt?: boolean
   falBillingKey?: boolean
   falBillingKeyLastFour?: boolean
+  lowBalanceUsd?: boolean
   bunnyStorageZone?: boolean
   bunnyApiKey?: boolean
   bunnyApiKeyLastFour?: boolean
@@ -2668,6 +2775,7 @@ export type UserSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Extensio
   falApiKeyAddedAt?: boolean
   falBillingKey?: boolean
   falBillingKeyLastFour?: boolean
+  lowBalanceUsd?: boolean
   bunnyStorageZone?: boolean
   bunnyApiKey?: boolean
   bunnyApiKeyLastFour?: boolean
@@ -2702,6 +2810,7 @@ export type UserSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensio
   falApiKeyAddedAt?: boolean
   falBillingKey?: boolean
   falBillingKeyLastFour?: boolean
+  lowBalanceUsd?: boolean
   bunnyStorageZone?: boolean
   bunnyApiKey?: boolean
   bunnyApiKeyLastFour?: boolean
@@ -2736,6 +2845,7 @@ export type UserSelectScalar = {
   falApiKeyAddedAt?: boolean
   falBillingKey?: boolean
   falBillingKeyLastFour?: boolean
+  lowBalanceUsd?: boolean
   bunnyStorageZone?: boolean
   bunnyApiKey?: boolean
   bunnyApiKeyLastFour?: boolean
@@ -2749,7 +2859,7 @@ export type UserSelectScalar = {
   updatedAt?: boolean
 }
 
-export type UserOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "email" | "name" | "image" | "emailVerified" | "role" | "stripeCustomerId" | "subscriptionStatus" | "subscriptionTier" | "subscriptionPeriodEnd" | "cancelAtPeriodEnd" | "onboardingComplete" | "hasPlatformAccess" | "platformPurchaseDate" | "platformStripePaymentId" | "falApiKey" | "falApiKeyLastFour" | "falApiKeyAddedAt" | "falBillingKey" | "falBillingKeyLastFour" | "bunnyStorageZone" | "bunnyApiKey" | "bunnyApiKeyLastFour" | "bunnyCdnUrl" | "bunnyStorageAddedAt" | "preferredLlmModel" | "preferredImageModel" | "preferredVideoModel" | "preferredVoiceId" | "createdAt" | "updatedAt", ExtArgs["result"]["user"]>
+export type UserOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "email" | "name" | "image" | "emailVerified" | "role" | "stripeCustomerId" | "subscriptionStatus" | "subscriptionTier" | "subscriptionPeriodEnd" | "cancelAtPeriodEnd" | "onboardingComplete" | "hasPlatformAccess" | "platformPurchaseDate" | "platformStripePaymentId" | "falApiKey" | "falApiKeyLastFour" | "falApiKeyAddedAt" | "falBillingKey" | "falBillingKeyLastFour" | "lowBalanceUsd" | "bunnyStorageZone" | "bunnyApiKey" | "bunnyApiKeyLastFour" | "bunnyCdnUrl" | "bunnyStorageAddedAt" | "preferredLlmModel" | "preferredImageModel" | "preferredVideoModel" | "preferredVoiceId" | "createdAt" | "updatedAt", ExtArgs["result"]["user"]>
 export type UserInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   accounts?: boolean | Prisma.User$accountsArgs<ExtArgs>
   sessions?: boolean | Prisma.User$sessionsArgs<ExtArgs>
@@ -2797,6 +2907,7 @@ export type $UserPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs =
     falApiKeyAddedAt: Date | null
     falBillingKey: string | null
     falBillingKeyLastFour: string | null
+    lowBalanceUsd: number | null
     bunnyStorageZone: string | null
     bunnyApiKey: string | null
     bunnyApiKeyLastFour: string | null
@@ -3259,6 +3370,7 @@ export interface UserFieldRefs {
   readonly falApiKeyAddedAt: Prisma.FieldRef<"User", 'DateTime'>
   readonly falBillingKey: Prisma.FieldRef<"User", 'String'>
   readonly falBillingKeyLastFour: Prisma.FieldRef<"User", 'String'>
+  readonly lowBalanceUsd: Prisma.FieldRef<"User", 'Float'>
   readonly bunnyStorageZone: Prisma.FieldRef<"User", 'String'>
   readonly bunnyApiKey: Prisma.FieldRef<"User", 'String'>
   readonly bunnyApiKeyLastFour: Prisma.FieldRef<"User", 'String'>

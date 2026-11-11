@@ -29,11 +29,13 @@ export type AggregateModel3DAsset = {
 export type Model3DAssetAvgAggregateOutputType = {
   progress: number | null
   seed: number | null
+  estimatedCostUsd: number | null
 }
 
 export type Model3DAssetSumAggregateOutputType = {
   progress: number | null
   seed: number | null
+  estimatedCostUsd: number | null
 }
 
 export type Model3DAssetMinAggregateOutputType = {
@@ -59,6 +61,7 @@ export type Model3DAssetMinAggregateOutputType = {
   error: string | null
   progress: number | null
   seed: number | null
+  estimatedCostUsd: number | null
   createdAt: Date | null
   updatedAt: Date | null
 }
@@ -86,6 +89,7 @@ export type Model3DAssetMaxAggregateOutputType = {
   error: string | null
   progress: number | null
   seed: number | null
+  estimatedCostUsd: number | null
   createdAt: Date | null
   updatedAt: Date | null
 }
@@ -113,6 +117,7 @@ export type Model3DAssetCountAggregateOutputType = {
   error: number
   progress: number
   seed: number
+  estimatedCostUsd: number
   createdAt: number
   updatedAt: number
   _all: number
@@ -122,11 +127,13 @@ export type Model3DAssetCountAggregateOutputType = {
 export type Model3DAssetAvgAggregateInputType = {
   progress?: true
   seed?: true
+  estimatedCostUsd?: true
 }
 
 export type Model3DAssetSumAggregateInputType = {
   progress?: true
   seed?: true
+  estimatedCostUsd?: true
 }
 
 export type Model3DAssetMinAggregateInputType = {
@@ -152,6 +159,7 @@ export type Model3DAssetMinAggregateInputType = {
   error?: true
   progress?: true
   seed?: true
+  estimatedCostUsd?: true
   createdAt?: true
   updatedAt?: true
 }
@@ -179,6 +187,7 @@ export type Model3DAssetMaxAggregateInputType = {
   error?: true
   progress?: true
   seed?: true
+  estimatedCostUsd?: true
   createdAt?: true
   updatedAt?: true
 }
@@ -206,6 +215,7 @@ export type Model3DAssetCountAggregateInputType = {
   error?: true
   progress?: true
   seed?: true
+  estimatedCostUsd?: true
   createdAt?: true
   updatedAt?: true
   _all?: true
@@ -320,6 +330,7 @@ export type Model3DAssetGroupByOutputType = {
   error: string | null
   progress: number | null
   seed: number | null
+  estimatedCostUsd: number | null
   createdAt: Date
   updatedAt: Date
   _count: Model3DAssetCountAggregateOutputType | null
@@ -370,6 +381,7 @@ export type Model3DAssetWhereInput = {
   error?: Prisma.StringNullableFilter<"Model3DAsset"> | string | null
   progress?: Prisma.IntNullableFilter<"Model3DAsset"> | number | null
   seed?: Prisma.IntNullableFilter<"Model3DAsset"> | number | null
+  estimatedCostUsd?: Prisma.FloatNullableFilter<"Model3DAsset"> | number | null
   createdAt?: Prisma.DateTimeFilter<"Model3DAsset"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"Model3DAsset"> | Date | string
   user?: Prisma.XOR<Prisma.UserScalarRelationFilter, Prisma.UserWhereInput>
@@ -398,6 +410,7 @@ export type Model3DAssetOrderByWithRelationInput = {
   error?: Prisma.SortOrderInput | Prisma.SortOrder
   progress?: Prisma.SortOrderInput | Prisma.SortOrder
   seed?: Prisma.SortOrderInput | Prisma.SortOrder
+  estimatedCostUsd?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
   user?: Prisma.UserOrderByWithRelationInput
@@ -429,6 +442,7 @@ export type Model3DAssetWhereUniqueInput = Prisma.AtLeast<{
   error?: Prisma.StringNullableFilter<"Model3DAsset"> | string | null
   progress?: Prisma.IntNullableFilter<"Model3DAsset"> | number | null
   seed?: Prisma.IntNullableFilter<"Model3DAsset"> | number | null
+  estimatedCostUsd?: Prisma.FloatNullableFilter<"Model3DAsset"> | number | null
   createdAt?: Prisma.DateTimeFilter<"Model3DAsset"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"Model3DAsset"> | Date | string
   user?: Prisma.XOR<Prisma.UserScalarRelationFilter, Prisma.UserWhereInput>
@@ -457,6 +471,7 @@ export type Model3DAssetOrderByWithAggregationInput = {
   error?: Prisma.SortOrderInput | Prisma.SortOrder
   progress?: Prisma.SortOrderInput | Prisma.SortOrder
   seed?: Prisma.SortOrderInput | Prisma.SortOrder
+  estimatedCostUsd?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
   _count?: Prisma.Model3DAssetCountOrderByAggregateInput
@@ -492,6 +507,7 @@ export type Model3DAssetScalarWhereWithAggregatesInput = {
   error?: Prisma.StringNullableWithAggregatesFilter<"Model3DAsset"> | string | null
   progress?: Prisma.IntNullableWithAggregatesFilter<"Model3DAsset"> | number | null
   seed?: Prisma.IntNullableWithAggregatesFilter<"Model3DAsset"> | number | null
+  estimatedCostUsd?: Prisma.FloatNullableWithAggregatesFilter<"Model3DAsset"> | number | null
   createdAt?: Prisma.DateTimeWithAggregatesFilter<"Model3DAsset"> | Date | string
   updatedAt?: Prisma.DateTimeWithAggregatesFilter<"Model3DAsset"> | Date | string
 }
@@ -518,6 +534,7 @@ export type Model3DAssetCreateInput = {
   error?: string | null
   progress?: number | null
   seed?: number | null
+  estimatedCostUsd?: number | null
   createdAt?: Date | string
   updatedAt?: Date | string
   user: Prisma.UserCreateNestedOneWithoutModel3DAssetsInput
@@ -546,6 +563,7 @@ export type Model3DAssetUncheckedCreateInput = {
   error?: string | null
   progress?: number | null
   seed?: number | null
+  estimatedCostUsd?: number | null
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -572,6 +590,7 @@ export type Model3DAssetUpdateInput = {
   error?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   progress?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   seed?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  estimatedCostUsd?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   user?: Prisma.UserUpdateOneRequiredWithoutModel3DAssetsNestedInput
@@ -600,6 +619,7 @@ export type Model3DAssetUncheckedUpdateInput = {
   error?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   progress?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   seed?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  estimatedCostUsd?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -627,6 +647,7 @@ export type Model3DAssetCreateManyInput = {
   error?: string | null
   progress?: number | null
   seed?: number | null
+  estimatedCostUsd?: number | null
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -653,6 +674,7 @@ export type Model3DAssetUpdateManyMutationInput = {
   error?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   progress?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   seed?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  estimatedCostUsd?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -680,6 +702,7 @@ export type Model3DAssetUncheckedUpdateManyInput = {
   error?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   progress?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   seed?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  estimatedCostUsd?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -717,6 +740,7 @@ export type Model3DAssetCountOrderByAggregateInput = {
   error?: Prisma.SortOrder
   progress?: Prisma.SortOrder
   seed?: Prisma.SortOrder
+  estimatedCostUsd?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
 }
@@ -724,6 +748,7 @@ export type Model3DAssetCountOrderByAggregateInput = {
 export type Model3DAssetAvgOrderByAggregateInput = {
   progress?: Prisma.SortOrder
   seed?: Prisma.SortOrder
+  estimatedCostUsd?: Prisma.SortOrder
 }
 
 export type Model3DAssetMaxOrderByAggregateInput = {
@@ -749,6 +774,7 @@ export type Model3DAssetMaxOrderByAggregateInput = {
   error?: Prisma.SortOrder
   progress?: Prisma.SortOrder
   seed?: Prisma.SortOrder
+  estimatedCostUsd?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
 }
@@ -776,6 +802,7 @@ export type Model3DAssetMinOrderByAggregateInput = {
   error?: Prisma.SortOrder
   progress?: Prisma.SortOrder
   seed?: Prisma.SortOrder
+  estimatedCostUsd?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
 }
@@ -783,6 +810,7 @@ export type Model3DAssetMinOrderByAggregateInput = {
 export type Model3DAssetSumOrderByAggregateInput = {
   progress?: Prisma.SortOrder
   seed?: Prisma.SortOrder
+  estimatedCostUsd?: Prisma.SortOrder
 }
 
 export type Model3DAssetCreateNestedManyWithoutUserInput = {
@@ -857,6 +885,7 @@ export type Model3DAssetCreateWithoutUserInput = {
   error?: string | null
   progress?: number | null
   seed?: number | null
+  estimatedCostUsd?: number | null
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -883,6 +912,7 @@ export type Model3DAssetUncheckedCreateWithoutUserInput = {
   error?: string | null
   progress?: number | null
   seed?: number | null
+  estimatedCostUsd?: number | null
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -938,6 +968,7 @@ export type Model3DAssetScalarWhereInput = {
   error?: Prisma.StringNullableFilter<"Model3DAsset"> | string | null
   progress?: Prisma.IntNullableFilter<"Model3DAsset"> | number | null
   seed?: Prisma.IntNullableFilter<"Model3DAsset"> | number | null
+  estimatedCostUsd?: Prisma.FloatNullableFilter<"Model3DAsset"> | number | null
   createdAt?: Prisma.DateTimeFilter<"Model3DAsset"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"Model3DAsset"> | Date | string
 }
@@ -964,6 +995,7 @@ export type Model3DAssetCreateManyUserInput = {
   error?: string | null
   progress?: number | null
   seed?: number | null
+  estimatedCostUsd?: number | null
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -990,6 +1022,7 @@ export type Model3DAssetUpdateWithoutUserInput = {
   error?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   progress?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   seed?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  estimatedCostUsd?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -1016,6 +1049,7 @@ export type Model3DAssetUncheckedUpdateWithoutUserInput = {
   error?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   progress?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   seed?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  estimatedCostUsd?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -1042,6 +1076,7 @@ export type Model3DAssetUncheckedUpdateManyWithoutUserInput = {
   error?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   progress?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   seed?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  estimatedCostUsd?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -1071,6 +1106,7 @@ export type Model3DAssetSelect<ExtArgs extends runtime.Types.Extensions.Internal
   error?: boolean
   progress?: boolean
   seed?: boolean
+  estimatedCostUsd?: boolean
   createdAt?: boolean
   updatedAt?: boolean
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
@@ -1099,6 +1135,7 @@ export type Model3DAssetSelectCreateManyAndReturn<ExtArgs extends runtime.Types.
   error?: boolean
   progress?: boolean
   seed?: boolean
+  estimatedCostUsd?: boolean
   createdAt?: boolean
   updatedAt?: boolean
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
@@ -1127,6 +1164,7 @@ export type Model3DAssetSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.
   error?: boolean
   progress?: boolean
   seed?: boolean
+  estimatedCostUsd?: boolean
   createdAt?: boolean
   updatedAt?: boolean
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
@@ -1155,11 +1193,12 @@ export type Model3DAssetSelectScalar = {
   error?: boolean
   progress?: boolean
   seed?: boolean
+  estimatedCostUsd?: boolean
   createdAt?: boolean
   updatedAt?: boolean
 }
 
-export type Model3DAssetOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "userId" | "modelId" | "endpoint" | "mode" | "prompt" | "sourceImageUrls" | "settings" | "modelGlbUrl" | "thumbnailUrl" | "modelUrls" | "textureUrls" | "worldFileUrl" | "gaussianSplatUrl" | "status" | "requestId" | "statusUrl" | "responseUrl" | "cancelUrl" | "error" | "progress" | "seed" | "createdAt" | "updatedAt", ExtArgs["result"]["model3DAsset"]>
+export type Model3DAssetOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "userId" | "modelId" | "endpoint" | "mode" | "prompt" | "sourceImageUrls" | "settings" | "modelGlbUrl" | "thumbnailUrl" | "modelUrls" | "textureUrls" | "worldFileUrl" | "gaussianSplatUrl" | "status" | "requestId" | "statusUrl" | "responseUrl" | "cancelUrl" | "error" | "progress" | "seed" | "estimatedCostUsd" | "createdAt" | "updatedAt", ExtArgs["result"]["model3DAsset"]>
 export type Model3DAssetInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
 }
@@ -1198,6 +1237,7 @@ export type $Model3DAssetPayload<ExtArgs extends runtime.Types.Extensions.Intern
     error: string | null
     progress: number | null
     seed: number | null
+    estimatedCostUsd: number | null
     createdAt: Date
     updatedAt: Date
   }, ExtArgs["result"]["model3DAsset"]>
@@ -1646,6 +1686,7 @@ export interface Model3DAssetFieldRefs {
   readonly error: Prisma.FieldRef<"Model3DAsset", 'String'>
   readonly progress: Prisma.FieldRef<"Model3DAsset", 'Int'>
   readonly seed: Prisma.FieldRef<"Model3DAsset", 'Int'>
+  readonly estimatedCostUsd: Prisma.FieldRef<"Model3DAsset", 'Float'>
   readonly createdAt: Prisma.FieldRef<"Model3DAsset", 'DateTime'>
   readonly updatedAt: Prisma.FieldRef<"Model3DAsset", 'DateTime'>
 }

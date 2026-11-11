@@ -11,6 +11,9 @@ import { ArrowLeft, Download, MoreVertical } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import { MobileNavTabs, type MobileTab } from './MobileNavTabs'
 import { ChatPanel } from '../ChatPanel'
+import { useProduction } from '../director/useProduction'
+import { StoryboardBoard } from '../director/StoryboardBoard'
+import type { ComposerMode } from '../ChatPanel'
 import { VideoPreview } from '../VideoPreview'
 import { Timeline } from '../timeline'
 import { AssetPanel } from '../AssetPanel'
@@ -65,6 +68,7 @@ export function MobileWorkspace({ project }: MobileWorkspaceProps) {
 
   // Active tab
   const [activeTab, setActiveTab] = useState<MobileTab>('preview')
+  const [composerMode, setComposerMode] = useState<ComposerMode>('draft')
 
   // Local state for the manifest
   const [manifest, setManifest] = useState<ProjectManifest>(project.manifest)
@@ -161,6 +165,13 @@ export function MobileWorkspace({ project }: MobileWorkspaceProps) {
       console.error('Failed to refresh manifest:', error)
     }
   }, [project.id])
+
+  const production = useProduction(project.id, {
+    onAssetsChanged: () => {
+      void queryClient.invalidateQueries({ queryKey: ['project', project.id] })
+    },
+    onAssembled: () => void refreshManifest(),
+  })
 
   useEffect(() => {
     if (activeJobs.length === 0) return
@@ -301,6 +312,19 @@ export function MobileWorkspace({ project }: MobileWorkspaceProps) {
               collapsed={false}
               onToggleCollapse={() => {}}
               mode="fullscreen"
+              production={production}
+              composerMode={composerMode}
+              onComposerModeChange={setComposerMode}
+              onOpenStoryboard={() => setActiveTab('storyboard')}
+            />
+          </div>
+        )}
+
+        {activeTab === 'storyboard' && (
+          <div className="h-full">
+            <StoryboardBoard
+              production={production}
+              onOpenEditor={() => setActiveTab('timeline')}
             />
           </div>
         )}

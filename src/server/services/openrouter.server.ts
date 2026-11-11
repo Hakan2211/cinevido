@@ -74,9 +74,14 @@ function getApiKey(userApiKey?: string): string {
 // Types
 // =============================================================================
 
+/** OpenAI-style multimodal parts — text plus images for vision models */
+export type ChatContentPart =
+  | { type: 'text'; text: string }
+  | { type: 'image_url'; image_url: { url: string } }
+
 export interface ChatMessage {
   role: 'system' | 'user' | 'assistant' | 'tool'
-  content: string
+  content: string | Array<ChatContentPart>
   name?: string
   tool_call_id?: string
   tool_calls?: Array<ToolCall>

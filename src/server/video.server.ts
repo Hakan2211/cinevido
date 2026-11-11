@@ -5,6 +5,7 @@
  * Supports text-to-video, image-to-video, and keyframes generation.
  */
 
+import { videoJobCost } from '../lib/job-cost'
 import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod'
 import { prisma } from '../db.server'
@@ -193,6 +194,7 @@ export const generateVideoFn = createServerFn({ method: 'POST' })
           resolution: data.resolution,
           generateAudio: data.generateAudio,
         }),
+        estimatedCostUsd: videoJobCost(modelId, data),
         externalId: job.requestId,
         // Store Fal.ai URLs for reliable status polling
         statusUrl: job.statusUrl,

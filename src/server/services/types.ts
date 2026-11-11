@@ -1809,6 +1809,31 @@ export const DEFAULT_MODELS = {
 } as const
 
 /**
+ * The Director's production loop (src/lib/production.ts). A still sets each
+ * shot's composition; the draft and the final both animate that same still,
+ * so a final keeps the framing the user approved in review.
+ *
+ * `finals` is tried in order and the first that fits the budget wins: Hero
+ * at 1080p, Hero at 720p, then the Workhorse. Every id is in a catalog above
+ * (a unit test checks this).
+ */
+export const DIRECTOR_MODELS = {
+  still: DEFAULT_MODELS.image,
+  draft: 'minimax/h3-max-turbo/image-to-video',
+  finals: [
+    { model: 'kling/v4/image-to-video', resolution: '1080p' },
+    { model: 'kling/v4/image-to-video', resolution: '720p' },
+    { model: 'kling/v4/flash/image-to-video', resolution: '720p' },
+  ],
+  music: 'fal-ai/ace-step',
+  voice: DEFAULT_MODELS.tts,
+  /** fal utility: first/middle/last frame of a clip, $0.0002 per compute second */
+  frameExtract: 'fal-ai/ffmpeg-api/extract-frame',
+  /** vision model (OpenRouter via fal) that compares a draft frame to its shot */
+  selfCheck: 'google/gemini-2.5-flash',
+} as const
+
+/**
  * Use `preferred` if the catalog still offers it, otherwise `fallback`.
  * Stored preferences (User.preferredImageModel, old job inputs) can name a
  * model we have since retired; this keeps them from failing at fal.

@@ -21,6 +21,7 @@ interface ChatRequest {
   message: string
   projectId: string
   model?: string
+  mode?: 'draft' | 'final'
 }
 
 // =============================================================================
@@ -125,6 +126,7 @@ export const Route = createFileRoute('/api/chat')({
           userId: session.user.id,
           userMessage: body.message,
           model: body.model,
+          mode: body.mode === 'final' ? 'final' : 'draft',
         })
 
         // Create SSE stream

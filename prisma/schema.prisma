@@ -52,6 +52,10 @@ model User {
   falBillingKey         String?
   falBillingKeyLastFour String?
 
+  // Credit pill turns amber below this balance and red below a quarter of it.
+  // Null = the default ($2).
+  lowBalanceUsd Float?
+
   // User's Bunny.net storage config (encrypted API key) - BYOK Storage
   bunnyStorageZone    String?   // Storage zone name (e.g., "my-zone")
   bunnyApiKey         String?   // Encrypted API key (AES-256-GCM)
@@ -175,6 +179,11 @@ model Project {
   // Thumbnail for project list
   thumbnailUrl String?
 
+  // Director v2: the production plan (ProductionPlan JSON, src/lib/production.ts)
+  // and the budget a run may spend on renders
+  plan      String?
+  budgetUsd Float   @default(10)
+
   // Related assets and jobs
   assets         Asset[]
   generationJobs GenerationJob[]
@@ -272,6 +281,11 @@ model GenerationJob {
   // Progress percentage (0-100)
   progress Int @default(0)
 
+  // What the run should cost on the user's fal account, worked out from the
+  // catalog price at submit time (src/lib/job-cost.ts). An estimate: fal's
+  // per-request billing API is enterprise-only.
+  estimatedCostUsd Float?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -279,6 +293,7 @@ model GenerationJob {
   @@index([projectId])
   @@index([status])
   @@index([externalId])
+  @@index([createdAt])
   @@map("generation_job")
 }
 
@@ -376,6 +391,9 @@ model Model3DAsset {
 
   // Metadata
   seed Int?
+
+  // Estimated fal cost at submit time (see GenerationJob.estimatedCostUsd)
+  estimatedCostUsd Float?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

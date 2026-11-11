@@ -5,6 +5,7 @@
  * Handles generation jobs, asset creation, and user image library.
  */
 
+import { imageJobCost } from '../lib/job-cost'
 import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod'
 import { prisma } from '../db.server'
@@ -138,6 +139,12 @@ export const generateImageFn = createServerFn({ method: 'POST' })
           numImages,
           imageSizePreset: data.imageSizePreset,
           outputFormat: data.outputFormat,
+        }),
+        estimatedCostUsd: imageJobCost(modelId, {
+          width: data.width || 1024,
+          height: data.height || 1024,
+          quality: data.quality,
+          numImages,
         }),
         externalId: job.requestId,
         // Store Fal.ai URLs for reliable status polling

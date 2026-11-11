@@ -98,6 +98,7 @@ export const UserScalarFieldEnum = {
   falApiKeyAddedAt: 'falApiKeyAddedAt',
   falBillingKey: 'falBillingKey',
   falBillingKeyLastFour: 'falBillingKeyLastFour',
+  lowBalanceUsd: 'lowBalanceUsd',
   bunnyStorageZone: 'bunnyStorageZone',
   bunnyApiKey: 'bunnyApiKey',
   bunnyApiKeyLastFour: 'bunnyApiKeyLastFour',
@@ -183,6 +184,8 @@ export const ProjectScalarFieldEnum = {
   status: 'status',
   outputUrl: 'outputUrl',
   thumbnailUrl: 'thumbnailUrl',
+  plan: 'plan',
+  budgetUsd: 'budgetUsd',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 } as const
@@ -224,6 +227,7 @@ export const GenerationJobScalarFieldEnum = {
   responseUrl: 'responseUrl',
   cancelUrl: 'cancelUrl',
   progress: 'progress',
+  estimatedCostUsd: 'estimatedCostUsd',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 } as const
@@ -283,6 +287,7 @@ export const Model3DAssetScalarFieldEnum = {
   error: 'error',
   progress: 'progress',
   seed: 'seed',
+  estimatedCostUsd: 'estimatedCostUsd',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 } as const

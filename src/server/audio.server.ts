@@ -6,6 +6,7 @@
  * "sfx" and land on the SFX lane. Music has its own module (music.server.ts).
  */
 
+import { sfxJobCost } from '../lib/job-cost'
 import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod'
 import { prisma } from '../db.server'
@@ -64,6 +65,7 @@ export const createSfxFn = createServerFn({ method: 'POST' })
         provider: 'fal',
         model: modelId,
         input: JSON.stringify(data),
+        estimatedCostUsd: sfxJobCost(modelId, data.durationSec),
       },
     })
 
@@ -97,6 +99,11 @@ export const createSfxFn = createServerFn({ method: 'POST' })
         data: {
           status: 'completed',
           output: JSON.stringify({ url: result.audioUrl, assetId: asset.id }),
+          // auto length was priced at the ceiling; now we know the real one
+          estimatedCostUsd: sfxJobCost(
+            modelId,
+            result.durationSec ?? data.durationSec,
+          ),
         },
       })
       return { assetId: asset.id, url: result.audioUrl }

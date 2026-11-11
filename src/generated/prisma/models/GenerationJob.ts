@@ -28,10 +28,12 @@ export type AggregateGenerationJob = {
 
 export type GenerationJobAvgAggregateOutputType = {
   progress: number | null
+  estimatedCostUsd: number | null
 }
 
 export type GenerationJobSumAggregateOutputType = {
   progress: number | null
+  estimatedCostUsd: number | null
 }
 
 export type GenerationJobMinAggregateOutputType = {
@@ -50,6 +52,7 @@ export type GenerationJobMinAggregateOutputType = {
   responseUrl: string | null
   cancelUrl: string | null
   progress: number | null
+  estimatedCostUsd: number | null
   createdAt: Date | null
   updatedAt: Date | null
 }
@@ -70,6 +73,7 @@ export type GenerationJobMaxAggregateOutputType = {
   responseUrl: string | null
   cancelUrl: string | null
   progress: number | null
+  estimatedCostUsd: number | null
   createdAt: Date | null
   updatedAt: Date | null
 }
@@ -90,6 +94,7 @@ export type GenerationJobCountAggregateOutputType = {
   responseUrl: number
   cancelUrl: number
   progress: number
+  estimatedCostUsd: number
   createdAt: number
   updatedAt: number
   _all: number
@@ -98,10 +103,12 @@ export type GenerationJobCountAggregateOutputType = {
 
 export type GenerationJobAvgAggregateInputType = {
   progress?: true
+  estimatedCostUsd?: true
 }
 
 export type GenerationJobSumAggregateInputType = {
   progress?: true
+  estimatedCostUsd?: true
 }
 
 export type GenerationJobMinAggregateInputType = {
@@ -120,6 +127,7 @@ export type GenerationJobMinAggregateInputType = {
   responseUrl?: true
   cancelUrl?: true
   progress?: true
+  estimatedCostUsd?: true
   createdAt?: true
   updatedAt?: true
 }
@@ -140,6 +148,7 @@ export type GenerationJobMaxAggregateInputType = {
   responseUrl?: true
   cancelUrl?: true
   progress?: true
+  estimatedCostUsd?: true
   createdAt?: true
   updatedAt?: true
 }
@@ -160,6 +169,7 @@ export type GenerationJobCountAggregateInputType = {
   responseUrl?: true
   cancelUrl?: true
   progress?: true
+  estimatedCostUsd?: true
   createdAt?: true
   updatedAt?: true
   _all?: true
@@ -267,6 +277,7 @@ export type GenerationJobGroupByOutputType = {
   responseUrl: string | null
   cancelUrl: string | null
   progress: number
+  estimatedCostUsd: number | null
   createdAt: Date
   updatedAt: Date
   _count: GenerationJobCountAggregateOutputType | null
@@ -310,6 +321,7 @@ export type GenerationJobWhereInput = {
   responseUrl?: Prisma.StringNullableFilter<"GenerationJob"> | string | null
   cancelUrl?: Prisma.StringNullableFilter<"GenerationJob"> | string | null
   progress?: Prisma.IntFilter<"GenerationJob"> | number
+  estimatedCostUsd?: Prisma.FloatNullableFilter<"GenerationJob"> | number | null
   createdAt?: Prisma.DateTimeFilter<"GenerationJob"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"GenerationJob"> | Date | string
   user?: Prisma.XOR<Prisma.UserScalarRelationFilter, Prisma.UserWhereInput>
@@ -332,6 +344,7 @@ export type GenerationJobOrderByWithRelationInput = {
   responseUrl?: Prisma.SortOrderInput | Prisma.SortOrder
   cancelUrl?: Prisma.SortOrderInput | Prisma.SortOrder
   progress?: Prisma.SortOrder
+  estimatedCostUsd?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
   user?: Prisma.UserOrderByWithRelationInput
@@ -357,6 +370,7 @@ export type GenerationJobWhereUniqueInput = Prisma.AtLeast<{
   responseUrl?: Prisma.StringNullableFilter<"GenerationJob"> | string | null
   cancelUrl?: Prisma.StringNullableFilter<"GenerationJob"> | string | null
   progress?: Prisma.IntFilter<"GenerationJob"> | number
+  estimatedCostUsd?: Prisma.FloatNullableFilter<"GenerationJob"> | number | null
   createdAt?: Prisma.DateTimeFilter<"GenerationJob"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"GenerationJob"> | Date | string
   user?: Prisma.XOR<Prisma.UserScalarRelationFilter, Prisma.UserWhereInput>
@@ -379,6 +393,7 @@ export type GenerationJobOrderByWithAggregationInput = {
   responseUrl?: Prisma.SortOrderInput | Prisma.SortOrder
   cancelUrl?: Prisma.SortOrderInput | Prisma.SortOrder
   progress?: Prisma.SortOrder
+  estimatedCostUsd?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
   _count?: Prisma.GenerationJobCountOrderByAggregateInput
@@ -407,6 +422,7 @@ export type GenerationJobScalarWhereWithAggregatesInput = {
   responseUrl?: Prisma.StringNullableWithAggregatesFilter<"GenerationJob"> | string | null
   cancelUrl?: Prisma.StringNullableWithAggregatesFilter<"GenerationJob"> | string | null
   progress?: Prisma.IntWithAggregatesFilter<"GenerationJob"> | number
+  estimatedCostUsd?: Prisma.FloatNullableWithAggregatesFilter<"GenerationJob"> | number | null
   createdAt?: Prisma.DateTimeWithAggregatesFilter<"GenerationJob"> | Date | string
   updatedAt?: Prisma.DateTimeWithAggregatesFilter<"GenerationJob"> | Date | string
 }
@@ -425,6 +441,7 @@ export type GenerationJobCreateInput = {
   responseUrl?: string | null
   cancelUrl?: string | null
   progress?: number
+  estimatedCostUsd?: number | null
   createdAt?: Date | string
   updatedAt?: Date | string
   user: Prisma.UserCreateNestedOneWithoutGenerationJobsInput
@@ -447,6 +464,7 @@ export type GenerationJobUncheckedCreateInput = {
   responseUrl?: string | null
   cancelUrl?: string | null
   progress?: number
+  estimatedCostUsd?: number | null
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -465,6 +483,7 @@ export type GenerationJobUpdateInput = {
   responseUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   cancelUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   progress?: Prisma.IntFieldUpdateOperationsInput | number
+  estimatedCostUsd?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   user?: Prisma.UserUpdateOneRequiredWithoutGenerationJobsNestedInput
@@ -487,6 +506,7 @@ export type GenerationJobUncheckedUpdateInput = {
   responseUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   cancelUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   progress?: Prisma.IntFieldUpdateOperationsInput | number
+  estimatedCostUsd?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -507,6 +527,7 @@ export type GenerationJobCreateManyInput = {
   responseUrl?: string | null
   cancelUrl?: string | null
   progress?: number
+  estimatedCostUsd?: number | null
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -525,6 +546,7 @@ export type GenerationJobUpdateManyMutationInput = {
   responseUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   cancelUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   progress?: Prisma.IntFieldUpdateOperationsInput | number
+  estimatedCostUsd?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -545,6 +567,7 @@ export type GenerationJobUncheckedUpdateManyInput = {
   responseUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   cancelUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   progress?: Prisma.IntFieldUpdateOperationsInput | number
+  estimatedCostUsd?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -575,12 +598,14 @@ export type GenerationJobCountOrderByAggregateInput = {
   responseUrl?: Prisma.SortOrder
   cancelUrl?: Prisma.SortOrder
   progress?: Prisma.SortOrder
+  estimatedCostUsd?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
 }
 
 export type GenerationJobAvgOrderByAggregateInput = {
   progress?: Prisma.SortOrder
+  estimatedCostUsd?: Prisma.SortOrder
 }
 
 export type GenerationJobMaxOrderByAggregateInput = {
@@ -599,6 +624,7 @@ export type GenerationJobMaxOrderByAggregateInput = {
   responseUrl?: Prisma.SortOrder
   cancelUrl?: Prisma.SortOrder
   progress?: Prisma.SortOrder
+  estimatedCostUsd?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
 }
@@ -619,12 +645,14 @@ export type GenerationJobMinOrderByAggregateInput = {
   responseUrl?: Prisma.SortOrder
   cancelUrl?: Prisma.SortOrder
   progress?: Prisma.SortOrder
+  estimatedCostUsd?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
 }
 
 export type GenerationJobSumOrderByAggregateInput = {
   progress?: Prisma.SortOrder
+  estimatedCostUsd?: Prisma.SortOrder
 }
 
 export type GenerationJobCreateNestedManyWithoutUserInput = {
@@ -725,6 +753,7 @@ export type GenerationJobCreateWithoutUserInput = {
   responseUrl?: string | null
   cancelUrl?: string | null
   progress?: number
+  estimatedCostUsd?: number | null
   createdAt?: Date | string
   updatedAt?: Date | string
   project?: Prisma.ProjectCreateNestedOneWithoutGenerationJobsInput
@@ -745,6 +774,7 @@ export type GenerationJobUncheckedCreateWithoutUserInput = {
   responseUrl?: string | null
   cancelUrl?: string | null
   progress?: number
+  estimatedCostUsd?: number | null
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -793,6 +823,7 @@ export type GenerationJobScalarWhereInput = {
   responseUrl?: Prisma.StringNullableFilter<"GenerationJob"> | string | null
   cancelUrl?: Prisma.StringNullableFilter<"GenerationJob"> | string | null
   progress?: Prisma.IntFilter<"GenerationJob"> | number
+  estimatedCostUsd?: Prisma.FloatNullableFilter<"GenerationJob"> | number | null
   createdAt?: Prisma.DateTimeFilter<"GenerationJob"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"GenerationJob"> | Date | string
 }
@@ -811,6 +842,7 @@ export type GenerationJobCreateWithoutProjectInput = {
   responseUrl?: string | null
   cancelUrl?: string | null
   progress?: number
+  estimatedCostUsd?: number | null
   createdAt?: Date | string
   updatedAt?: Date | string
   user: Prisma.UserCreateNestedOneWithoutGenerationJobsInput
@@ -831,6 +863,7 @@ export type GenerationJobUncheckedCreateWithoutProjectInput = {
   responseUrl?: string | null
   cancelUrl?: string | null
   progress?: number
+  estimatedCostUsd?: number | null
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -875,6 +908,7 @@ export type GenerationJobCreateManyUserInput = {
   responseUrl?: string | null
   cancelUrl?: string | null
   progress?: number
+  estimatedCostUsd?: number | null
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -893,6 +927,7 @@ export type GenerationJobUpdateWithoutUserInput = {
   responseUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   cancelUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   progress?: Prisma.IntFieldUpdateOperationsInput | number
+  estimatedCostUsd?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   project?: Prisma.ProjectUpdateOneWithoutGenerationJobsNestedInput
@@ -913,6 +948,7 @@ export type GenerationJobUncheckedUpdateWithoutUserInput = {
   responseUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   cancelUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   progress?: Prisma.IntFieldUpdateOperationsInput | number
+  estimatedCostUsd?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -932,6 +968,7 @@ export type GenerationJobUncheckedUpdateManyWithoutUserInput = {
   responseUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   cancelUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   progress?: Prisma.IntFieldUpdateOperationsInput | number
+  estimatedCostUsd?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -951,6 +988,7 @@ export type GenerationJobCreateManyProjectInput = {
   responseUrl?: string | null
   cancelUrl?: string | null
   progress?: number
+  estimatedCostUsd?: number | null
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -969,6 +1007,7 @@ export type GenerationJobUpdateWithoutProjectInput = {
   responseUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   cancelUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   progress?: Prisma.IntFieldUpdateOperationsInput | number
+  estimatedCostUsd?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   user?: Prisma.UserUpdateOneRequiredWithoutGenerationJobsNestedInput
@@ -989,6 +1028,7 @@ export type GenerationJobUncheckedUpdateWithoutProjectInput = {
   responseUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   cancelUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   progress?: Prisma.IntFieldUpdateOperationsInput | number
+  estimatedCostUsd?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -1008,6 +1048,7 @@ export type GenerationJobUncheckedUpdateManyWithoutProjectInput = {
   responseUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   cancelUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   progress?: Prisma.IntFieldUpdateOperationsInput | number
+  estimatedCostUsd?: Prisma.NullableFloatFieldUpdateOperationsInput | number | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -1030,6 +1071,7 @@ export type GenerationJobSelect<ExtArgs extends runtime.Types.Extensions.Interna
   responseUrl?: boolean
   cancelUrl?: boolean
   progress?: boolean
+  estimatedCostUsd?: boolean
   createdAt?: boolean
   updatedAt?: boolean
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
@@ -1052,6 +1094,7 @@ export type GenerationJobSelectCreateManyAndReturn<ExtArgs extends runtime.Types
   responseUrl?: boolean
   cancelUrl?: boolean
   progress?: boolean
+  estimatedCostUsd?: boolean
   createdAt?: boolean
   updatedAt?: boolean
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
@@ -1074,6 +1117,7 @@ export type GenerationJobSelectUpdateManyAndReturn<ExtArgs extends runtime.Types
   responseUrl?: boolean
   cancelUrl?: boolean
   progress?: boolean
+  estimatedCostUsd?: boolean
   createdAt?: boolean
   updatedAt?: boolean
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
@@ -1096,11 +1140,12 @@ export type GenerationJobSelectScalar = {
   responseUrl?: boolean
   cancelUrl?: boolean
   progress?: boolean
+  estimatedCostUsd?: boolean
   createdAt?: boolean
   updatedAt?: boolean
 }
 
-export type GenerationJobOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "userId" | "projectId" | "type" | "status" | "provider" | "model" | "input" | "output" | "error" | "externalId" | "statusUrl" | "responseUrl" | "cancelUrl" | "progress" | "createdAt" | "updatedAt", ExtArgs["result"]["generationJob"]>
+export type GenerationJobOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "userId" | "projectId" | "type" | "status" | "provider" | "model" | "input" | "output" | "error" | "externalId" | "statusUrl" | "responseUrl" | "cancelUrl" | "progress" | "estimatedCostUsd" | "createdAt" | "updatedAt", ExtArgs["result"]["generationJob"]>
 export type GenerationJobInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
   project?: boolean | Prisma.GenerationJob$projectArgs<ExtArgs>
@@ -1136,6 +1181,7 @@ export type $GenerationJobPayload<ExtArgs extends runtime.Types.Extensions.Inter
     responseUrl: string | null
     cancelUrl: string | null
     progress: number
+    estimatedCostUsd: number | null
     createdAt: Date
     updatedAt: Date
   }, ExtArgs["result"]["generationJob"]>
@@ -1578,6 +1624,7 @@ export interface GenerationJobFieldRefs {
   readonly responseUrl: Prisma.FieldRef<"GenerationJob", 'String'>
   readonly cancelUrl: Prisma.FieldRef<"GenerationJob", 'String'>
   readonly progress: Prisma.FieldRef<"GenerationJob", 'Int'>
+  readonly estimatedCostUsd: Prisma.FieldRef<"GenerationJob", 'Float'>
   readonly createdAt: Prisma.FieldRef<"GenerationJob", 'DateTime'>
   readonly updatedAt: Prisma.FieldRef<"GenerationJob", 'DateTime'>
 }

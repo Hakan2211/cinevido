@@ -22,17 +22,22 @@ import { Route as ApiChatRouteImport } from './routes/api/chat'
 import { Route as AuthSignupRouteImport } from './routes/_auth/signup'
 import { Route as AuthLoginRouteImport } from './routes/_auth/login'
 import { Route as AppSetupRouteImport } from './routes/_app/setup'
+import { Route as AppSettingsRouteImport } from './routes/_app/settings'
 import { Route as AppProfileRouteImport } from './routes/_app/profile'
 import { Route as AppDashboardRouteImport } from './routes/_app/dashboard'
 import { Route as AppAdminRouteImport } from './routes/_app/admin'
 import { Route as App3dModelsRouteImport } from './routes/_app/3d-models'
 import { Route as AppVideosIndexRouteImport } from './routes/_app/videos/index'
+import { Route as AppSettingsIndexRouteImport } from './routes/_app/settings/index'
 import { Route as AppProjectsIndexRouteImport } from './routes/_app/projects/index'
 import { Route as AppMusicIndexRouteImport } from './routes/_app/music/index'
 import { Route as AppMotionControlIndexRouteImport } from './routes/_app/motion-control/index'
 import { Route as AppImagesIndexRouteImport } from './routes/_app/images/index'
 import { Route as ApiStripeWebhookRouteImport } from './routes/api/stripe/webhook'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
+import { Route as AppSettingsProvidersRouteImport } from './routes/_app/settings/providers'
+import { Route as AppSettingsGeneralRouteImport } from './routes/_app/settings/general'
+import { Route as AppSettingsBillingRouteImport } from './routes/_app/settings/billing'
 import { Route as AppProjectsProjectIdRouteImport } from './routes/_app/projects/$projectId'
 
 const TermsRoute = TermsRouteImport.update({
@@ -98,6 +103,11 @@ const AppSetupRoute = AppSetupRouteImport.update({
   path: '/setup',
   getParentRoute: () => AppRoute,
 } as any)
+const AppSettingsRoute = AppSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppProfileRoute = AppProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
@@ -122,6 +132,11 @@ const AppVideosIndexRoute = AppVideosIndexRouteImport.update({
   id: '/videos/',
   path: '/videos/',
   getParentRoute: () => AppRoute,
+} as any)
+const AppSettingsIndexRoute = AppSettingsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AppSettingsRoute,
 } as any)
 const AppProjectsIndexRoute = AppProjectsIndexRouteImport.update({
   id: '/projects/',
@@ -153,6 +168,21 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   path: '/api/auth/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AppSettingsProvidersRoute = AppSettingsProvidersRouteImport.update({
+  id: '/providers',
+  path: '/providers',
+  getParentRoute: () => AppSettingsRoute,
+} as any)
+const AppSettingsGeneralRoute = AppSettingsGeneralRouteImport.update({
+  id: '/general',
+  path: '/general',
+  getParentRoute: () => AppSettingsRoute,
+} as any)
+const AppSettingsBillingRoute = AppSettingsBillingRouteImport.update({
+  id: '/billing',
+  path: '/billing',
+  getParentRoute: () => AppSettingsRoute,
+} as any)
 const AppProjectsProjectIdRoute = AppProjectsProjectIdRouteImport.update({
   id: '/projects/$projectId',
   path: '/projects/$projectId',
@@ -169,6 +199,7 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AppAdminRoute
   '/dashboard': typeof AppDashboardRoute
   '/profile': typeof AppProfileRoute
+  '/settings': typeof AppSettingsRouteWithChildren
   '/setup': typeof AppSetupRoute
   '/login': typeof AuthLoginRoute
   '/signup': typeof AuthSignupRoute
@@ -176,12 +207,16 @@ export interface FileRoutesByFullPath {
   '/api/health': typeof ApiHealthRoute
   '/api/proxy-glb': typeof ApiProxyGlbRoute
   '/projects/$projectId': typeof AppProjectsProjectIdRoute
+  '/settings/billing': typeof AppSettingsBillingRoute
+  '/settings/general': typeof AppSettingsGeneralRoute
+  '/settings/providers': typeof AppSettingsProvidersRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/stripe/webhook': typeof ApiStripeWebhookRoute
   '/images': typeof AppImagesIndexRoute
   '/motion-control': typeof AppMotionControlIndexRoute
   '/music': typeof AppMusicIndexRoute
   '/projects': typeof AppProjectsIndexRoute
+  '/settings/': typeof AppSettingsIndexRoute
   '/videos': typeof AppVideosIndexRoute
 }
 export interface FileRoutesByTo {
@@ -201,12 +236,16 @@ export interface FileRoutesByTo {
   '/api/health': typeof ApiHealthRoute
   '/api/proxy-glb': typeof ApiProxyGlbRoute
   '/projects/$projectId': typeof AppProjectsProjectIdRoute
+  '/settings/billing': typeof AppSettingsBillingRoute
+  '/settings/general': typeof AppSettingsGeneralRoute
+  '/settings/providers': typeof AppSettingsProvidersRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/stripe/webhook': typeof ApiStripeWebhookRoute
   '/images': typeof AppImagesIndexRoute
   '/motion-control': typeof AppMotionControlIndexRoute
   '/music': typeof AppMusicIndexRoute
   '/projects': typeof AppProjectsIndexRoute
+  '/settings': typeof AppSettingsIndexRoute
   '/videos': typeof AppVideosIndexRoute
 }
 export interface FileRoutesById {
@@ -222,6 +261,7 @@ export interface FileRoutesById {
   '/_app/admin': typeof AppAdminRoute
   '/_app/dashboard': typeof AppDashboardRoute
   '/_app/profile': typeof AppProfileRoute
+  '/_app/settings': typeof AppSettingsRouteWithChildren
   '/_app/setup': typeof AppSetupRoute
   '/_auth/login': typeof AuthLoginRoute
   '/_auth/signup': typeof AuthSignupRoute
@@ -229,12 +269,16 @@ export interface FileRoutesById {
   '/api/health': typeof ApiHealthRoute
   '/api/proxy-glb': typeof ApiProxyGlbRoute
   '/_app/projects/$projectId': typeof AppProjectsProjectIdRoute
+  '/_app/settings/billing': typeof AppSettingsBillingRoute
+  '/_app/settings/general': typeof AppSettingsGeneralRoute
+  '/_app/settings/providers': typeof AppSettingsProvidersRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/stripe/webhook': typeof ApiStripeWebhookRoute
   '/_app/images/': typeof AppImagesIndexRoute
   '/_app/motion-control/': typeof AppMotionControlIndexRoute
   '/_app/music/': typeof AppMusicIndexRoute
   '/_app/projects/': typeof AppProjectsIndexRoute
+  '/_app/settings/': typeof AppSettingsIndexRoute
   '/_app/videos/': typeof AppVideosIndexRoute
 }
 export interface FileRouteTypes {
@@ -249,6 +293,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/dashboard'
     | '/profile'
+    | '/settings'
     | '/setup'
     | '/login'
     | '/signup'
@@ -256,12 +301,16 @@ export interface FileRouteTypes {
     | '/api/health'
     | '/api/proxy-glb'
     | '/projects/$projectId'
+    | '/settings/billing'
+    | '/settings/general'
+    | '/settings/providers'
     | '/api/auth/$'
     | '/api/stripe/webhook'
     | '/images'
     | '/motion-control'
     | '/music'
     | '/projects'
+    | '/settings/'
     | '/videos'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -281,12 +330,16 @@ export interface FileRouteTypes {
     | '/api/health'
     | '/api/proxy-glb'
     | '/projects/$projectId'
+    | '/settings/billing'
+    | '/settings/general'
+    | '/settings/providers'
     | '/api/auth/$'
     | '/api/stripe/webhook'
     | '/images'
     | '/motion-control'
     | '/music'
     | '/projects'
+    | '/settings'
     | '/videos'
   id:
     | '__root__'
@@ -301,6 +354,7 @@ export interface FileRouteTypes {
     | '/_app/admin'
     | '/_app/dashboard'
     | '/_app/profile'
+    | '/_app/settings'
     | '/_app/setup'
     | '/_auth/login'
     | '/_auth/signup'
@@ -308,12 +362,16 @@ export interface FileRouteTypes {
     | '/api/health'
     | '/api/proxy-glb'
     | '/_app/projects/$projectId'
+    | '/_app/settings/billing'
+    | '/_app/settings/general'
+    | '/_app/settings/providers'
     | '/api/auth/$'
     | '/api/stripe/webhook'
     | '/_app/images/'
     | '/_app/motion-control/'
     | '/_app/music/'
     | '/_app/projects/'
+    | '/_app/settings/'
     | '/_app/videos/'
   fileRoutesById: FileRoutesById
 }
@@ -425,6 +483,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSetupRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/settings': {
+      id: '/_app/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof AppSettingsRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/profile': {
       id: '/_app/profile'
       path: '/profile'
@@ -459,6 +524,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/videos'
       preLoaderRoute: typeof AppVideosIndexRouteImport
       parentRoute: typeof AppRoute
+    }
+    '/_app/settings/': {
+      id: '/_app/settings/'
+      path: '/'
+      fullPath: '/settings/'
+      preLoaderRoute: typeof AppSettingsIndexRouteImport
+      parentRoute: typeof AppSettingsRoute
     }
     '/_app/projects/': {
       id: '/_app/projects/'
@@ -502,6 +574,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAuthSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_app/settings/providers': {
+      id: '/_app/settings/providers'
+      path: '/providers'
+      fullPath: '/settings/providers'
+      preLoaderRoute: typeof AppSettingsProvidersRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
+    '/_app/settings/general': {
+      id: '/_app/settings/general'
+      path: '/general'
+      fullPath: '/settings/general'
+      preLoaderRoute: typeof AppSettingsGeneralRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
+    '/_app/settings/billing': {
+      id: '/_app/settings/billing'
+      path: '/billing'
+      fullPath: '/settings/billing'
+      preLoaderRoute: typeof AppSettingsBillingRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
     '/_app/projects/$projectId': {
       id: '/_app/projects/$projectId'
       path: '/projects/$projectId'
@@ -512,11 +605,30 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface AppSettingsRouteChildren {
+  AppSettingsBillingRoute: typeof AppSettingsBillingRoute
+  AppSettingsGeneralRoute: typeof AppSettingsGeneralRoute
+  AppSettingsProvidersRoute: typeof AppSettingsProvidersRoute
+  AppSettingsIndexRoute: typeof AppSettingsIndexRoute
+}
+
+const AppSettingsRouteChildren: AppSettingsRouteChildren = {
+  AppSettingsBillingRoute: AppSettingsBillingRoute,
+  AppSettingsGeneralRoute: AppSettingsGeneralRoute,
+  AppSettingsProvidersRoute: AppSettingsProvidersRoute,
+  AppSettingsIndexRoute: AppSettingsIndexRoute,
+}
+
+const AppSettingsRouteWithChildren = AppSettingsRoute._addFileChildren(
+  AppSettingsRouteChildren,
+)
+
 interface AppRouteChildren {
   App3dModelsRoute: typeof App3dModelsRoute
   AppAdminRoute: typeof AppAdminRoute
   AppDashboardRoute: typeof AppDashboardRoute
   AppProfileRoute: typeof AppProfileRoute
+  AppSettingsRoute: typeof AppSettingsRouteWithChildren
   AppSetupRoute: typeof AppSetupRoute
   AppProjectsProjectIdRoute: typeof AppProjectsProjectIdRoute
   AppImagesIndexRoute: typeof AppImagesIndexRoute
@@ -531,6 +643,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppAdminRoute: AppAdminRoute,
   AppDashboardRoute: AppDashboardRoute,
   AppProfileRoute: AppProfileRoute,
+  AppSettingsRoute: AppSettingsRouteWithChildren,
   AppSetupRoute: AppSetupRoute,
   AppProjectsProjectIdRoute: AppProjectsProjectIdRoute,
   AppImagesIndexRoute: AppImagesIndexRoute,

@@ -5,6 +5,7 @@
  * Jobs are queued and processed asynchronously with status polling.
  */
 
+import { imageJobCost, speechJobCost, videoJobCost } from '../lib/job-cost'
 import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod'
 import { prisma } from '../db.server'
@@ -89,6 +90,7 @@ export const createImageJobFn = createServerFn({ method: 'POST' })
           width: data.width || 1024,
           height: data.height || 1024,
         }),
+        estimatedCostUsd: imageJobCost(modelId, data),
       },
     })
 
@@ -155,6 +157,9 @@ export const createVideoJobFn = createServerFn({ method: 'POST' })
         input: JSON.stringify({
           imageUrl: data.imageUrl,
           prompt: data.prompt,
+          duration: data.duration || 5,
+        }),
+        estimatedCostUsd: videoJobCost(modelId, {
           duration: data.duration || 5,
         }),
       },
@@ -227,6 +232,7 @@ export const createAudioJobFn = createServerFn({ method: 'POST' })
           text: data.text,
           voice,
         }),
+        estimatedCostUsd: speechJobCost(modelId, data.text),
       },
     })
 

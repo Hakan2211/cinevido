@@ -656,6 +656,8 @@ function ImagesPage() {
         model: upscaleModel,
         scale: upscaleScale,
         sourceAssetId: upscaleSource.id,
+        sourceWidth: upscaleSource.metadata?.width,
+        sourceHeight: upscaleSource.metadata?.height,
         ...(isSeedVR && {
           upscaleMode,
           targetResolution:

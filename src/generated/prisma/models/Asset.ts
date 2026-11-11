@@ -601,14 +601,6 @@ export type AssetUncheckedUpdateManyWithoutProjectNestedInput = {
   deleteMany?: Prisma.AssetScalarWhereInput | Prisma.AssetScalarWhereInput[]
 }
 
-export type NullableFloatFieldUpdateOperationsInput = {
-  set?: number | null
-  increment?: number
-  decrement?: number
-  multiply?: number
-  divide?: number
-}
-
 export type AssetCreateWithoutUserInput = {
   id?: string
   type: string

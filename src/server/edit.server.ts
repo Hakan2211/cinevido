@@ -6,6 +6,7 @@
  * - Upscaling (enhance resolution with AI)
  */
 
+import { editJobCost, imageUpscaleJobCost } from '../lib/job-cost'
 import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod'
 import { prisma } from '../db.server'
@@ -53,6 +54,9 @@ const upscaleSchema = z.object({
   sourceAssetId: z.string().optional(),
   projectId: z.string().optional(),
   outputFormat: z.enum(['png', 'jpg', 'jpeg', 'webp']).optional(),
+  // Source size, to price the output megapixels (unknown → 1024²)
+  sourceWidth: z.number().int().positive().optional(),
+  sourceHeight: z.number().int().positive().optional(),
 
   // Legacy fields (for old models compatibility)
   creativity: z.number().min(0).max(1).optional(),
@@ -151,6 +155,7 @@ export const editImageFn = createServerFn({ method: 'POST' })
           statusUrl: job.statusUrl,
           responseUrl: job.responseUrl,
         }),
+        estimatedCostUsd: editJobCost(modelId, data),
         externalId: job.requestId,
       },
     })
@@ -244,6 +249,7 @@ export const upscaleImageFn = createServerFn({ method: 'POST' })
           statusUrl: job.statusUrl,
           responseUrl: job.responseUrl,
         }),
+        estimatedCostUsd: imageUpscaleJobCost(modelId, data),
         externalId: job.requestId,
       },
     })

@@ -5,6 +5,7 @@
  * Supports text-to-3D, image-to-3D, and image-to-world generation.
  */
 
+import { model3DCost, toUsd } from '../lib/job-cost'
 import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod'
 import { prisma } from '../db.server'
@@ -205,6 +206,19 @@ export const generate3DModelFn = createServerFn({ method: 'POST' })
           topology: data.topology,
           targetPolycount: data.targetPolycount,
         }),
+        estimatedCostUsd: toUsd(
+          model3DCost(modelConfig, {
+            enablePbr: data.enablePbr,
+            faceCount: data.faceCount,
+            generateType: data.generateType,
+            meshyMode: data.meshyMode,
+            imageCount:
+              (data.imageUrls?.length ?? (data.imageUrl ? 1 : 0)) +
+              [data.backImageUrl, data.leftImageUrl, data.rightImageUrl].filter(
+                Boolean,
+              ).length,
+          }),
+        ),
         status: 'pending',
         requestId: job.requestId,
         statusUrl: job.statusUrl,

@@ -68,7 +68,7 @@ export const createBillingPortalFn = createServerFn({ method: 'POST' })
 
     const result = await createBillingPortalSession(
       context.user.id,
-      `${baseUrl}/profile`,
+      `${baseUrl}/settings/billing`,
     )
 
     return result

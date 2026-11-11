@@ -6,6 +6,7 @@
  * than sharing the Voice lane with narration.
  */
 
+import { musicJobCost } from '../lib/job-cost'
 import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod'
 import { prisma } from '../db.server'
@@ -113,6 +114,7 @@ export const generateMusicFn = createServerFn({ method: 'POST' })
           negativePrompt: data.negativePrompt,
           title: data.title,
         }),
+        estimatedCostUsd: musicJobCost(modelId, durationSec),
         externalId: job.requestId,
         statusUrl: job.statusUrl,
         responseUrl: job.responseUrl,

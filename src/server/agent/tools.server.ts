@@ -169,6 +169,77 @@ export const updateTimelineSchema = z.object({
     .describe('Background color hex (for setBackground, e.g., "#000000")'),
 })
 
+export const proposePlanSchema = z.object({
+  title: z.string().min(1).max(120).describe('Working title of the production'),
+  format: z
+    .string()
+    .max(40)
+    .optional()
+    .describe('What it is, in two or three words: "ad", "product teaser", "music video"'),
+  shots: z
+    .array(
+      z.object({
+        title: z.string().min(1).max(80).describe('Short shot name, e.g. "Morning Light"'),
+        description: z
+          .string()
+          .min(1)
+          .max(240)
+          .describe('One line for the storyboard card: what the viewer sees and why'),
+        durationSec: z
+          .number()
+          .min(3)
+          .max(15)
+          .describe('Shot length in seconds; 5 suits most shots, 8-10 for slow establishing shots'),
+        prompt: z
+          .string()
+          .min(20)
+          .max(1200)
+          .describe(
+            'Image prompt for the first frame of the shot: subject, composition, lens/framing, lighting, palette, style. Repeat recurring characters/products with the same wording in every shot for consistency.',
+          ),
+        motion: z
+          .string()
+          .min(5)
+          .max(500)
+          .describe('What moves during the shot: camera move and action, e.g. "slow push-in, steam rises from the cup"'),
+      }),
+    )
+    .min(1)
+    .max(12)
+    .describe('The shots in order'),
+  voiceoverScript: z
+    .string()
+    .max(2000)
+    .optional()
+    .describe('Narration to record over the cut, if the brief wants one. Fit it to the total length (~2.5 words per second).'),
+  musicPrompt: z
+    .string()
+    .max(300)
+    .optional()
+    .describe('Score as comma-separated genre tags, e.g. "warm acoustic, soft piano, 90 BPM". Omit for no music.'),
+})
+
+export const updateShotSchema = z.object({
+  shotNumber: z.number().min(1).describe('1-based position of the shot in the plan'),
+  title: z.string().max(80).optional(),
+  description: z.string().max(240).optional(),
+  durationSec: z.number().min(3).max(15).optional(),
+  prompt: z
+    .string()
+    .max(1200)
+    .optional()
+    .describe('New first-frame image prompt (drops the renders of that shot)'),
+  motion: z.string().max(500).optional().describe('New motion prompt (drops the clips)'),
+})
+
+export const renderPlanSchema = z.object({
+  stage: z
+    .enum(['drafts', 'finals', 'direct'])
+    .describe(
+      '"drafts": cheap draft clips of every shot for review. "finals": re-render the kept shots on the final model and assemble the timeline. "direct": skip drafts, render finals of every shot.',
+    ),
+})
+
 export const listAssetsSchema = z.object({
   type: z
     .enum(['image', 'video', 'audio', 'music', 'all'])
@@ -188,6 +259,9 @@ export const TOOL_NAMES = {
   GENERATE_MUSIC: 'generateMusic',
   UPDATE_TIMELINE: 'updateTimeline',
   LIST_ASSETS: 'listAssets',
+  PROPOSE_PLAN: 'proposePlan',
+  UPDATE_SHOT: 'updateShot',
+  RENDER_PLAN: 'renderPlan',
 } as const
 
 export type ToolName = (typeof TOOL_NAMES)[keyof typeof TOOL_NAMES]
@@ -225,6 +299,33 @@ function schemaToParameters(
  * All agent tools in OpenRouter format
  */
 export const AGENT_TOOLS: Array<ToolDefinition> = [
+  {
+    type: 'function',
+    function: {
+      name: TOOL_NAMES.PROPOSE_PLAN,
+      description:
+        'Turn a brief into a storyboard plan: an ordered list of shots, each with a first-frame image prompt and a motion prompt, plus optional voiceover and music. The server prices every shot, picks draft and final models that fit the budget, and shows the plan as cards with Edit plan / Render buttons. Replaces the current plan. Nothing is rendered or spent.',
+      parameters: schemaToParameters(proposePlanSchema),
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: TOOL_NAMES.UPDATE_SHOT,
+      description:
+        'Change one shot of the current plan (title, description, length, image prompt or motion). Prefer this over proposing a whole new plan when the user tweaks a shot.',
+      parameters: schemaToParameters(updateShotSchema),
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: TOOL_NAMES.RENDER_PLAN,
+      description:
+        'Start rendering the current plan. Spends fal credits from the user account within the project budget; refuses when the projected cost does not fit. Only call when the user asks to render (or approves the plan).',
+      parameters: schemaToParameters(renderPlanSchema),
+    },
+  },
   {
     type: 'function',
     function: {
@@ -301,6 +402,9 @@ export type GenerateVoiceoverArgs = z.infer<typeof generateVoiceoverSchema>
 export type GenerateMusicArgs = z.infer<typeof generateMusicSchema>
 export type UpdateTimelineArgs = z.infer<typeof updateTimelineSchema>
 export type ListAssetsArgs = z.infer<typeof listAssetsSchema>
+export type ProposePlanArgs = z.infer<typeof proposePlanSchema>
+export type UpdateShotArgs = z.infer<typeof updateShotSchema>
+export type RenderPlanArgs = z.infer<typeof renderPlanSchema>
 
 export type ToolArgs =
   | { name: typeof TOOL_NAMES.GET_PROJECT_STATE; args: GetProjectStateArgs }

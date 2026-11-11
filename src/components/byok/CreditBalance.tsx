@@ -2,9 +2,10 @@
  * fal.ai credit balance — the pill in the top bar.
  *
  * Reads the balance through the user's read-only billing key (Settings →
- * Credit balance). Without one it links there; with one it shows the balance
- * and turns amber / red as it runs low, since fal locks the account — and
- * every generation fails — once credits fall below its threshold.
+ * Providers). Without one it links there; with one it shows the balance and
+ * turns amber below the user's low-balance threshold (Settings → Usage,
+ * default $2) and red below a quarter of it, since fal locks the account —
+ * and every generation fails — once credits run out.
  */
 
 import { Link } from '@tanstack/react-router'
@@ -18,9 +19,6 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-
-export const LOW_BALANCE_USD = 2
-const CRITICAL_BALANCE_USD = 0.5
 
 export function useFalCredits() {
   return useQuery({
@@ -60,7 +58,7 @@ export function CreditPill({ className }: { className?: string }) {
         <Tooltip>
           <TooltipTrigger asChild>
             <Link
-              to="/profile"
+              to="/settings/providers"
               className={cn(
                 'flex h-9 items-center gap-2 rounded-full border border-dashed border-border px-3.5 text-sm text-muted-foreground transition-colors hover:border-muted-foreground hover:text-foreground',
                 className,
@@ -76,8 +74,8 @@ export function CreditPill({ className }: { className?: string }) {
     )
   }
 
-  const low = data.balance < LOW_BALANCE_USD
-  const critical = data.balance < CRITICAL_BALANCE_USD
+  const low = data.balance < data.lowBalanceUsd
+  const critical = data.balance < data.lowBalanceUsd / 4
   const amount =
     data.currency === 'USD'
       ? formatUsd(data.balance)
@@ -88,7 +86,7 @@ export function CreditPill({ className }: { className?: string }) {
       <Tooltip>
         <TooltipTrigger asChild>
           <Link
-            to="/profile"
+            to="/settings/providers"
             className={cn(
               'flex h-9 items-center gap-2 rounded-full border px-3.5 text-sm transition-colors',
               critical

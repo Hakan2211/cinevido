@@ -2,13 +2,24 @@
  * Mobile Navigation Tabs Component
  *
  * Fixed bottom navigation for mobile workspace.
- * Tabs: Preview, Chat, Assets, Timeline
+ * Tabs: Preview, Chat, Storyboard, Assets, Timeline
  */
 
-import { Film, Layers, MessageSquare, SlidersHorizontal } from 'lucide-react'
+import {
+  Film,
+  Layers,
+  LayoutGrid,
+  MessageSquare,
+  SlidersHorizontal,
+} from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-export type MobileTab = 'preview' | 'chat' | 'assets' | 'timeline'
+export type MobileTab =
+  | 'preview'
+  | 'chat'
+  | 'storyboard'
+  | 'assets'
+  | 'timeline'
 
 interface MobileNavTabsProps {
   activeTab: MobileTab
@@ -19,6 +30,7 @@ interface MobileNavTabsProps {
 const TABS: Array<{ id: MobileTab; label: string; icon: typeof Film }> = [
   { id: 'preview', label: 'Preview', icon: Film },
   { id: 'chat', label: 'Chat', icon: MessageSquare },
+  { id: 'storyboard', label: 'Board', icon: LayoutGrid },
   { id: 'assets', label: 'Assets', icon: Layers },
   { id: 'timeline', label: 'Timeline', icon: SlidersHorizontal },
 ]

@@ -5,6 +5,7 @@
  * Transfers motion from a reference video to a character image.
  */
 
+import { motionJobCost } from '../lib/job-cost'
 import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod'
 import { prisma } from '../db.server'
@@ -125,6 +126,7 @@ export const generateMotionControlFn = createServerFn({ method: 'POST' })
                 )
               : undefined,
         }),
+        estimatedCostUsd: motionJobCost(modelId, data),
         externalId: job.requestId,
         statusUrl: job.statusUrl,
         responseUrl: job.responseUrl,

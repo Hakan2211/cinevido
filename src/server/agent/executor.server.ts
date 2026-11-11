@@ -7,6 +7,12 @@
 
 import { prisma } from '../../db.server'
 import {
+  imageJobCost,
+  musicJobCost,
+  speechJobCost,
+  videoJobCost,
+} from '../../lib/job-cost'
+import {
   addClip,
   appendClip,
   clipCount,
@@ -35,6 +41,22 @@ import {
   resolveModelId,
 } from '../services/types'
 import { TOOL_NAMES } from './tools.server'
+import {
+  applyPlanEdit,
+  buildPlan,
+  modelName,
+  parsePlan,
+  planPhase,
+  planTotals,
+  priceShot,
+  shotBusy,
+} from '../../lib/production'
+import {
+  requestRender,
+  savePlan,
+  withProjectLock,
+} from './production.server'
+import type { ProductionPlan } from '../../lib/production'
 import type { ProjectManifest, TrackKind } from '../services/index.server'
 import type {
   GenerateImageArgs,
@@ -42,6 +64,9 @@ import type {
   GenerateVideoArgs,
   GenerateVoiceoverArgs,
   ListAssetsArgs,
+  ProposePlanArgs,
+  RenderPlanArgs,
+  UpdateShotArgs,
   UpdateTimelineArgs,
 } from './tools.server'
 
@@ -205,6 +230,7 @@ export async function executeGenerateImage(
         provider: 'fal',
         model: modelId,
         input: JSON.stringify({ prompt: fullPrompt, width, height }),
+        estimatedCostUsd: imageJobCost(modelId, { width, height }),
       },
     })
 
@@ -303,6 +329,9 @@ export async function executeGenerateVideo(
           prompt: args.motionPrompt,
           duration: args.duration || 5,
         }),
+        estimatedCostUsd: videoJobCost(modelId, {
+          duration: args.duration || 5,
+        }),
       },
     })
 
@@ -390,6 +419,7 @@ export async function executeGenerateVoiceover(
         provider: 'fal',
         model: DEFAULT_MODELS.tts,
         input: JSON.stringify({ text: args.text, voice }),
+        estimatedCostUsd: speechJobCost(DEFAULT_MODELS.tts, args.text),
       },
     })
 
@@ -501,6 +531,7 @@ export async function executeGenerateMusic(
           durationSec,
           title: args.title,
         }),
+        estimatedCostUsd: musicJobCost(modelId, durationSec),
         externalId: job.requestId,
         statusUrl: job.statusUrl,
         responseUrl: job.responseUrl,
@@ -817,6 +848,147 @@ export async function executeListAssets(
 }
 
 // =============================================================================
+// Director v2: plans
+// =============================================================================
+
+/** What the model sees of a plan — the numbers come from the server */
+export function summarizePlan(plan: ProductionPlan, budgetUsd: number) {
+  const totals = planTotals(plan)
+  return {
+    title: plan.title,
+    format: plan.format,
+    phase: planPhase(plan),
+    models: {
+      draft: modelName(plan.models.draft),
+      final: `${modelName(plan.models.final.model)}${plan.models.final.resolution ? ` ${plan.models.final.resolution}` : ''}`,
+    },
+    shots: plan.shots.map((s, i) => {
+      const p = priceShot(s, plan.models, plan.aspectRatio)
+      return {
+        n: i + 1,
+        title: s.title,
+        durationSec: s.durationSec,
+        draftUsd: +(p.stillUsd + p.draftUsd).toFixed(3),
+        finalUsd: +p.finalUsd.toFixed(3),
+        draft: s.draft?.status,
+        check: s.check?.note,
+        decision: s.decision,
+        final: s.final?.status,
+      }
+    }),
+    totals: {
+      draftUsd: totals.draftUsd,
+      finalUsd: totals.finalUsd,
+      directUsd: totals.directUsd,
+    },
+    budgetUsd,
+    spentUsd: plan.spentUsd,
+    notice: plan.stopped ?? plan.notice,
+  }
+}
+
+export async function executeProposePlan(
+  args: ProposePlanArgs,
+  context: ToolContext,
+): Promise<ToolResult> {
+  try {
+    return await withProjectLock(context.projectId, async () => {
+      const project = await prisma.project.findUnique({
+        where: { id: context.projectId },
+        select: { userId: true, width: true, height: true, budgetUsd: true, plan: true },
+      })
+      if (!project || project.userId !== context.userId) {
+        return { success: false, error: 'Project not found' }
+      }
+      const previous = parsePlan(project.plan)
+      if (previous?.shots.some(shotBusy)) {
+        return {
+          success: false,
+          error:
+            'A render of the current plan is still running. Wait for it, or change single shots with updateShot.',
+        }
+      }
+      const plan = buildPlan(args, {
+        budgetUsd: project.budgetUsd,
+        width: project.width,
+        height: project.height,
+      })
+      // the budget is the project's: what earlier plans spent still counts
+      plan.spentUsd = previous?.spentUsd ?? 0
+      await savePlan(context.projectId, plan)
+      return { success: true, data: summarizePlan(plan, project.budgetUsd) }
+    })
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to save the plan',
+    }
+  }
+}
+
+export async function executeUpdateShot(
+  args: UpdateShotArgs,
+  context: ToolContext,
+): Promise<ToolResult> {
+  try {
+    return await withProjectLock(context.projectId, async () => {
+      const project = await prisma.project.findUnique({
+        where: { id: context.projectId },
+        select: { userId: true, plan: true, budgetUsd: true },
+      })
+      const plan = parsePlan(project?.plan)
+      if (!project || project.userId !== context.userId || !plan) {
+        return { success: false, error: 'There is no plan to change — propose one first.' }
+      }
+      const index = Math.round(args.shotNumber) - 1
+      const shot = plan.shots[index]
+      if (!shot) {
+        return { success: false, error: `There is no shot ${args.shotNumber}.` }
+      }
+      if (shotBusy(shot)) {
+        return { success: false, error: `Shot ${args.shotNumber} is still rendering.` }
+      }
+      const next = applyPlanEdit(plan, {
+        shots: plan.shots.map((s, i) =>
+          i === index
+            ? {
+                id: s.id,
+                title: args.title ?? s.title,
+                description: args.description ?? s.description,
+                durationSec: args.durationSec ?? s.durationSec,
+                prompt: args.prompt ?? s.prompt,
+                motion: args.motion ?? s.motion,
+              }
+            : s,
+        ),
+      })
+      await savePlan(context.projectId, next)
+      return { success: true, data: summarizePlan(next, project.budgetUsd) }
+    })
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to update the shot',
+    }
+  }
+}
+
+export async function executeRenderPlan(
+  args: RenderPlanArgs,
+  context: ToolContext,
+): Promise<ToolResult> {
+  try {
+    const { message } = await requestRender(context, args.stage)
+    return { success: true, data: { message } }
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to start the render',
+    }
+  }
+}
+
+// =============================================================================
 // Main Executor
 // =============================================================================
 
@@ -849,6 +1021,15 @@ export async function executeTool(
 
     case TOOL_NAMES.LIST_ASSETS:
       return executeListAssets(args as ListAssetsArgs, context)
+
+    case TOOL_NAMES.PROPOSE_PLAN:
+      return executeProposePlan(args as ProposePlanArgs, context)
+
+    case TOOL_NAMES.UPDATE_SHOT:
+      return executeUpdateShot(args as UpdateShotArgs, context)
+
+    case TOOL_NAMES.RENDER_PLAN:
+      return executeRenderPlan(args as RenderPlanArgs, context)
 
     default:
       return { success: false, error: `Unknown tool: ${toolName}` }

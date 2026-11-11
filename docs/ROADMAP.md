@@ -98,12 +98,14 @@ the real thing or leave it out — never ship a control that does nothing.
 
 **Done when:** all five labs share one layout and component set, every Generate button shows a cost, and nothing references the old bottom-bar layout.
 
-### Phase 4 — Settings (mockup 6)
-- [ ] Rename Profile → **Settings** (`/settings`, keep `/profile` redirecting) with left sub-nav: General · Providers · Plans & Billing · Appearance (only sections that work)
-- [ ] **Providers**: fal API key card (connected / test / replace / remove) + Billing key card (exists as `FalCreditSection` — move it here); Bunny storage card
-- [ ] **Usage**: current balance, monthly spend, spend chart, last 10 jobs table (model, duration, cost, status)
-  - Needs a cost on every job: add `estimatedCostUsd Float?` to `GenerationJob` (and the video/image/music/3D job tables), written at submit time from `estimateCost`. fal's per-request billing API is enterprise-only, so this is our estimate.
-- [ ] Low-balance threshold (stored per user) driving the credit pill's amber/red states (today hard-coded at $2 / $0.50)
+### Phase 4 — Settings (mockup 6) ✅ (2026-11-11)
+- [x] Profile → **Settings** (`/settings/general|providers|billing`, `/profile` and `/settings` redirect) with a left sub-nav: General · Providers · Plans & Billing. No Team / Notifications / Appearance — nothing behind them (dark-only app, no email)
+- [x] **Providers** (`src/components/settings/ProviderCards.tsx`): fal key card (connected / test / replace / remove), read-only Billing key card (old `FalCreditSection`, deleted), Bunny storage card
+- [x] **Usage** (`UsageSection.tsx`, `src/server/usage.server.ts`): balance, spend this month, daily spend chart, last 10 jobs (kind, prompt, model, length, cost, created, status; generations + 3D)
+  - `estimatedCostUsd` on `GenerationJob` and `Model3DAsset`, written at submit time by every create site (labs, `generation.server`, Director executor) from `src/lib/job-cost.ts` — the same math as the Generate buttons. SFX is re-priced at the real length when it returns; upscales send the measured source size (`sourceWidth/Height[/DurationSec]`) so output size can be priced
+  - Month spend and the chart use fal's usage API (`/v1/models/usage?expand=time_series&timeframe=day`) via the billing key — real, whole fal account; without a billing key they fall back to the sum of our estimates. Removed `getFalUsageFn` (it called that API with the generation key, which fal answers 403)
+- [x] Low-balance threshold (`User.lowBalanceUsd`, default $2) set under Usage; the credit pill turns amber below it and red below a quarter of it
+- [x] Tests: `src/lib/job-cost.test.ts`
 
 ### Phase 5 — Director v2: the agentic production loop (mockups 4 + 5)
 The core of the product. Today the Director is a chat with 7 tools that fires
@@ -143,6 +145,18 @@ Files: `src/server/agent/*` (tools, executor, system prompt),
 drafts render within budget, review lets you keep/retry, finals render and
 assemble on the timeline — without typing a second message.
 
+**Status (2026-11-11) — built; awaiting one real paid run**
+- [x] `Project.plan` (JSON) + `Project.budgetUsd` (default $10), migration `20261111200000_project_plan_budget`
+- [x] `src/lib/production.ts` — plan types, pricing (job-cost math), duration snapping, budget-aware final model ladder, edit semantics, the runner's state machine (`shotNeed`, `needsAssembly`, `planActive`); tests in `production.test.ts`
+- [x] Models in `DIRECTOR_MODELS` (types.ts): still = Seedream 5 Flash, draft = MiniMax H3 Turbo I2V, finals ladder Kling 4 1080p → Kling 4 720p → Kling 4 Flash, music ACE-Step, voice Eleven v4, frame extract `fal-ai/ffmpeg-api/extract-frame`, self-check Gemini 2.5 Flash
+- [x] Runner `src/server/agent/production.server.ts`: poll → submit within budget → self-check → assemble; server fns in `src/server/production.server.ts`; the Studio ticks every 4s while active
+- [x] Tools `proposePlan`, `updateShot`, `renderPlan`; system prompt rewritten; budget/mode/plan in context; the loop no longer re-requests every final reply just to stream it (it paid twice)
+- [x] Studio tabs **Director** (assets · chat with PlanCard + budget pill + Draft|Final · Jobs + Spend) / **Storyboard** (mockup 5) / **Edit** (old layout); Edit plan dialog; mobile gets a Board tab
+- [x] Verified: full loop in `MOCK_GENERATION` mode (6 drafts → refuse over budget → 4 keep + 1 promote → finals + voice + music → assembled in order, idempotent; spend = Σ job estimates); self-check live on fal's sample clip (match → ok, wrong brief → "retry suggested", $0.0002 each)
+- [ ] One real end-to-end run from Home (≈$8.50 at the default budget) and a look at every state in the browser
+- [ ] Open Studio to non-admins once that run is clean
+- [ ] Later: Project Bible, Recipes (item 7)
+
 ### Phase 6 — Polish
 - [ ] Projects page + Library in the new style
 - [ ] Provider icons for Krea, Ideogram, Meshy (`src/lib/model-icons.tsx`)
@@ -176,3 +190,27 @@ assemble on the timeline — without typing a second message.
   auto length, Motion before the clip loads) Generate shows the ceiling: "≤ $0.06".
 - **2026-11-11** — Motion: no image-URL paste any more (character comes from the
   library picker, which uploads); the motion clip can still be a pasted URL.
+- **2026-11-11** — Settings → Usage: month spend and the daily chart are fal's
+  real numbers (billing key, whole account, UTC days); the jobs table is our
+  per-job estimate (fal's per-request billing is enterprise-only). A cost range
+  is stored as its midpoint; failed jobs don't count toward spend.
+- **2026-11-11** — Director v2: each shot is still → draft → final, and draft and
+  final both animate the *same still* (image-to-video). That keeps composition
+  without extracting a first frame. The self-check does extract one (middle
+  frame, fal ffmpeg util) to judge the draft.
+- **2026-11-11** — Review semantics: **Keep** = re-render on the final model;
+  **Promote to final** = use the draft as it is (no cost); **Retry** = new still
+  + new draft. Failed steps are never retried automatically.
+- **2026-11-11** — Budget is per project and covers renders + self-checks
+  (not Director chat). Estimates are charged at submit and refunded when fal
+  fails the job; a render is refused up front if its projection doesn't fit,
+  and a running one stops before the job that would cross it. A new plan
+  inherits what earlier plans spent.
+- **2026-11-11** — The production runner is ticked by the Studio (no worker
+  process); an in-process per-project lock stops two tabs double-submitting.
+  Production jobs stay `pending` until done so the legacy Workspace poller
+  never completes them a second time.
+- **2026-11-11** — Removed the Studio header's Export button (it had no handler).
+- **2026-11-11** — Job cost is computed on the server from the job's inputs, not
+  sent by the client; the client only supplies facts it measured (upscale
+  source size and length).

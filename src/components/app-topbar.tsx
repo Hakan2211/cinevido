@@ -162,7 +162,7 @@ export function AppTopbar({ user }: { user: AppUser }) {
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>
-              <Link to="/profile">
+              <Link to="/settings">
                 <Settings className="mr-2 h-4 w-4" />
                 Settings
               </Link>

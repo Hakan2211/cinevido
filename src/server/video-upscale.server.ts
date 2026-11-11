@@ -7,6 +7,7 @@
  * - Bytedance: Simple resolution targeting
  */
 
+import { videoUpscaleJobCost } from '../lib/job-cost'
 import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod'
 import { prisma } from '../db.server'
@@ -28,6 +29,10 @@ import { getUserStorageConfig } from './storage-config.server'
 const upscaleVideoSchema = z.object({
   videoUrl: z.string().url(),
   model: z.string().optional(),
+  // The source clip as measured in the browser — fal bills by output size × length
+  sourceWidth: z.number().positive().optional(),
+  sourceHeight: z.number().positive().optional(),
+  sourceDurationSec: z.number().positive().optional(),
   sourceAssetId: z.string().optional(),
   projectId: z.string().optional(),
 
@@ -145,6 +150,7 @@ export const upscaleVideoFn = createServerFn({ method: 'POST' })
           statusUrl: job.statusUrl,
           responseUrl: job.responseUrl,
         }),
+        estimatedCostUsd: videoUpscaleJobCost(modelId, data),
         externalId: job.requestId,
       },
     })
