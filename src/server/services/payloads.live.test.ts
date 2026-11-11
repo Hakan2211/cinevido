@@ -252,6 +252,13 @@ describe('catalog payloads match fal schemas', () => {
           m.id,
         )
         errors.push(...(await validate(m.id, payload)))
+        for (const aspectRatio of m.aspectRatios ?? []) {
+          const sized = buildEditPayload(
+            { prompt: 'make it night', imageUrls: [IMG], model: m.id, aspectRatio },
+            m.id,
+          )
+          errors.push(...(await validate(m.id, sized)))
+        }
       }
       expect(errors).toEqual([])
     },

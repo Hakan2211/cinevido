@@ -18,6 +18,8 @@ import { ChatPanel } from './ChatPanel'
 import { useProduction } from './director/useProduction'
 import { JobsPanel, SpendCard } from './director/JobsPanel'
 import { StoryboardBoard } from './director/StoryboardBoard'
+import { BibleBoard } from './director/BibleBoard'
+import { useBible } from './director/useBible'
 import type { ComposerMode } from './ChatPanel'
 
 // NOTE: Server functions are dynamically imported in queryFn/callbacks
@@ -73,11 +75,12 @@ const TIMELINE_MIN_H = 190
 const TIMELINE_MAX_H = 700
 const TIMELINE_DEFAULT_H = 320
 
-type StudioTab = 'director' | 'storyboard' | 'edit'
+type StudioTab = 'director' | 'storyboard' | 'bible' | 'edit'
 
 const TABS: Array<{ id: StudioTab; label: string }> = [
   { id: 'director', label: 'Director' },
   { id: 'storyboard', label: 'Storyboard' },
+  { id: 'bible', label: 'Bible' },
   { id: 'edit', label: 'Edit' },
 ]
 
@@ -222,6 +225,13 @@ export function Workspace({ project }: WorkspaceProps) {
       toast.success('Finals assembled on the timeline', {
         action: { label: 'Open editor', onClick: () => setTab('edit') },
       })
+    },
+  })
+
+  // Project Bible: style, voice, cast with reference images
+  const bible = useBible(project.id, {
+    onAssetsChanged: () => {
+      void queryClient.invalidateQueries({ queryKey: ['project', project.id] })
     },
   })
 
@@ -370,6 +380,12 @@ export function Workspace({ project }: WorkspaceProps) {
             <JobsPanel production={production} onOpenStoryboard={() => setTab('storyboard')} />
             <SpendCard production={production} />
           </aside>
+        </div>
+      )}
+
+      {tab === 'bible' && (
+        <div className="min-h-0 flex-1">
+          <BibleBoard bible={bible} plan={production.plan} />
         </div>
       )}
 

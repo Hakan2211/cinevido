@@ -12,6 +12,7 @@ import { AGENT_TOOLS } from './tools.server'
 import { getSystemPrompt } from './system-prompt.server'
 import { executeTool, summarizePlan } from './executor.server'
 import { parsePlan } from '../../lib/production'
+import { parseBible, summarizeBible } from '../../lib/bible'
 import type { ChatMessage, ToolCall } from '../services/index.server'
 import type { ToolContext, ToolResult } from './executor.server'
 
@@ -153,6 +154,7 @@ export async function* runAgent(input: AgentInput): AsyncGenerator<AgentEvent> {
         fps: true,
         budgetUsd: true,
         plan: true,
+        bible: true,
       },
     })
 
@@ -182,8 +184,11 @@ export async function* runAgent(input: AgentInput): AsyncGenerator<AgentEvent> {
       mode,
       plan: (() => {
         const plan = parsePlan(project.plan)
-        return plan ? summarizePlan(plan, project.budgetUsd) : undefined
+        return plan
+          ? summarizePlan(plan, project.budgetUsd, parseBible(project.bible))
+          : undefined
       })(),
+      bible: summarizeBible(parseBible(project.bible)),
     })
 
     // Load existing chat history

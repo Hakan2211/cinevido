@@ -25,6 +25,9 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { formatUsd } from '@/lib/pricing'
+import { cn } from '@/lib/utils'
+import { MAX_SHOT_REFS } from '@/lib/bible'
+import { useBible } from './useBible'
 import {
   MAX_SHOTS,
   finalModelOptions,
@@ -48,6 +51,7 @@ export function PlanEditor({
   production: Production
 }) {
   const options = useMemo(() => finalModelOptions(), [])
+  const cast = useBible(production.projectId).bible?.entries ?? []
   const [title, setTitle] = useState(plan.title)
   const [shots, setShots] = useState<Array<ShotEdit>>([])
   const [final, setFinal] = useState<FinalChoice>(plan.models.final)
@@ -65,6 +69,7 @@ export function PlanEditor({
         durationSec: s.durationSec,
         prompt: s.prompt,
         motion: s.motion,
+        cast: s.cast ?? [],
       })),
     )
   }, [open, plan])
@@ -115,8 +120,9 @@ export function PlanEditor({
           <DialogHeader className="border-b border-border px-6 py-4">
             <DialogTitle>Edit plan</DialogTitle>
             <DialogDescription>
-              Changing a shot's picture prompt re-renders its still; changing
-              motion or length re-renders its clips. Everything else keeps.
+              Changing a shot's picture prompt or cast re-renders its still;
+              changing motion or length re-renders its clips. Everything else
+              keeps.
             </DialogDescription>
           </DialogHeader>
 
@@ -206,6 +212,44 @@ export function PlanEditor({
                   placeholder="Motion: camera move and action"
                   className="h-8"
                 />
+                {cast.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="mr-1 text-xs text-muted-foreground">Cast</span>
+                    {cast.map((entry) => {
+                      const on = shot.cast?.includes(entry.id) ?? false
+                      const full = (shot.cast?.length ?? 0) >= MAX_SHOT_REFS
+                      return (
+                        <button
+                          key={entry.id}
+                          type="button"
+                          aria-pressed={on}
+                          disabled={!on && full}
+                          onClick={() =>
+                            patch(i, {
+                              cast: on
+                                ? shot.cast?.filter((id) => id !== entry.id)
+                                : [...(shot.cast ?? []), entry.id],
+                            })
+                          }
+                          className={cn(
+                            'flex items-center gap-1.5 rounded-full border py-0.5 pr-2.5 pl-0.5 text-xs transition-colors disabled:opacity-40',
+                            on
+                              ? 'border-primary/60 bg-primary/10 text-foreground'
+                              : 'border-border text-muted-foreground hover:text-foreground',
+                          )}
+                          title={entry.imageUrl ? 'Has a reference image' : 'No reference image — text only'}
+                        >
+                          {entry.imageUrl ? (
+                            <img src={entry.imageUrl} alt="" className="h-5 w-5 rounded-full object-cover" />
+                          ) : (
+                            <span className="h-5 w-5 rounded-full bg-muted" />
+                          )}
+                          {entry.name}
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
             ))}
 
@@ -216,7 +260,7 @@ export function PlanEditor({
                 onClick={() =>
                   setShots((p) => [
                     ...p,
-                    { title: `Shot ${p.length + 1}`, description: '', durationSec: 5, prompt: '', motion: '' },
+                    { title: `Shot ${p.length + 1}`, description: '', durationSec: 5, prompt: '', motion: '', cast: [] },
                   ])
                 }
               >

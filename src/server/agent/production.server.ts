@@ -27,6 +27,7 @@ import {
   generateVideo,
   getJobStatus,
 } from '../services/fal.server'
+import { editImage, getEditJobStatus } from '../services/edit.server'
 import { uploadFromUrl } from '../services/bunny.server'
 import {
   generateMusic,
@@ -60,8 +61,11 @@ import {
   priceVoiceover,
   shotDuration,
   shotNeed,
+  stillCost,
   stillSize,
 } from '../../lib/production'
+import { isVoice, parseBible, stillRequest } from '../../lib/bible'
+import type { ProjectBible } from '../../lib/bible'
 import type {
   PlanShot,
   PlanStep,
@@ -93,11 +97,16 @@ export async function loadProduction(ctx: ProductionContext) {
       height: true,
       fps: true,
       manifest: true,
+      bible: true,
     },
   })
   if (!project) throw new Error('Project not found')
   if (project.userId !== ctx.userId) throw new Error('Unauthorized')
-  return { project, plan: parsePlan(project.plan) }
+  return {
+    project,
+    plan: parsePlan(project.plan),
+    bible: parseBible(project.bible),
+  }
 }
 
 export async function savePlan(
@@ -108,6 +117,13 @@ export async function savePlan(
   await prisma.project.update({
     where: { id: projectId },
     data: { plan: plan ? JSON.stringify(plan) : null },
+  })
+}
+
+export async function saveBible(projectId: string, bible: ProjectBible) {
+  await prisma.project.update({
+    where: { id: projectId },
+    data: { bible: JSON.stringify(bible) },
   })
 }
 
@@ -150,14 +166,14 @@ interface SubmitArgs {
   ctx: ProductionContext
   key: string
   shot?: PlanShot
-  stage: 'still' | 'draft' | 'final' | 'music'
+  stage: 'still' | 'draft' | 'final' | 'music' | 'reference'
   costUsd: number
 }
 
 /** Create the job row, call fal, and store fal's own status/response URLs */
-async function submitJob(
+export async function submitJob(
   args: SubmitArgs & {
-    type: 'image' | 'video' | 'music'
+    type: 'image' | 'video' | 'music' | 'edit'
     model: string
     input: Record<string, unknown>
     start: () => Promise<{
@@ -211,13 +227,48 @@ async function submitJob(
   }
 }
 
+/**
+ * A shot's still: an edit of its cast's reference images when the Bible has
+ * them (same faces and products in every shot), otherwise text-to-image.
+ * Both carry the Bible's style.
+ */
 function submitStill(
   plan: ProductionPlan,
+  bible: ProjectBible,
   shot: PlanShot,
   ctx: ProductionContext,
   key: string,
   costUsd: number,
 ) {
+  const request = stillRequest(bible, shot)
+  if (request.mode === 'reference') {
+    const model = DIRECTOR_MODELS.referenceStill
+    return submitJob({
+      ctx,
+      key,
+      shot,
+      stage: 'still',
+      costUsd,
+      type: 'edit',
+      model,
+      input: {
+        prompt: request.prompt,
+        imageUrls: request.imageUrls,
+        aspectRatio: plan.aspectRatio,
+        editType: 'edit',
+      },
+      start: () =>
+        editImage(
+          {
+            prompt: request.prompt,
+            imageUrls: request.imageUrls,
+            model,
+            aspectRatio: plan.aspectRatio,
+          },
+          key,
+        ),
+    })
+  }
   const size = stillSize(plan.aspectRatio)
   return submitJob({
     ctx,
@@ -227,10 +278,20 @@ function submitStill(
     costUsd,
     type: 'image',
     model: plan.models.still,
-    input: { prompt: shot.prompt, ...size },
+    input: { prompt: request.prompt, ...size },
     start: () =>
-      generateImage({ prompt: shot.prompt, model: plan.models.still, ...size }, key),
+      generateImage({ prompt: request.prompt, model: plan.models.still, ...size }, key),
   })
+}
+
+/** What the still of a shot costs as it would be submitted now */
+function stillPrice(plan: ProductionPlan, bible: ProjectBible, shot: PlanShot): number {
+  return stillCost(
+    shot,
+    plan.models,
+    plan.aspectRatio,
+    stillRequest(bible, shot).mode === 'reference',
+  )
 }
 
 function submitClip(
@@ -318,11 +379,13 @@ function submitMusic(
 /** Voiceover is synchronous at fal (seconds), so it finishes inside the tick */
 async function makeVoiceover(
   plan: ProductionPlan,
+  bible: ProjectBible,
   ctx: ProductionContext,
   key: string,
   costUsd: number,
 ): Promise<PlanStep> {
   const script = plan.voiceover?.script ?? ''
+  const voice = isVoice(bible.voice) ? bible.voice : undefined
   const startedAt = new Date().toISOString()
   const job = await prisma.generationJob.create({
     data: {
@@ -332,14 +395,14 @@ async function makeVoiceover(
       status: 'pending',
       provider: 'fal',
       model: DIRECTOR_MODELS.voice,
-      input: JSON.stringify({ text: script, production: { stage: 'voiceover' } }),
+      input: JSON.stringify({ text: script, voice, production: { stage: 'voiceover' } }),
       estimatedCostUsd: costUsd,
     },
   })
   try {
     const storage = await getUserStorageConfig(ctx.userId)
     const result = await generateSpeech(
-      { text: script, model: DIRECTOR_MODELS.voice },
+      { text: script, voice, model: DIRECTOR_MODELS.voice },
       key,
       storage,
     )
@@ -390,7 +453,7 @@ async function makeVoiceover(
 type MediaKind = 'image' | 'video' | 'music'
 
 /** Poll one running step; on completion store the file and create the asset */
-async function pollStep(
+export async function pollStep(
   step: PlanStep,
   kind: MediaKind,
   ctx: ProductionContext,
@@ -416,7 +479,9 @@ async function pollStep(
     fal =
       kind === 'music' && isMockMusic()
         ? (mockMusicStatus() as never)
-        : await getJobStatus(job.statusUrl, job.responseUrl, key)
+        : job.type === 'edit'
+          ? ((await getEditJobStatus(job.statusUrl, job.responseUrl, key)) as never)
+          : await getJobStatus(job.statusUrl, job.responseUrl, key)
   } catch {
     return step // transient — try again next tick
   }
@@ -699,7 +764,7 @@ export async function tickProduction(ctx: ProductionContext): Promise<{
   assembled: boolean
 }> {
   return withProjectLock(ctx.projectId, async () => {
-    const { project, plan } = await loadProduction(ctx)
+    const { project, plan, bible } = await loadProduction(ctx)
     if (!plan) return { plan: null, budgetUsd: project.budgetUsd, assembled: false }
     const budget = project.budgetUsd
     const key = await getUserFalApiKey(ctx.userId)
@@ -743,14 +808,18 @@ export async function tickProduction(ctx: ProductionContext): Promise<{
       }
       const price = priceShot(shot, plan.models, plan.aspectRatio)
       const cost =
-        need === 'still' ? price.stillUsd : need === 'draft' ? price.draftUsd : price.finalUsd
+        need === 'still'
+          ? stillPrice(plan, bible, shot)
+          : need === 'draft'
+            ? price.draftUsd
+            : price.finalUsd
       if (!canAfford(plan, budget, cost)) {
         stop(plan, budget, `the ${need} for “${shot.title}”`, cost)
         break
       }
       const step =
         need === 'still'
-          ? await submitStill(plan, shot, ctx, key, cost)
+          ? await submitStill(plan, bible, shot, ctx, key, cost)
           : await submitClip(plan, shot, need, ctx, key, cost)
       shot[need] = step
       charge(plan, step)
@@ -768,7 +837,7 @@ export async function tickProduction(ctx: ProductionContext): Promise<{
         const step =
           need === 'music'
             ? await submitMusic(plan, ctx, key, cost)
-            : await makeVoiceover(plan, ctx, key, cost)
+            : await makeVoiceover(plan, bible, ctx, key, cost)
         if (need === 'music') plan.music!.step = step
         else plan.voiceover!.step = step
         charge(plan, step)

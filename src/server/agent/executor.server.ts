@@ -56,6 +56,15 @@ import {
   savePlan,
   withProjectLock,
 } from './production.server'
+import {
+  isVoice,
+  parseBible,
+  resolveCast,
+  summarizeBible,
+  upsertEntries,
+} from '../../lib/bible'
+import { saveBible } from './production.server'
+import type { ProjectBible } from '../../lib/bible'
 import type { ProductionPlan } from '../../lib/production'
 import type { ProjectManifest, TrackKind } from '../services/index.server'
 import type {
@@ -66,6 +75,7 @@ import type {
   ListAssetsArgs,
   ProposePlanArgs,
   RenderPlanArgs,
+  UpdateBibleArgs,
   UpdateShotArgs,
   UpdateTimelineArgs,
 } from './tools.server'
@@ -852,7 +862,12 @@ export async function executeListAssets(
 // =============================================================================
 
 /** What the model sees of a plan — the numbers come from the server */
-export function summarizePlan(plan: ProductionPlan, budgetUsd: number) {
+export function summarizePlan(
+  plan: ProductionPlan,
+  budgetUsd: number,
+  bible?: ProjectBible,
+) {
+  const names = new Map((bible?.entries ?? []).map((e) => [e.id, e.name]))
   const totals = planTotals(plan)
   return {
     title: plan.title,
@@ -868,6 +883,9 @@ export function summarizePlan(plan: ProductionPlan, budgetUsd: number) {
         n: i + 1,
         title: s.title,
         durationSec: s.durationSec,
+        ...(s.cast?.length
+          ? { cast: s.cast.map((id) => names.get(id)).filter(Boolean) }
+          : {}),
         draftUsd: +(p.stillUsd + p.draftUsd).toFixed(3),
         finalUsd: +p.finalUsd.toFixed(3),
         draft: s.draft?.status,
@@ -895,11 +913,19 @@ export async function executeProposePlan(
     return await withProjectLock(context.projectId, async () => {
       const project = await prisma.project.findUnique({
         where: { id: context.projectId },
-        select: { userId: true, width: true, height: true, budgetUsd: true, plan: true },
+        select: {
+          userId: true,
+          width: true,
+          height: true,
+          budgetUsd: true,
+          plan: true,
+          bible: true,
+        },
       })
       if (!project || project.userId !== context.userId) {
         return { success: false, error: 'Project not found' }
       }
+      const bible = parseBible(project.bible)
       const previous = parsePlan(project.plan)
       if (previous?.shots.some(shotBusy)) {
         return {
@@ -908,7 +934,15 @@ export async function executeProposePlan(
             'A render of the current plan is still running. Wait for it, or change single shots with updateShot.',
         }
       }
-      const plan = buildPlan(args, {
+      const unknown = new Set<string>()
+      const shots = args.shots.map((shot) => {
+        const cast = resolveCast(bible, shot.cast)
+        for (const name of shot.cast ?? []) {
+          if (!resolveCast(bible, [name]).length) unknown.add(name)
+        }
+        return { ...shot, cast }
+      })
+      const plan = buildPlan({ ...args, shots }, {
         budgetUsd: project.budgetUsd,
         width: project.width,
         height: project.height,
@@ -916,7 +950,17 @@ export async function executeProposePlan(
       // the budget is the project's: what earlier plans spent still counts
       plan.spentUsd = previous?.spentUsd ?? 0
       await savePlan(context.projectId, plan)
-      return { success: true, data: summarizePlan(plan, project.budgetUsd) }
+      return {
+        success: true,
+        data: {
+          ...summarizePlan(plan, project.budgetUsd, bible),
+          ...(unknown.size
+            ? {
+                warning: `Not in the Bible, left out of the cast: ${[...unknown].join(', ')}. Add them with updateBible first.`,
+              }
+            : {}),
+        },
+      }
     })
   } catch (error) {
     return {
@@ -934,9 +978,10 @@ export async function executeUpdateShot(
     return await withProjectLock(context.projectId, async () => {
       const project = await prisma.project.findUnique({
         where: { id: context.projectId },
-        select: { userId: true, plan: true, budgetUsd: true },
+        select: { userId: true, plan: true, budgetUsd: true, bible: true },
       })
       const plan = parsePlan(project?.plan)
+      const bible = parseBible(project?.bible)
       if (!project || project.userId !== context.userId || !plan) {
         return { success: false, error: 'There is no plan to change — propose one first.' }
       }
@@ -958,12 +1003,13 @@ export async function executeUpdateShot(
                 durationSec: args.durationSec ?? s.durationSec,
                 prompt: args.prompt ?? s.prompt,
                 motion: args.motion ?? s.motion,
+                cast: args.cast ? resolveCast(bible, args.cast) : s.cast,
               }
             : s,
         ),
       })
       await savePlan(context.projectId, next)
-      return { success: true, data: summarizePlan(next, project.budgetUsd) }
+      return { success: true, data: summarizePlan(next, project.budgetUsd, bible) }
     })
   } catch (error) {
     return {
@@ -984,6 +1030,34 @@ export async function executeRenderPlan(
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Failed to start the render',
+    }
+  }
+}
+
+export async function executeUpdateBible(
+  args: UpdateBibleArgs,
+  context: ToolContext,
+): Promise<ToolResult> {
+  try {
+    return await withProjectLock(context.projectId, async () => {
+      const project = await prisma.project.findUnique({
+        where: { id: context.projectId },
+        select: { userId: true, bible: true },
+      })
+      if (!project || project.userId !== context.userId) {
+        return { success: false, error: 'Project not found' }
+      }
+      let bible = parseBible(project.bible)
+      if (args.style !== undefined) bible.style = args.style.trim()
+      if (isVoice(args.voice)) bible.voice = args.voice
+      if (args.entries?.length) bible = upsertEntries(bible, args.entries)
+      await saveBible(context.projectId, bible)
+      return { success: true, data: summarizeBible(bible) }
+    })
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to update the Bible',
     }
   }
 }
@@ -1030,6 +1104,9 @@ export async function executeTool(
 
     case TOOL_NAMES.RENDER_PLAN:
       return executeRenderPlan(args as RenderPlanArgs, context)
+
+    case TOOL_NAMES.UPDATE_BIBLE:
+      return executeUpdateBible(args as UpdateBibleArgs, context)
 
     default:
       return { success: false, error: `Unknown tool: ${toolName}` }

@@ -16,6 +16,7 @@
  */
 
 import {
+  editJobCost,
   imageJobCost,
   musicJobCost,
   speechJobCost,
@@ -72,6 +73,11 @@ export interface PlanShot {
   prompt: string
   /** what moves: camera and action, for image-to-video */
   motion: string
+  /**
+   * Project Bible entries in this shot (ids, src/lib/bible.ts). Members with
+   * a reference image make the still an edit of those references.
+   */
+  cast?: Array<string>
   still?: PlanStep
   draft?: PlanStep
   check?: ShotCheck
@@ -130,6 +136,8 @@ export interface PlanDraftInput {
     durationSec: number
     prompt: string
     motion: string
+    /** Bible entry ids, already resolved from names */
+    cast?: Array<string>
   }>
   voiceoverScript?: string
   musicPrompt?: string
@@ -225,13 +233,29 @@ export interface ShotEstimate {
   finalUsd: number
 }
 
+/**
+ * A still with a cast is priced as a reference edit. That is the dearer of
+ * the two, so a cast whose members have no image yet is quoted high, never
+ * low; the runner charges what it actually submits.
+ */
+export function stillCost(
+  shot: Pick<PlanShot, 'cast'>,
+  models: PlanModels,
+  aspect: AspectRatio,
+  withReferences = !!shot.cast?.length,
+): number {
+  return withReferences
+    ? (editJobCost(DIRECTOR_MODELS.referenceStill, {}) ?? 0)
+    : (imageJobCost(models.still, stillSize(aspect)) ?? 0)
+}
+
 export function priceShot(
-  shot: Pick<PlanShot, 'durationSec'>,
+  shot: Pick<PlanShot, 'durationSec' | 'cast'>,
   models: PlanModels,
   aspect: AspectRatio,
 ): ShotEstimate {
   return {
-    stillUsd: imageJobCost(models.still, stillSize(aspect)) ?? 0,
+    stillUsd: stillCost(shot, models, aspect),
     draftUsd:
       videoJobCost(models.draft, {
         duration: draftDuration(shot.durationSec, models),
@@ -379,6 +403,7 @@ export function buildPlan(
       durationSec: Math.max(1, Math.round(s.durationSec || 5)),
       prompt: s.prompt.trim(),
       motion: s.motion.trim(),
+      ...(s.cast?.length ? { cast: [...s.cast] } : {}),
       decision: null,
       wantDraft: false,
       wantFinal: false,
@@ -444,11 +469,16 @@ export interface ShotEdit {
   durationSec: number
   prompt: string
   motion: string
+  /** Bible entry ids; undefined keeps the shot's cast */
+  cast?: Array<string>
 }
+
+const sameCast = (a?: Array<string>, b?: Array<string>) =>
+  [...(a ?? [])].sort().join('|') === [...(b ?? [])].sort().join('|')
 
 /**
  * Apply an Edit-plan save. Shots keep their renders unless what they render
- * from changed: a new prompt drops the still and everything after it, a new
+ * from changed: a new prompt or cast drops the still and everything after it, a new
  * motion or length drops the clips.
  */
 export function applyPlanEdit(
@@ -467,6 +497,7 @@ export function applyPlanEdit(
   const shots: Array<PlanShot> = edit.shots.slice(0, MAX_SHOTS).map((e, i) => {
     const durationSec = shotDuration(Math.max(1, Math.round(e.durationSec)), models)
     const prev = e.id ? byId.get(e.id) : undefined
+    const cast = e.cast ?? prev?.cast
     const base: PlanShot = {
       id: prev?.id ?? `shot-${i + 1}-${Math.random().toString(36).slice(2, 7)}`,
       title: e.title.trim().slice(0, 80) || `Shot ${i + 1}`,
@@ -474,12 +505,14 @@ export function applyPlanEdit(
       durationSec,
       prompt: e.prompt.trim(),
       motion: e.motion.trim(),
+      ...(cast?.length ? { cast: [...cast] } : {}),
       decision: null,
       wantDraft: false,
       wantFinal: false,
     }
     if (!prev) return base
-    const stillOk = prev.prompt === base.prompt
+    // a new cast is a new picture, like a new prompt
+    const stillOk = prev.prompt === base.prompt && sameCast(prev.cast, base.cast)
     const clipsOk =
       stillOk && prev.motion === base.motion && prev.durationSec === durationSec
     return {

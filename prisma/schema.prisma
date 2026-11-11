@@ -184,6 +184,10 @@ model Project {
   plan      String?
   budgetUsd Float   @default(10)
 
+  // Director v2: the Project Bible (ProjectBible JSON, src/lib/bible.ts) —
+  // style, narrator voice, and the cast with reference images
+  bible String?
+
   // Related assets and jobs
   assets         Asset[]
   generationJobs GenerationJob[]

@@ -57,6 +57,7 @@ export type ProjectMinAggregateOutputType = {
   thumbnailUrl: string | null
   plan: string | null
   budgetUsd: number | null
+  bible: string | null
   createdAt: Date | null
   updatedAt: Date | null
 }
@@ -76,6 +77,7 @@ export type ProjectMaxAggregateOutputType = {
   thumbnailUrl: string | null
   plan: string | null
   budgetUsd: number | null
+  bible: string | null
   createdAt: Date | null
   updatedAt: Date | null
 }
@@ -95,6 +97,7 @@ export type ProjectCountAggregateOutputType = {
   thumbnailUrl: number
   plan: number
   budgetUsd: number
+  bible: number
   createdAt: number
   updatedAt: number
   _all: number
@@ -132,6 +135,7 @@ export type ProjectMinAggregateInputType = {
   thumbnailUrl?: true
   plan?: true
   budgetUsd?: true
+  bible?: true
   createdAt?: true
   updatedAt?: true
 }
@@ -151,6 +155,7 @@ export type ProjectMaxAggregateInputType = {
   thumbnailUrl?: true
   plan?: true
   budgetUsd?: true
+  bible?: true
   createdAt?: true
   updatedAt?: true
 }
@@ -170,6 +175,7 @@ export type ProjectCountAggregateInputType = {
   thumbnailUrl?: true
   plan?: true
   budgetUsd?: true
+  bible?: true
   createdAt?: true
   updatedAt?: true
   _all?: true
@@ -276,6 +282,7 @@ export type ProjectGroupByOutputType = {
   thumbnailUrl: string | null
   plan: string | null
   budgetUsd: number
+  bible: string | null
   createdAt: Date
   updatedAt: Date
   _count: ProjectCountAggregateOutputType | null
@@ -318,6 +325,7 @@ export type ProjectWhereInput = {
   thumbnailUrl?: Prisma.StringNullableFilter<"Project"> | string | null
   plan?: Prisma.StringNullableFilter<"Project"> | string | null
   budgetUsd?: Prisma.FloatFilter<"Project"> | number
+  bible?: Prisma.StringNullableFilter<"Project"> | string | null
   createdAt?: Prisma.DateTimeFilter<"Project"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"Project"> | Date | string
   user?: Prisma.XOR<Prisma.UserScalarRelationFilter, Prisma.UserWhereInput>
@@ -342,6 +350,7 @@ export type ProjectOrderByWithRelationInput = {
   thumbnailUrl?: Prisma.SortOrderInput | Prisma.SortOrder
   plan?: Prisma.SortOrderInput | Prisma.SortOrder
   budgetUsd?: Prisma.SortOrder
+  bible?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
   user?: Prisma.UserOrderByWithRelationInput
@@ -369,6 +378,7 @@ export type ProjectWhereUniqueInput = Prisma.AtLeast<{
   thumbnailUrl?: Prisma.StringNullableFilter<"Project"> | string | null
   plan?: Prisma.StringNullableFilter<"Project"> | string | null
   budgetUsd?: Prisma.FloatFilter<"Project"> | number
+  bible?: Prisma.StringNullableFilter<"Project"> | string | null
   createdAt?: Prisma.DateTimeFilter<"Project"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"Project"> | Date | string
   user?: Prisma.XOR<Prisma.UserScalarRelationFilter, Prisma.UserWhereInput>
@@ -393,6 +403,7 @@ export type ProjectOrderByWithAggregationInput = {
   thumbnailUrl?: Prisma.SortOrderInput | Prisma.SortOrder
   plan?: Prisma.SortOrderInput | Prisma.SortOrder
   budgetUsd?: Prisma.SortOrder
+  bible?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
   _count?: Prisma.ProjectCountOrderByAggregateInput
@@ -420,6 +431,7 @@ export type ProjectScalarWhereWithAggregatesInput = {
   thumbnailUrl?: Prisma.StringNullableWithAggregatesFilter<"Project"> | string | null
   plan?: Prisma.StringNullableWithAggregatesFilter<"Project"> | string | null
   budgetUsd?: Prisma.FloatWithAggregatesFilter<"Project"> | number
+  bible?: Prisma.StringNullableWithAggregatesFilter<"Project"> | string | null
   createdAt?: Prisma.DateTimeWithAggregatesFilter<"Project"> | Date | string
   updatedAt?: Prisma.DateTimeWithAggregatesFilter<"Project"> | Date | string
 }
@@ -437,6 +449,7 @@ export type ProjectCreateInput = {
   thumbnailUrl?: string | null
   plan?: string | null
   budgetUsd?: number
+  bible?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   user: Prisma.UserCreateNestedOneWithoutProjectsInput
@@ -461,6 +474,7 @@ export type ProjectUncheckedCreateInput = {
   thumbnailUrl?: string | null
   plan?: string | null
   budgetUsd?: number
+  bible?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   assets?: Prisma.AssetUncheckedCreateNestedManyWithoutProjectInput
@@ -481,6 +495,7 @@ export type ProjectUpdateInput = {
   thumbnailUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   plan?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   budgetUsd?: Prisma.FloatFieldUpdateOperationsInput | number
+  bible?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   user?: Prisma.UserUpdateOneRequiredWithoutProjectsNestedInput
@@ -505,6 +520,7 @@ export type ProjectUncheckedUpdateInput = {
   thumbnailUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   plan?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   budgetUsd?: Prisma.FloatFieldUpdateOperationsInput | number
+  bible?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   assets?: Prisma.AssetUncheckedUpdateManyWithoutProjectNestedInput
@@ -527,6 +543,7 @@ export type ProjectCreateManyInput = {
   thumbnailUrl?: string | null
   plan?: string | null
   budgetUsd?: number
+  bible?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -544,6 +561,7 @@ export type ProjectUpdateManyMutationInput = {
   thumbnailUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   plan?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   budgetUsd?: Prisma.FloatFieldUpdateOperationsInput | number
+  bible?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -563,6 +581,7 @@ export type ProjectUncheckedUpdateManyInput = {
   thumbnailUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   plan?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   budgetUsd?: Prisma.FloatFieldUpdateOperationsInput | number
+  bible?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -592,6 +611,7 @@ export type ProjectCountOrderByAggregateInput = {
   thumbnailUrl?: Prisma.SortOrder
   plan?: Prisma.SortOrder
   budgetUsd?: Prisma.SortOrder
+  bible?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
 }
@@ -619,6 +639,7 @@ export type ProjectMaxOrderByAggregateInput = {
   thumbnailUrl?: Prisma.SortOrder
   plan?: Prisma.SortOrder
   budgetUsd?: Prisma.SortOrder
+  bible?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
 }
@@ -638,6 +659,7 @@ export type ProjectMinOrderByAggregateInput = {
   thumbnailUrl?: Prisma.SortOrder
   plan?: Prisma.SortOrder
   budgetUsd?: Prisma.SortOrder
+  bible?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
 }
@@ -819,6 +841,7 @@ export type ProjectCreateWithoutUserInput = {
   thumbnailUrl?: string | null
   plan?: string | null
   budgetUsd?: number
+  bible?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   folder?: Prisma.ProjectFolderCreateNestedOneWithoutProjectsInput
@@ -841,6 +864,7 @@ export type ProjectUncheckedCreateWithoutUserInput = {
   thumbnailUrl?: string | null
   plan?: string | null
   budgetUsd?: number
+  bible?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   assets?: Prisma.AssetUncheckedCreateNestedManyWithoutProjectInput
@@ -891,6 +915,7 @@ export type ProjectScalarWhereInput = {
   thumbnailUrl?: Prisma.StringNullableFilter<"Project"> | string | null
   plan?: Prisma.StringNullableFilter<"Project"> | string | null
   budgetUsd?: Prisma.FloatFilter<"Project"> | number
+  bible?: Prisma.StringNullableFilter<"Project"> | string | null
   createdAt?: Prisma.DateTimeFilter<"Project"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"Project"> | Date | string
 }
@@ -908,6 +933,7 @@ export type ProjectCreateWithoutFolderInput = {
   thumbnailUrl?: string | null
   plan?: string | null
   budgetUsd?: number
+  bible?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   user: Prisma.UserCreateNestedOneWithoutProjectsInput
@@ -930,6 +956,7 @@ export type ProjectUncheckedCreateWithoutFolderInput = {
   thumbnailUrl?: string | null
   plan?: string | null
   budgetUsd?: number
+  bible?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   assets?: Prisma.AssetUncheckedCreateNestedManyWithoutProjectInput
@@ -975,6 +1002,7 @@ export type ProjectCreateWithoutAssetsInput = {
   thumbnailUrl?: string | null
   plan?: string | null
   budgetUsd?: number
+  bible?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   user: Prisma.UserCreateNestedOneWithoutProjectsInput
@@ -998,6 +1026,7 @@ export type ProjectUncheckedCreateWithoutAssetsInput = {
   thumbnailUrl?: string | null
   plan?: string | null
   budgetUsd?: number
+  bible?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   generationJobs?: Prisma.GenerationJobUncheckedCreateNestedManyWithoutProjectInput
@@ -1033,6 +1062,7 @@ export type ProjectUpdateWithoutAssetsInput = {
   thumbnailUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   plan?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   budgetUsd?: Prisma.FloatFieldUpdateOperationsInput | number
+  bible?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   user?: Prisma.UserUpdateOneRequiredWithoutProjectsNestedInput
@@ -1056,6 +1086,7 @@ export type ProjectUncheckedUpdateWithoutAssetsInput = {
   thumbnailUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   plan?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   budgetUsd?: Prisma.FloatFieldUpdateOperationsInput | number
+  bible?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   generationJobs?: Prisma.GenerationJobUncheckedUpdateManyWithoutProjectNestedInput
@@ -1075,6 +1106,7 @@ export type ProjectCreateWithoutGenerationJobsInput = {
   thumbnailUrl?: string | null
   plan?: string | null
   budgetUsd?: number
+  bible?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   user: Prisma.UserCreateNestedOneWithoutProjectsInput
@@ -1098,6 +1130,7 @@ export type ProjectUncheckedCreateWithoutGenerationJobsInput = {
   thumbnailUrl?: string | null
   plan?: string | null
   budgetUsd?: number
+  bible?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   assets?: Prisma.AssetUncheckedCreateNestedManyWithoutProjectInput
@@ -1133,6 +1166,7 @@ export type ProjectUpdateWithoutGenerationJobsInput = {
   thumbnailUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   plan?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   budgetUsd?: Prisma.FloatFieldUpdateOperationsInput | number
+  bible?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   user?: Prisma.UserUpdateOneRequiredWithoutProjectsNestedInput
@@ -1156,6 +1190,7 @@ export type ProjectUncheckedUpdateWithoutGenerationJobsInput = {
   thumbnailUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   plan?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   budgetUsd?: Prisma.FloatFieldUpdateOperationsInput | number
+  bible?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   assets?: Prisma.AssetUncheckedUpdateManyWithoutProjectNestedInput
@@ -1175,6 +1210,7 @@ export type ProjectCreateWithoutChatMessagesInput = {
   thumbnailUrl?: string | null
   plan?: string | null
   budgetUsd?: number
+  bible?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   user: Prisma.UserCreateNestedOneWithoutProjectsInput
@@ -1198,6 +1234,7 @@ export type ProjectUncheckedCreateWithoutChatMessagesInput = {
   thumbnailUrl?: string | null
   plan?: string | null
   budgetUsd?: number
+  bible?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   assets?: Prisma.AssetUncheckedCreateNestedManyWithoutProjectInput
@@ -1233,6 +1270,7 @@ export type ProjectUpdateWithoutChatMessagesInput = {
   thumbnailUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   plan?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   budgetUsd?: Prisma.FloatFieldUpdateOperationsInput | number
+  bible?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   user?: Prisma.UserUpdateOneRequiredWithoutProjectsNestedInput
@@ -1256,6 +1294,7 @@ export type ProjectUncheckedUpdateWithoutChatMessagesInput = {
   thumbnailUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   plan?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   budgetUsd?: Prisma.FloatFieldUpdateOperationsInput | number
+  bible?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   assets?: Prisma.AssetUncheckedUpdateManyWithoutProjectNestedInput
@@ -1276,6 +1315,7 @@ export type ProjectCreateManyUserInput = {
   thumbnailUrl?: string | null
   plan?: string | null
   budgetUsd?: number
+  bible?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -1293,6 +1333,7 @@ export type ProjectUpdateWithoutUserInput = {
   thumbnailUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   plan?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   budgetUsd?: Prisma.FloatFieldUpdateOperationsInput | number
+  bible?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   folder?: Prisma.ProjectFolderUpdateOneWithoutProjectsNestedInput
@@ -1315,6 +1356,7 @@ export type ProjectUncheckedUpdateWithoutUserInput = {
   thumbnailUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   plan?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   budgetUsd?: Prisma.FloatFieldUpdateOperationsInput | number
+  bible?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   assets?: Prisma.AssetUncheckedUpdateManyWithoutProjectNestedInput
@@ -1336,6 +1378,7 @@ export type ProjectUncheckedUpdateManyWithoutUserInput = {
   thumbnailUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   plan?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   budgetUsd?: Prisma.FloatFieldUpdateOperationsInput | number
+  bible?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -1354,6 +1397,7 @@ export type ProjectCreateManyFolderInput = {
   thumbnailUrl?: string | null
   plan?: string | null
   budgetUsd?: number
+  bible?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -1371,6 +1415,7 @@ export type ProjectUpdateWithoutFolderInput = {
   thumbnailUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   plan?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   budgetUsd?: Prisma.FloatFieldUpdateOperationsInput | number
+  bible?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   user?: Prisma.UserUpdateOneRequiredWithoutProjectsNestedInput
@@ -1393,6 +1438,7 @@ export type ProjectUncheckedUpdateWithoutFolderInput = {
   thumbnailUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   plan?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   budgetUsd?: Prisma.FloatFieldUpdateOperationsInput | number
+  bible?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   assets?: Prisma.AssetUncheckedUpdateManyWithoutProjectNestedInput
@@ -1414,6 +1460,7 @@ export type ProjectUncheckedUpdateManyWithoutFolderInput = {
   thumbnailUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   plan?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   budgetUsd?: Prisma.FloatFieldUpdateOperationsInput | number
+  bible?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -1482,6 +1529,7 @@ export type ProjectSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs 
   thumbnailUrl?: boolean
   plan?: boolean
   budgetUsd?: boolean
+  bible?: boolean
   createdAt?: boolean
   updatedAt?: boolean
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
@@ -1507,6 +1555,7 @@ export type ProjectSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Exten
   thumbnailUrl?: boolean
   plan?: boolean
   budgetUsd?: boolean
+  bible?: boolean
   createdAt?: boolean
   updatedAt?: boolean
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
@@ -1528,6 +1577,7 @@ export type ProjectSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Exten
   thumbnailUrl?: boolean
   plan?: boolean
   budgetUsd?: boolean
+  bible?: boolean
   createdAt?: boolean
   updatedAt?: boolean
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
@@ -1549,11 +1599,12 @@ export type ProjectSelectScalar = {
   thumbnailUrl?: boolean
   plan?: boolean
   budgetUsd?: boolean
+  bible?: boolean
   createdAt?: boolean
   updatedAt?: boolean
 }
 
-export type ProjectOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "name" | "userId" | "folderId" | "manifest" | "width" | "height" | "fps" | "duration" | "status" | "outputUrl" | "thumbnailUrl" | "plan" | "budgetUsd" | "createdAt" | "updatedAt", ExtArgs["result"]["project"]>
+export type ProjectOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "name" | "userId" | "folderId" | "manifest" | "width" | "height" | "fps" | "duration" | "status" | "outputUrl" | "thumbnailUrl" | "plan" | "budgetUsd" | "bible" | "createdAt" | "updatedAt", ExtArgs["result"]["project"]>
 export type ProjectInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
   folder?: boolean | Prisma.Project$folderArgs<ExtArgs>
@@ -1595,6 +1646,7 @@ export type $ProjectPayload<ExtArgs extends runtime.Types.Extensions.InternalArg
     thumbnailUrl: string | null
     plan: string | null
     budgetUsd: number
+    bible: string | null
     createdAt: Date
     updatedAt: Date
   }, ExtArgs["result"]["project"]>
@@ -2039,6 +2091,7 @@ export interface ProjectFieldRefs {
   readonly thumbnailUrl: Prisma.FieldRef<"Project", 'String'>
   readonly plan: Prisma.FieldRef<"Project", 'String'>
   readonly budgetUsd: Prisma.FieldRef<"Project", 'Float'>
+  readonly bible: Prisma.FieldRef<"Project", 'String'>
   readonly createdAt: Prisma.FieldRef<"Project", 'DateTime'>
   readonly updatedAt: Prisma.FieldRef<"Project", 'DateTime'>
 }

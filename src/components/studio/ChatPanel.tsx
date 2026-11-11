@@ -7,6 +7,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import {
   ArrowUp,
   Check,
@@ -31,6 +32,7 @@ import {
 } from '../ui/dropdown-menu'
 import { Segmented } from '../generate'
 import { PlanCard } from './director/PlanCard'
+import { bibleKey } from './director/useBible'
 import type { Production } from './director/types'
 import type { ProjectManifest } from '../../remotion/types'
 
@@ -77,10 +79,14 @@ interface ChatPanelProps {
 /** Tools whose result changes the plan the card shows */
 const PLAN_TOOLS = new Set(['proposePlan', 'updateShot', 'renderPlan'])
 
+/** Tools whose result changes the Project Bible */
+const BIBLE_TOOLS = new Set(['updateBible'])
+
 const TOOL_LABELS: Record<string, string> = {
   proposePlan: 'Planned the shots',
   updateShot: 'Updated a shot',
   renderPlan: 'Started rendering',
+  updateBible: 'Updated the Bible',
   getProjectState: 'Read the project',
   listAssets: 'Looked at the assets',
   updateTimeline: 'Edited the timeline',
@@ -117,6 +123,7 @@ export function ChatPanel({
   onComposerModeChange,
   onOpenStoryboard,
 }: ChatPanelProps) {
+  const queryClient = useQueryClient()
   const [messages, setMessages] = useState<Array<ChatMessage>>([WELCOME])
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
@@ -260,6 +267,9 @@ export function ChatPanel({
               if (PLAN_TOOLS.has(d.name) && d.result.success) {
                 void production.refresh()
               }
+              if (BIBLE_TOOLS.has(d.name) && d.result.success) {
+                void queryClient.invalidateQueries({ queryKey: bibleKey(projectId) })
+              }
             } else if (event.type === 'error') {
               accumulated += `\n\n**Error:** ${(event.data as { message: string }).message}`
               setStreamingContent(accumulated)
@@ -298,7 +308,7 @@ export function ChatPanel({
         abortControllerRef.current = null
       }
     },
-    [isLoading, projectId, production],
+    [isLoading, projectId, production, queryClient],
   )
 
   const handleSubmit = (e: React.FormEvent) => {

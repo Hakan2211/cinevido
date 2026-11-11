@@ -2,10 +2,11 @@
  * Mobile Navigation Tabs Component
  *
  * Fixed bottom navigation for mobile workspace.
- * Tabs: Preview, Chat, Storyboard, Assets, Timeline
+ * Tabs: Preview, Chat, Storyboard, Bible, Assets, Timeline
  */
 
 import {
+  BookOpen,
   Film,
   Layers,
   LayoutGrid,
@@ -18,6 +19,7 @@ export type MobileTab =
   | 'preview'
   | 'chat'
   | 'storyboard'
+  | 'bible'
   | 'assets'
   | 'timeline'
 
@@ -31,6 +33,7 @@ const TABS: Array<{ id: MobileTab; label: string; icon: typeof Film }> = [
   { id: 'preview', label: 'Preview', icon: Film },
   { id: 'chat', label: 'Chat', icon: MessageSquare },
   { id: 'storyboard', label: 'Board', icon: LayoutGrid },
+  { id: 'bible', label: 'Bible', icon: BookOpen },
   { id: 'assets', label: 'Assets', icon: Layers },
   { id: 'timeline', label: 'Timeline', icon: SlidersHorizontal },
 ]

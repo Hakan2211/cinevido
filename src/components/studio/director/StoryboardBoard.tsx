@@ -10,12 +10,22 @@
 import {
   AlertTriangle,
   ArrowRight,
+  BookOpen,
   CheckCircle2,
   Loader2,
   RotateCcw,
   Upload,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { useBible } from './useBible'
+import type { BibleState } from './useBible'
 import { cn } from '@/lib/utils'
 import { formatUsd } from '@/lib/pricing'
 import {
@@ -72,6 +82,7 @@ function Board({
   const totals = planTotals(plan)
   const cover = plan.shots.map(shotPreview).find(Boolean)
   const finalsRunning = !!plan.finalsRequestedAt && phase === 'finalizing'
+  const bible = useBible(production.projectId)
 
   const status =
     phase === 'planned'
@@ -149,7 +160,7 @@ function Board({
       <div className="min-h-0 flex-1 overflow-x-auto overflow-y-auto">
         <div className="flex min-w-max gap-3 p-4">
           {plan.shots.map((shot, i) => (
-            <ShotColumn key={shot.id} shot={shot} index={i} plan={plan} production={production} />
+            <ShotColumn key={shot.id} shot={shot} index={i} plan={plan} production={production} bible={bible} />
           ))}
         </div>
       </div>
@@ -185,13 +196,17 @@ function ShotColumn({
   index,
   plan,
   production,
+  bible,
 }: {
   shot: PlanShot
   index: number
   plan: ProductionPlan
   production: Production
+  bible: BibleState
 }) {
   const st = shotStatus(shot, plan)
+  const entries = bible.bible?.entries ?? []
+  const still = shot.still?.status === 'done' && shot.still.url ? shot.still : null
   const busy = shotBusy(shot)
   const hasDraft = shot.draft?.status === 'done'
   const price = priceShot(shot, plan.models, plan.aspectRatio)
@@ -226,6 +241,33 @@ function ShotColumn({
             <Loader2 className="mr-2 h-4 w-4 animate-spin text-primary" />
             {st.label}
           </div>
+        )}
+        {still && entries.length > 0 && !busy && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                size="icon-sm"
+                variant="secondary"
+                className="absolute right-2 top-2 bg-background/80"
+                aria-label="Use this still as a Bible reference"
+                title="Use this still as a Bible reference"
+              >
+                <BookOpen />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel>Use this still as the reference for</DropdownMenuLabel>
+              {entries.map((e) => (
+                <DropdownMenuItem
+                  key={e.id}
+                  onSelect={() => bible.setReference(e.id, { url: still.url!, assetId: still.assetId })}
+                >
+                  {e.name}
+                  {e.imageUrl && <span className="ml-auto text-xs text-muted-foreground">replaces</span>}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
         )}
         {shot.final?.status === 'done' && shot.wantFinal && (
           <span className="absolute left-2 top-2 rounded bg-background/80 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide">

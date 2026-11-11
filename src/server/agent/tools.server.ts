@@ -7,6 +7,7 @@
 
 import { z } from 'zod'
 import { zodToJsonSchema } from 'zod-to-json-schema'
+import { TTS_VOICES } from '../services/types'
 import type { ToolDefinition } from '../services/openrouter.server'
 
 // =============================================================================
@@ -202,6 +203,13 @@ export const proposePlanSchema = z.object({
           .min(5)
           .max(500)
           .describe('What moves during the shot: camera move and action, e.g. "slow push-in, steam rises from the cup"'),
+        cast: z
+          .array(z.string().max(60))
+          .max(4)
+          .optional()
+          .describe(
+            'Names of Project Bible entries that appear in this shot (exact names from the Bible). Their reference images keep faces and products consistent. Omit when none appear.',
+          ),
       }),
     )
     .min(1)
@@ -230,6 +238,44 @@ export const updateShotSchema = z.object({
     .optional()
     .describe('New first-frame image prompt (drops the renders of that shot)'),
   motion: z.string().max(500).optional().describe('New motion prompt (drops the clips)'),
+  cast: z
+    .array(z.string().max(60))
+    .max(4)
+    .optional()
+    .describe('Project Bible names in this shot; replaces the cast (drops the renders of that shot)'),
+})
+
+const voiceNames = TTS_VOICES.map((v) => v.name) as [string, ...Array<string>]
+
+export const updateBibleSchema = z.object({
+  style: z
+    .string()
+    .max(400)
+    .optional()
+    .describe(
+      'One visual style for every still, e.g. "35mm film, warm tungsten grade, shallow depth of field". Appended to every shot prompt, so keep it out of the shot prompts.',
+    ),
+  voice: z
+    .enum(voiceNames)
+    .optional()
+    .describe('Narrator voice for the voiceover'),
+  entries: z
+    .array(
+      z.object({
+        name: z.string().min(1).max(60).describe('How shots refer to it: "Mara", "The bottle"'),
+        kind: z.enum(['character', 'product', 'place']).optional(),
+        description: z
+          .string()
+          .max(400)
+          .optional()
+          .describe(
+            'The fixed look in words: age, build, hair, clothing; or shape, material, colours, label. Used to draw a reference image and repeated into every shot it is in.',
+          ),
+      }),
+    )
+    .max(8)
+    .optional()
+    .describe('Characters, products and places to add or update (matched by name). Never removes entries or their images.'),
 })
 
 export const renderPlanSchema = z.object({
@@ -262,6 +308,7 @@ export const TOOL_NAMES = {
   PROPOSE_PLAN: 'proposePlan',
   UPDATE_SHOT: 'updateShot',
   RENDER_PLAN: 'renderPlan',
+  UPDATE_BIBLE: 'updateBible',
 } as const
 
 export type ToolName = (typeof TOOL_NAMES)[keyof typeof TOOL_NAMES]
@@ -315,6 +362,15 @@ export const AGENT_TOOLS: Array<ToolDefinition> = [
       description:
         'Change one shot of the current plan (title, description, length, image prompt or motion). Prefer this over proposing a whole new plan when the user tweaks a shot.',
       parameters: schemaToParameters(updateShotSchema),
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: TOOL_NAMES.UPDATE_BIBLE,
+      description:
+        'Add to or change the Project Bible: the visual style, the narrator voice, and recurring characters / products / places. Shots name Bible entries in their `cast`; entries the user gave a reference image make those shots match it. Nothing is rendered or spent.',
+      parameters: schemaToParameters(updateBibleSchema),
     },
   },
   {
@@ -405,6 +461,7 @@ export type ListAssetsArgs = z.infer<typeof listAssetsSchema>
 export type ProposePlanArgs = z.infer<typeof proposePlanSchema>
 export type UpdateShotArgs = z.infer<typeof updateShotSchema>
 export type RenderPlanArgs = z.infer<typeof renderPlanSchema>
+export type UpdateBibleArgs = z.infer<typeof updateBibleSchema>
 
 export type ToolArgs =
   | { name: typeof TOOL_NAMES.GET_PROJECT_STATE; args: GetProjectStateArgs }

@@ -13,6 +13,8 @@ import { MobileNavTabs, type MobileTab } from './MobileNavTabs'
 import { ChatPanel } from '../ChatPanel'
 import { useProduction } from '../director/useProduction'
 import { StoryboardBoard } from '../director/StoryboardBoard'
+import { BibleBoard } from '../director/BibleBoard'
+import { useBible } from '../director/useBible'
 import type { ComposerMode } from '../ChatPanel'
 import { VideoPreview } from '../VideoPreview'
 import { Timeline } from '../timeline'
@@ -173,6 +175,12 @@ export function MobileWorkspace({ project }: MobileWorkspaceProps) {
     onAssembled: () => void refreshManifest(),
   })
 
+  const bible = useBible(project.id, {
+    onAssetsChanged: () => {
+      void queryClient.invalidateQueries({ queryKey: ['project', project.id] })
+    },
+  })
+
   useEffect(() => {
     if (activeJobs.length === 0) return
     const interval = setInterval(refreshManifest, MANIFEST_POLL_INTERVAL)
@@ -326,6 +334,12 @@ export function MobileWorkspace({ project }: MobileWorkspaceProps) {
               production={production}
               onOpenEditor={() => setActiveTab('timeline')}
             />
+          </div>
+        )}
+
+        {activeTab === 'bible' && (
+          <div className="h-full">
+            <BibleBoard bible={bible} plan={production.plan} />
           </div>
         )}
 

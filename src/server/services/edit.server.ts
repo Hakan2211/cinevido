@@ -51,6 +51,8 @@ export interface EditInput {
   imageSizePreset?: string // Preset name or 'auto' for edit
   outputFormat?: 'jpeg' | 'png' | 'webp'
   numImages?: number
+  /** Output aspect ratio; sent only to models that declare it */
+  aspectRatio?: string
 }
 
 export interface UpscaleInput {
@@ -443,6 +445,10 @@ export function buildEditPayload(input: EditInput, modelId: string) {
 
   if (config?.supportsSeed && input.seed !== undefined) {
     payload.seed = input.seed
+  }
+
+  if (input.aspectRatio && config?.aspectRatios?.includes(input.aspectRatio)) {
+    payload.aspect_ratio = input.aspectRatio
   }
 
   return payload

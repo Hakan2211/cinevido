@@ -33,6 +33,8 @@ export interface ModelConfig {
 // Extended config for edit models with image capacity info
 export interface EditModelConfig extends ModelConfig {
   maxImages: number // Maximum number of reference images (1 = single image only)
+  /** Output aspect ratios the schema declares (`aspect_ratio`); unset = follows the input */
+  aspectRatios?: Array<string>
 }
 
 // Extended config for upscale models with model-specific capabilities
@@ -390,6 +392,7 @@ export const EDIT_MODELS: Array<EditModelConfig> = [
       byResolution: { '1K': 0.044, '2K': 0.063, '4K': 0.138 },
     },
     supportsSeed: true,
+    aspectRatios: ['21:9', '16:9', '3:2', '4:3', '5:4', '1:1', '4:5', '3:4', '2:3', '9:16'],
   },
   {
     id: 'blackforestlabs/flux-3/edit-image',
@@ -1831,6 +1834,12 @@ export const DIRECTOR_MODELS = {
   frameExtract: 'fal-ai/ffmpeg-api/extract-frame',
   /** vision model (OpenRouter via fal) that compares a draft frame to its shot */
   selfCheck: 'google/gemini-2.5-flash',
+  /**
+   * Stills of shots whose cast has reference images (Project Bible): a
+   * multi-reference edit model that keeps faces and products, at the plan's
+   * aspect ratio. Reference portraits themselves are made with `still`.
+   */
+  referenceStill: 'google/nano-banana-2.1/edit',
 } as const
 
 /**

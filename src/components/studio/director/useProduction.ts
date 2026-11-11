@@ -121,6 +121,7 @@ export function useProduction(
   })
 
   return {
+    projectId,
     plan: query.data?.plan ?? null,
     budgetUsd: query.data?.budgetUsd ?? 10,
     isLoading: query.isLoading,

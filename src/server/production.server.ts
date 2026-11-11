@@ -96,6 +96,7 @@ const shotEditSchema = z.object({
   durationSec: z.number().min(1).max(30),
   prompt: z.string().min(1).max(1200),
   motion: z.string().max(500),
+  cast: z.array(z.string().max(40)).max(4).optional(),
 })
 
 /** Edit plan: shots, order, final model. Re-priced on the server. */

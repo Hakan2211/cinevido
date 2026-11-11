@@ -13,6 +13,7 @@ import {
   migrateManifest,
   sequenceEndFrame,
 } from './services/index.server'
+import { bibleFromInput, bibleInputSchema } from '../lib/bible'
 
 // =============================================================================
 // Schemas
@@ -23,6 +24,9 @@ const createProjectSchema = z.object({
   width: z.number().min(480).max(4096).optional(),
   height: z.number().min(480).max(4096).optional(),
   fps: z.number().min(24).max(60).optional(),
+  /** a recipe starts the project with its budget and a seeded Bible */
+  budgetUsd: z.number().min(1).max(1000).optional(),
+  bible: bibleInputSchema.optional(),
 })
 
 const updateProjectSchema = z.object({
@@ -70,6 +74,10 @@ export const createProjectFn = createServerFn({ method: 'POST' })
         fps: data.fps || 30,
         manifest: JSON.stringify(emptyManifest),
         status: 'draft',
+        ...(data.budgetUsd !== undefined && {
+          budgetUsd: Math.round(data.budgetUsd * 100) / 100,
+        }),
+        ...(data.bible && { bible: JSON.stringify(bibleFromInput(data.bible)) }),
       },
     })
 

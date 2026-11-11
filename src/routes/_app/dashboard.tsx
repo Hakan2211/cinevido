@@ -2,11 +2,14 @@
  * Home — "What are we making today?"
  *
  * One prompt box that starts a production: it creates a project, hands the
- * brief to the Director and opens the Studio. Recipe chips fill in a starting
- * brief; below sit recent projects and recent single creations.
+ * brief to the Director and opens the Studio. Recipe chips open a short form
+ * instead (src/lib/recipes.ts): the project then starts with the recipe's
+ * format, budget and a seeded Project Bible (a product or artist photo
+ * becomes the reference image), and the Director gets a structured brief.
+ * Below sit recent projects and recent single creations.
  */
 
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { formatDistanceToNow } from 'date-fns'
@@ -21,13 +24,26 @@ import {
   ShoppingBag,
   Smartphone,
   Sparkles,
+  X,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { GalleryItem } from '@/components/dashboard'
 import { BRIEF_STORAGE_PREFIX } from '@/components/studio/ChatPanel'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import { FrameSlot } from '@/components/generate/FrameSlot'
+import { ImagePickerDialog } from '@/components/generate/ImagePickerDialog'
 import { cn } from '@/lib/utils'
+import {
+  RECIPES,
+  recipeBible,
+  recipeProjectName,
+  recipeReady,
+} from '@/lib/recipes'
+import type { Recipe, RecipeValues } from '@/lib/recipes'
+import type { SlotImage } from '@/components/generate/FrameSlot'
 
 export const Route = createFileRoute('/_app/dashboard')({
   component: HomePage,
@@ -40,49 +56,13 @@ const FORMATS = [
 ] as const
 type FormatId = (typeof FORMATS)[number]['id']
 
-/** Starting briefs — a filled-in shape the user edits, not a magic template */
-const RECIPES: Array<{
-  label: string
-  icon: typeof ShoppingBag
-  format: FormatId
-  brief: string
-}> = [
-  {
-    label: 'Product ad',
-    icon: ShoppingBag,
-    format: '16:9',
-    brief:
-      'A 30-second product ad for [product]. Mood: [warm / bold / minimal]. Show it in use, end on a clean product shot with space for the tagline.',
-  },
-  {
-    label: 'Explainer',
-    icon: Monitor,
-    format: '16:9',
-    brief:
-      'A 60-second explainer about [topic] for [audience]. Calm voiceover, simple visual metaphors, one idea per scene.',
-  },
-  {
-    label: 'Music video',
-    icon: Music2,
-    format: '16:9',
-    brief:
-      'A music video for a [genre] track about [theme]. Cinematic, dreamlike, cuts on the beat. Write the song too.',
-  },
-  {
-    label: 'Social short',
-    icon: Smartphone,
-    format: '9:16',
-    brief:
-      'A 15-second vertical short about [subject]. Hook in the first second, bold captions, punchy pacing.',
-  },
-  {
-    label: 'Trailer',
-    icon: Clapperboard,
-    format: '16:9',
-    brief:
-      'A 45-second trailer for [story]. Slow build, title cards, a dramatic reveal, end on the title.',
-  },
-]
+const RECIPE_ICONS: Record<string, typeof ShoppingBag> = {
+  'product-ad': ShoppingBag,
+  explainer: Monitor,
+  'music-video': Music2,
+  'social-short': Smartphone,
+  trailer: Clapperboard,
+}
 
 /** "a 30-second ad for a coffee brand…" → "30-second ad for a coffee brand" */
 function projectNameFrom(brief: string): string {
@@ -104,7 +84,10 @@ function HomePage() {
   const navigate = useNavigate()
   const [brief, setBrief] = useState('')
   const [format, setFormat] = useState<FormatId>('16:9')
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const [recipe, setRecipe] = useState<Recipe | null>(null)
+  const [values, setValues] = useState<RecipeValues>({})
+  const [images, setImages] = useState<Record<string, SlotImage | undefined>>({})
+  const [picking, setPicking] = useState<string | null>(null)
 
   const { data: projectsData, isLoading: projectsLoading } = useQuery({
     queryKey: ['projects', 'recent'],
@@ -124,18 +107,35 @@ function HomePage() {
   })
 
   const create = useMutation({
-    mutationFn: async (text: string) => {
-      const size = FORMATS.find((f) => f.id === format) ?? FORMATS[0]
+    mutationFn: async (input: {
+      text: string
+      name: string
+      format: FormatId
+      budgetUsd?: number
+      bible?: ReturnType<typeof recipeBible>
+    }) => {
+      const size = FORMATS.find((f) => f.id === input.format) ?? FORMATS[0]
       const { createProjectFn } = await import('@/server/project.server')
       return createProjectFn({
         data: {
-          name: projectNameFrom(text),
+          name: input.name,
           width: size.width,
           height: size.height,
+          budgetUsd: input.budgetUsd,
+          bible: input.bible && {
+            style: input.bible.style,
+            entries: input.bible.entries.map((e) => ({
+              kind: e.kind ?? 'character',
+              name: e.name,
+              description: e.description ?? '',
+              imageUrl: e.imageUrl,
+              assetId: e.assetId,
+            })),
+          },
         },
       })
     },
-    onSuccess: (project, text) => {
+    onSuccess: (project, { text }) => {
       sessionStorage.setItem(`${BRIEF_STORAGE_PREFIX}${project.id}`, text)
       navigate({
         to: '/projects/$projectId',
@@ -146,24 +146,29 @@ function HomePage() {
   })
 
   const handleCreate = () => {
+    if (create.isPending) return
+    if (recipe) {
+      if (!recipeReady(recipe, values)) return
+      create.mutate({
+        text: recipe.brief(values),
+        name: recipeProjectName(recipe, values),
+        format: recipe.format,
+        budgetUsd: recipe.budgetUsd,
+        bible: recipeBible(recipe, values, images),
+      })
+      return
+    }
     const text = brief.trim()
-    if (!text || create.isPending) return
-    create.mutate(text)
+    if (!text) return
+    create.mutate({ text, name: projectNameFrom(text), format })
   }
 
-  const applyRecipe = (recipe: (typeof RECIPES)[number]) => {
-    setBrief(recipe.brief)
-    setFormat(recipe.format)
-    requestAnimationFrame(() => {
-      const el = textareaRef.current
-      if (!el) return
-      el.focus()
-      // select the first [placeholder] so typing replaces it
-      const start = recipe.brief.indexOf('[')
-      const end = recipe.brief.indexOf(']', start) + 1
-      if (start >= 0 && end > start) el.setSelectionRange(start, end)
-    })
+  const openRecipe = (r: Recipe) => {
+    setRecipe(r)
+    setValues({})
+    setImages({})
   }
+  const canCreate = recipe ? recipeReady(recipe, values) : !!brief.trim()
 
   const projects = projectsData?.projects ?? []
 
@@ -176,10 +181,21 @@ function HomePage() {
         </h1>
 
         <div className="mt-10 rounded-2xl border border-border bg-card p-4 shadow-2xl shadow-black/40 focus-within:border-muted-foreground/50 transition-colors">
+          {recipe ? (
+            <RecipeForm
+              recipe={recipe}
+              values={values}
+              images={images}
+              onChange={(id, v) => setValues((prev) => ({ ...prev, [id]: v }))}
+              onPick={setPicking}
+              onClearImage={(id) => setImages((prev) => ({ ...prev, [id]: undefined }))}
+              onClose={() => setRecipe(null)}
+              onSubmit={handleCreate}
+            />
+          ) : (
           <div className="flex gap-3">
             <Sparkles className="mt-1 h-5 w-5 shrink-0 text-muted-foreground" />
             <textarea
-              ref={textareaRef}
               value={brief}
               onChange={(e) => setBrief(e.target.value)}
               onKeyDown={(e) => {
@@ -193,7 +209,13 @@ function HomePage() {
               className="min-h-[84px] w-full resize-none bg-transparent text-base leading-relaxed outline-none placeholder:text-muted-foreground/70"
             />
           </div>
+          )}
           <div className="mt-3 flex items-center gap-3 border-t border-border pt-3">
+            {recipe ? (
+              <span className="text-xs tabular-nums text-muted-foreground">
+                {recipe.format} · {recipe.lengthSec}s · budget ${recipe.budgetUsd}
+              </span>
+            ) : (
             <div className="flex items-center gap-1 rounded-lg bg-muted p-0.5">
               {FORMATS.map((f) => (
                 <button
@@ -210,13 +232,14 @@ function HomePage() {
                 </button>
               ))}
             </div>
+            )}
             <span className="hidden text-xs text-muted-foreground sm:block">
               The Director plans it — nothing renders until you approve.
             </span>
             <Button
               className="ml-auto"
               onClick={handleCreate}
-              disabled={!brief.trim() || create.isPending}
+              disabled={!canCreate || create.isPending}
             >
               {create.isPending ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -229,17 +252,34 @@ function HomePage() {
         </div>
 
         <div className="mt-5 flex flex-wrap justify-center gap-2">
-          {RECIPES.map((r) => (
-            <button
-              key={r.label}
-              onClick={() => applyRecipe(r)}
-              className="flex items-center gap-2 rounded-full border border-border bg-card px-4 py-2 text-sm text-foreground/90 transition-colors hover:border-muted-foreground/60 hover:bg-accent"
-            >
-              <r.icon className="h-4 w-4 text-primary" />
-              {r.label}
-            </button>
-          ))}
+          {RECIPES.map((r) => {
+            const Icon = RECIPE_ICONS[r.id] ?? Sparkles
+            const active = recipe?.id === r.id
+            return (
+              <button
+                key={r.id}
+                onClick={() => (active ? setRecipe(null) : openRecipe(r))}
+                aria-pressed={active}
+                className={cn(
+                  'flex items-center gap-2 rounded-full border bg-card px-4 py-2 text-sm text-foreground/90 transition-colors hover:border-muted-foreground/60 hover:bg-accent',
+                  active ? 'border-primary/70' : 'border-border',
+                )}
+              >
+                <Icon className="h-4 w-4 text-primary" />
+                {r.label}
+              </button>
+            )
+          })}
         </div>
+
+        <ImagePickerDialog
+          open={!!picking}
+          onOpenChange={(o) => !o && setPicking(null)}
+          title="Reference photo"
+          onPick={([img]) => {
+            if (img && picking) setImages((prev) => ({ ...prev, [picking]: img }))
+          }}
+        />
       </section>
 
       {/* Recent projects */}
@@ -345,4 +385,93 @@ function formatFrames(frames: number, fps: number): string {
   const m = Math.floor(total / 60)
   const s = total % 60
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+}
+
+function RecipeForm({
+  recipe,
+  values,
+  images,
+  onChange,
+  onPick,
+  onClearImage,
+  onClose,
+  onSubmit,
+}: {
+  recipe: Recipe
+  values: RecipeValues
+  images: Record<string, SlotImage | undefined>
+  onChange: (id: string, value: string) => void
+  onPick: (fieldId: string) => void
+  onClearImage: (fieldId: string) => void
+  onClose: () => void
+  onSubmit: () => void
+}) {
+  const text = recipe.fields.filter((f) => f.kind !== 'image')
+  const pics = recipe.fields.filter((f) => f.kind === 'image')
+  return (
+    <div>
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <div>
+          <p className="font-medium">{recipe.label}</p>
+          <p className="text-xs text-muted-foreground">{recipe.summary}</p>
+        </div>
+        <Button variant="ghost" size="icon-sm" onClick={onClose} aria-label="Close recipe">
+          <X />
+        </Button>
+      </div>
+      <div className={cn('grid gap-4', pics.length > 0 && 'sm:grid-cols-[1fr_180px]')}>
+        <div className="space-y-3">
+          {text.map((f, i) => (
+            <label key={f.id} className="block space-y-1">
+              <span className="text-xs text-muted-foreground">
+                {f.label}
+                {f.required && <span className="text-primary"> *</span>}
+              </span>
+              {f.kind === 'textarea' ? (
+                <Textarea
+                  value={values[f.id] ?? ''}
+                  onChange={(e) => onChange(f.id, e.target.value)}
+                  placeholder={f.placeholder}
+                  rows={3}
+                  autoFocus={i === 0}
+                  className="text-sm"
+                />
+              ) : (
+                <Input
+                  value={values[f.id] ?? ''}
+                  onChange={(e) => onChange(f.id, e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      onSubmit()
+                    }
+                  }}
+                  placeholder={f.placeholder}
+                  autoFocus={i === 0}
+                  maxLength={200}
+                />
+              )}
+            </label>
+          ))}
+        </div>
+        {pics.length > 0 && (
+          <div className="space-y-3">
+            {pics.map((f) => (
+              <div key={f.id} className="space-y-1">
+                <FrameSlot
+                  image={images[f.id] ?? null}
+                  label={f.label}
+                  optional
+                  aspect="square"
+                  onPick={() => onPick(f.id)}
+                  onClear={() => onClearImage(f.id)}
+                />
+                <p className="text-xs text-muted-foreground">{f.placeholder}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
 }

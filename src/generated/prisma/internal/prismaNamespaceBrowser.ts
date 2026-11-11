@@ -186,6 +186,7 @@ export const ProjectScalarFieldEnum = {
   thumbnailUrl: 'thumbnailUrl',
   plan: 'plan',
   budgetUsd: 'budgetUsd',
+  bible: 'bible',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 } as const

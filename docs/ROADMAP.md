@@ -154,7 +154,11 @@ assemble on the timeline — without typing a second message.
 - [x] Verified: full loop in `MOCK_GENERATION` mode (6 drafts → refuse over budget → 4 keep + 1 promote → finals + voice + music → assembled in order, idempotent; spend = Σ job estimates); self-check live on fal's sample clip (match → ok, wrong brief → "retry suggested", $0.0002 each)
 - [x] ~~One real end-to-end run from Home (≈$8.50)~~ — dropped: too expensive for a test; the mock-mode loop plus the live self-check stand in
 - [x] Studio, Projects and Home's Create flow open to every user (2026-11-11). Before opening: `/api/chat` GET/DELETE and `runAgent` now check the project is the caller's, and every generation endpoint that files an asset under a client-sent `projectId` goes through `ownedProjectId()` (`src/server/project-access.server.ts`)
-- [ ] Later: Project Bible, Recipes (item 7)
+- [x] **Project Bible** (item 7, 2026-11-11): `Project.bible` JSON (migration `20261111220000_project_bible`), `src/lib/bible.ts` (+ tests). Style (appended to every still), narrator voice (used by the voiceover), cast of characters / products / places with reference images (max 8). Shots carry `cast` (entry ids); a still whose cast has images is made by `DIRECTOR_MODELS.referenceStill` (Nano Banana 2.1 Edit, `aspect_ratio` = plan aspect, live-schema-checked) from those images, otherwise text-to-image as before. A new cast drops the still like a new prompt
+  - Studio **Bible** tab (desktop and mobile, `BibleBoard.tsx`, `useBible.ts`): edit style / voice / cast, pick or upload a reference, or **Generate · ≈ $0.027** a reference portrait (Seedream 5 Flash, polled by `pollBibleFn`); Storyboard shots get a "use this still as the reference for…" menu; Edit plan has per-shot cast chips (priced live)
+  - Director: new `updateBible` tool; `proposePlan` / `updateShot` take `cast` by name (unknown names are dropped with a warning); Bible summary in the context; system prompt section
+  - Verified in `MOCK_GENERATION` mode on the demo project: Bible tab loads/saves, Generate → reference lands on the entry, still → reference from Storyboard, cast chip re-prices the draft ($1.36 → $1.38)
+- [x] **Recipes** (item 7, 2026-11-11): `src/lib/recipes.ts` (+ tests) — Product ad, Explainer, Music video, Social short, Trailer. A Home chip opens a short form (required subject, optional photo); Create makes the project at the recipe's format and budget with a seeded Bible (photo → reference image, look → description, recipe style) and hands the Director a structured brief (shot pattern, voiceover/music, "put X in the cast"). Nothing renders until the user presses Render. Not pressed end-to-end (the brief starts a paid Director chat)
 
 ### Phase 6 — Polish ✅ (2026-11-11)
 - [x] **Projects** (`/projects`): same cards as Home (16:9 thumb, name, "Edited … ago", design-sheet status chip, duration), delete in a "…" menu, folders as a plain left column, empty state points to Home. Cards without `thumbnailUrl` show the project's first image (`FIRST_IMAGE` in `project.server.ts`, Home too). Dropped the "All Projects" count (it summed only foldered projects)
@@ -223,5 +227,21 @@ assemble on the timeline — without typing a second message.
   can reproduce faithfully get a lettermark rather than an invented logo.
 - **2026-11-11** — Studio opened to all users; the landing leads with the
   Director again (the interim *In preview* badge is gone).
+- **2026-11-11** — Project Bible consistency comes from the *still*: a shot whose
+  cast has reference images is rendered by a multi-reference edit model, and
+  draft and final animate that still as before. No Kling Reference-to-video —
+  it would need a second pipeline and the still already carries the identity.
+- **2026-11-11** — A shot with a cast is priced as a reference edit even if no
+  member has an image yet (quoted high, never low); the runner charges what it
+  actually submits.
+- **2026-11-11** — Reference portraits generated on the Bible tab are billed to
+  the user's fal key at the price on the button and logged as jobs, but are not
+  charged to the production budget (that covers shots, audio and self-checks).
+- **2026-11-11** — Recipes are forms that seed a project (format, budget, Bible,
+  structured brief), not auto-run pipelines: the cost-before-click rule means
+  drafts still start from the plan's Render button.
+- **2026-11-11** — `*.server.ts` modules that the client imports export only
+  server functions; anything else exported there (Prisma helpers, schemas)
+  is bundled into the browser. Shared schemas live in `src/lib/`.
 - **2026-11-11** — No paid end-to-end Director run as a test (≈$8.50 is too
   much). Verify in `MOCK_GENERATION` mode and with single cheap live calls.
