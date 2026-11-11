@@ -86,15 +86,17 @@ function SignupPage() {
   })
 
   return (
-    <div className="w-full max-w-md space-y-8">
+    <div className="w-full max-w-sm space-y-6">
       <div className="text-center">
-        <h1 className="text-3xl font-bold tracking-tight">Create an account</h1>
-        <p className="mt-2 text-muted-foreground">
+        <h1 className="text-2xl font-semibold tracking-tight">
+          Create an account
+        </h1>
+        <p className="mt-1.5 text-sm text-muted-foreground">
           Get started with your free account
         </p>
       </div>
 
-      <div className="rounded-lg border bg-card p-8 shadow-sm">
+      <div className="rounded-xl border border-border bg-card p-6 sm:p-7">
         <form
           onSubmit={(e) => {
             e.preventDefault()

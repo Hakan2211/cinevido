@@ -153,12 +153,9 @@ export function FolderSidebar({
     onCollapsedChange?.(!collapsed)
   }
 
-  // Total project count across all folders
-  const totalProjectCount = folders.reduce((sum, f) => sum + f.projectCount, 0)
-
   if (collapsed) {
     return (
-      <div className="flex flex-col items-center gap-2 border-r bg-muted/30 py-4">
+      <div className="flex flex-col items-center gap-2 py-1">
         <Button
           variant="ghost"
           size="icon"
@@ -203,10 +200,12 @@ export function FolderSidebar({
   }
 
   return (
-    <div className="flex w-56 flex-col border-r bg-muted/30">
+    <div className="flex w-52 flex-col">
       {/* Header */}
-      <div className="flex items-center justify-between border-b px-3 py-2">
-        <span className="text-sm font-medium">Folders</span>
+      <div className="flex items-center justify-between px-2 pb-2">
+        <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+          Folders
+        </span>
         <div className="flex items-center gap-1">
           <Button
             variant="ghost"
@@ -232,7 +231,7 @@ export function FolderSidebar({
       </div>
 
       {/* Folder List */}
-      <div className="flex-1 overflow-y-auto p-2">
+      <div className="flex-1 overflow-y-auto">
         {/* All Projects */}
         <button
           onClick={() => onFolderSelect(null)}
@@ -240,14 +239,11 @@ export function FolderSidebar({
             'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors',
             selectedFolderId === null
               ? 'bg-primary/10 text-primary'
-              : 'hover:bg-muted',
+              : 'hover:bg-accent',
           )}
         >
           <Folder className="h-4 w-4" />
           <span className="flex-1 text-left">All Projects</span>
-          <span className="text-xs text-muted-foreground">
-            {totalProjectCount}
-          </span>
         </button>
 
         {/* No Folder */}
@@ -257,7 +253,7 @@ export function FolderSidebar({
             'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors',
             selectedFolderId === 'none'
               ? 'bg-primary/10 text-primary'
-              : 'hover:bg-muted',
+              : 'hover:bg-accent',
           )}
         >
           <FolderOpen className="h-4 w-4 text-muted-foreground" />
@@ -282,7 +278,7 @@ export function FolderSidebar({
                   'group flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors',
                   selectedFolderId === folder.id
                     ? 'bg-primary/10 text-primary'
-                    : 'hover:bg-muted',
+                    : 'hover:bg-accent',
                 )}
               >
                 <button

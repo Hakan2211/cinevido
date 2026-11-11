@@ -2,7 +2,7 @@ import { Link } from '@tanstack/react-router'
 import { motion } from 'framer-motion'
 import { ArrowRight, Globe, Key, Sparkles, Twitter } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Logo } from '@/components/common'
+import { Wordmark } from '@/components/common'
 import { useUserAccess } from '@/hooks/use-user-access'
 
 const footerLinks = {
@@ -133,15 +133,15 @@ export function LandingFooter() {
             {/* Trust indicators */}
             <div className="mt-8 flex flex-wrap items-center justify-center gap-6 text-sm opacity-80">
               <div className="flex items-center gap-2">
-                <div className="h-2 w-2 rounded-full bg-green-400" />
+                <div className="h-2 w-2 rounded-full bg-success" />
                 <span>One-time payment</span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="h-2 w-2 rounded-full bg-green-400" />
+                <div className="h-2 w-2 rounded-full bg-success" />
                 <span>Lifetime access</span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="h-2 w-2 rounded-full bg-green-400" />
+                <div className="h-2 w-2 rounded-full bg-success" />
                 <span>Your content stays private</span>
               </div>
             </div>
@@ -154,13 +154,12 @@ export function LandingFooter() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-8 lg:gap-12">
           {/* Brand */}
           <div className="col-span-2 md:col-span-1">
-            <Link to="/" className="flex items-center gap-2 mb-4">
-              <Logo size={32} />
-              <span className="text-xl font-bold">Cinevido</span>
+            <Link to="/" className="mb-4 inline-flex">
+              <Wordmark tagline={false} />
             </Link>
             <p className="text-sm text-muted-foreground max-w-xs mb-4">
-              Your AI creative studio. Generate images, videos, and 3D models
-              with cutting-edge AI. BYOK - Bring Your Own Key.
+              An AI film studio. Images, video, voice, music and 3D on your own
+              fal key, every price shown before you generate.
             </p>
             {/* Social Links */}
             <div className="flex items-center gap-3">

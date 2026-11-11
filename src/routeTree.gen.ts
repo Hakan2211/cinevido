@@ -24,6 +24,7 @@ import { Route as AuthLoginRouteImport } from './routes/_auth/login'
 import { Route as AppSetupRouteImport } from './routes/_app/setup'
 import { Route as AppSettingsRouteImport } from './routes/_app/settings'
 import { Route as AppProfileRouteImport } from './routes/_app/profile'
+import { Route as AppLibraryRouteImport } from './routes/_app/library'
 import { Route as AppDashboardRouteImport } from './routes/_app/dashboard'
 import { Route as AppAdminRouteImport } from './routes/_app/admin'
 import { Route as App3dModelsRouteImport } from './routes/_app/3d-models'
@@ -113,6 +114,11 @@ const AppProfileRoute = AppProfileRouteImport.update({
   path: '/profile',
   getParentRoute: () => AppRoute,
 } as any)
+const AppLibraryRoute = AppLibraryRouteImport.update({
+  id: '/library',
+  path: '/library',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppDashboardRoute = AppDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
@@ -198,6 +204,7 @@ export interface FileRoutesByFullPath {
   '/3d-models': typeof App3dModelsRoute
   '/admin': typeof AppAdminRoute
   '/dashboard': typeof AppDashboardRoute
+  '/library': typeof AppLibraryRoute
   '/profile': typeof AppProfileRoute
   '/settings': typeof AppSettingsRouteWithChildren
   '/setup': typeof AppSetupRoute
@@ -228,6 +235,7 @@ export interface FileRoutesByTo {
   '/3d-models': typeof App3dModelsRoute
   '/admin': typeof AppAdminRoute
   '/dashboard': typeof AppDashboardRoute
+  '/library': typeof AppLibraryRoute
   '/profile': typeof AppProfileRoute
   '/setup': typeof AppSetupRoute
   '/login': typeof AuthLoginRoute
@@ -260,6 +268,7 @@ export interface FileRoutesById {
   '/_app/3d-models': typeof App3dModelsRoute
   '/_app/admin': typeof AppAdminRoute
   '/_app/dashboard': typeof AppDashboardRoute
+  '/_app/library': typeof AppLibraryRoute
   '/_app/profile': typeof AppProfileRoute
   '/_app/settings': typeof AppSettingsRouteWithChildren
   '/_app/setup': typeof AppSetupRoute
@@ -292,6 +301,7 @@ export interface FileRouteTypes {
     | '/3d-models'
     | '/admin'
     | '/dashboard'
+    | '/library'
     | '/profile'
     | '/settings'
     | '/setup'
@@ -322,6 +332,7 @@ export interface FileRouteTypes {
     | '/3d-models'
     | '/admin'
     | '/dashboard'
+    | '/library'
     | '/profile'
     | '/setup'
     | '/login'
@@ -353,6 +364,7 @@ export interface FileRouteTypes {
     | '/_app/3d-models'
     | '/_app/admin'
     | '/_app/dashboard'
+    | '/_app/library'
     | '/_app/profile'
     | '/_app/settings'
     | '/_app/setup'
@@ -497,6 +509,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppProfileRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/library': {
+      id: '/_app/library'
+      path: '/library'
+      fullPath: '/library'
+      preLoaderRoute: typeof AppLibraryRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/dashboard': {
       id: '/_app/dashboard'
       path: '/dashboard'
@@ -627,6 +646,7 @@ interface AppRouteChildren {
   App3dModelsRoute: typeof App3dModelsRoute
   AppAdminRoute: typeof AppAdminRoute
   AppDashboardRoute: typeof AppDashboardRoute
+  AppLibraryRoute: typeof AppLibraryRoute
   AppProfileRoute: typeof AppProfileRoute
   AppSettingsRoute: typeof AppSettingsRouteWithChildren
   AppSetupRoute: typeof AppSetupRoute
@@ -642,6 +662,7 @@ const AppRouteChildren: AppRouteChildren = {
   App3dModelsRoute: App3dModelsRoute,
   AppAdminRoute: AppAdminRoute,
   AppDashboardRoute: AppDashboardRoute,
+  AppLibraryRoute: AppLibraryRoute,
   AppProfileRoute: AppProfileRoute,
   AppSettingsRoute: AppSettingsRouteWithChildren,
   AppSetupRoute: AppSetupRoute,

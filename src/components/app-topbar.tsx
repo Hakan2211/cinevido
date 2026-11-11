@@ -1,7 +1,7 @@
 /**
  * App top bar — replaces the old sidebar.
  *
- * Wordmark · primary nav (Home / Projects / Create) · on Create pages a
+ * Wordmark · primary nav (Home / Projects / Library / Create) · on Create pages a
  * segmented switch between the labs · fal credit pill · account menu.
  * Below `md` the nav folds into a sheet.
  */
@@ -53,6 +53,7 @@ const LABS = [
 const NAV = [
   { to: '/dashboard', label: 'Home', match: ['/dashboard'] },
   { to: '/projects', label: 'Projects', match: ['/projects'] },
+  { to: '/library', label: 'Library', match: ['/library'] },
   { to: '/images', label: 'Create', match: LABS.map((l) => l.to) },
 ] as const
 

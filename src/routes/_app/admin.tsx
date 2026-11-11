@@ -1,6 +1,7 @@
 import { createFileRoute, redirect } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Button } from '../../components/ui/button'
+import { PriceDriftCard } from '../../components/admin/PriceDriftCard'
 
 // NOTE: Server functions are dynamically imported in queryFn/mutationFn
 // to prevent Prisma and other server-only code from being bundled into the client.
@@ -50,18 +51,16 @@ function AdminPage() {
   })
 
   return (
-    <div className="space-y-8">
+    <div className="mx-auto w-full max-w-6xl space-y-8">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Admin Panel</h1>
-        <p className="text-muted-foreground">
-          Manage users and system settings
-        </p>
+        <h1 className="text-3xl font-semibold tracking-tight">Admin</h1>
+        <p className="text-muted-foreground">Users and catalog health</p>
       </div>
 
       {/* Users Table */}
-      <div className="rounded-lg border bg-card">
-        <div className="border-b px-6 py-4">
-          <h2 className="text-xl font-semibold">Users</h2>
+      <div className="rounded-xl border border-border bg-card">
+        <div className="border-b border-border px-6 py-4">
+          <h2 className="font-semibold">Users</h2>
         </div>
 
         {isLoading ? (
@@ -72,7 +71,7 @@ function AdminPage() {
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="border-b bg-muted/50">
+                <tr className="border-b border-border text-muted-foreground">
                   <th className="px-6 py-3 text-left text-sm font-medium">
                     Email
                   </th>
@@ -98,14 +97,17 @@ function AdminPage() {
               </thead>
               <tbody>
                 {users?.map((user: AdminUser) => (
-                  <tr key={user.id} className="border-b">
+                  <tr
+                    key={user.id}
+                    className="border-b border-border last:border-0"
+                  >
                     <td className="px-6 py-4 text-sm">{user.email}</td>
                     <td className="px-6 py-4 text-sm">{user.name ?? '-'}</td>
                     <td className="px-6 py-4">
                       <span
                         className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
                           user.role === 'admin'
-                            ? 'bg-purple-500/10 text-purple-600'
+                            ? 'bg-primary/15 text-primary'
                             : 'bg-muted text-muted-foreground'
                         }`}
                       >
@@ -116,8 +118,8 @@ function AdminPage() {
                       <span
                         className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
                           user.emailVerified
-                            ? 'bg-green-500/10 text-green-600'
-                            : 'bg-yellow-500/10 text-yellow-600'
+                            ? 'bg-success/15 text-success'
+                            : 'bg-muted text-muted-foreground'
                         }`}
                       >
                         {user.emailVerified ? 'Verified' : 'Pending'}
@@ -127,7 +129,7 @@ function AdminPage() {
                       <span
                         className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
                           user.subscriptionStatus === 'active'
-                            ? 'bg-green-500/10 text-green-600'
+                            ? 'bg-success/15 text-success'
                             : 'bg-muted text-muted-foreground'
                         }`}
                       >
@@ -160,25 +162,29 @@ function AdminPage() {
         )}
       </div>
 
+      <PriceDriftCard />
+
       {/* System Stats */}
       <div className="grid gap-4 md:grid-cols-3">
-        <div className="rounded-lg border bg-card p-6">
+        <div className="rounded-xl border border-border bg-card p-6">
           <p className="text-sm font-medium text-muted-foreground">
             Total Users
           </p>
-          <p className="mt-2 text-3xl font-bold">{users?.length ?? 0}</p>
+          <p className="mt-2 text-3xl font-semibold tabular-nums">
+            {users?.length ?? 0}
+          </p>
         </div>
-        <div className="rounded-lg border bg-card p-6">
+        <div className="rounded-xl border border-border bg-card p-6">
           <p className="text-sm font-medium text-muted-foreground">Admins</p>
-          <p className="mt-2 text-3xl font-bold">
+          <p className="mt-2 text-3xl font-semibold tabular-nums">
             {users?.filter((u: AdminUser) => u.role === 'admin').length ?? 0}
           </p>
         </div>
-        <div className="rounded-lg border bg-card p-6">
+        <div className="rounded-xl border border-border bg-card p-6">
           <p className="text-sm font-medium text-muted-foreground">
             Pro Subscribers
           </p>
-          <p className="mt-2 text-3xl font-bold">
+          <p className="mt-2 text-3xl font-semibold tabular-nums">
             {users?.filter((u: AdminUser) => u.subscriptionStatus === 'active')
               .length ?? 0}
           </p>

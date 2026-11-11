@@ -1,124 +1,69 @@
-import { motion } from 'framer-motion'
-import { Box, Image, Video, Zap, Cpu } from 'lucide-react'
+import { TIER_LABELS, formatRate } from '@/lib/pricing'
+import { ModelIcon } from '@/lib/model-icons'
 import { cn } from '@/lib/utils'
+import { CATALOG_GROUPS, CATALOG_MODEL_COUNT } from './catalog-summary'
 
-const modelCategories = [
-  {
-    title: 'Image',
-    icon: Image,
-    color: 'text-violet-500',
-    bgColor: 'bg-violet-500/10',
-    borderColor: 'border-violet-500/20',
-    models: [
-      'Flux 2 Pro',
-      'GPT Image 2.5',
-      'Nano Banana 2.1',
-      'Recraft V3',
-      'ImagineArt 1.5',
-      'Seedream 4.5',
-      'Bria 3.2',
-      'Wan 2.6',
-    ],
-  },
-  {
-    title: 'Video',
-    icon: Video,
-    color: 'text-blue-500',
-    bgColor: 'bg-blue-500/10',
-    borderColor: 'border-blue-500/20',
-    models: [
-      'Kling 3.0',
-      'Sora 2 Pro',
-      'Veo 3.1',
-      'Wan 2.6',
-      'Seedance 1.5',
-      'MiniMax H3',
-      'Hailuo 2.3',
-      'Pika 2.2',
-    ],
-  },
-  {
-    title: '3D',
-    icon: Box,
-    color: 'text-emerald-500',
-    bgColor: 'bg-emerald-500/10',
-    borderColor: 'border-emerald-500/20',
-    models: ['Hunyuan3D V3', 'Meshy 6', 'Rodin V2', 'Seed3D', 'SAM 3D'],
-  },
-  {
-    title: 'Upscale',
-    icon: Zap,
-    color: 'text-amber-500',
-    bgColor: 'bg-amber-500/10',
-    borderColor: 'border-amber-500/20',
-    models: ['SeedVR2', 'Topaz'],
-  },
-]
-
+/**
+ * The live catalog: every model the labs offer, its tier and fal's rate.
+ * Rates are what fal bills your key — Cinevido adds nothing.
+ */
 export function ModelsSection() {
   return (
-    <section id="models" className="py-24 lg:py-32 bg-muted/30">
+    <section id="models" className="border-t border-border py-24 lg:py-32">
       <div className="container mx-auto px-4 lg:px-8">
-        {/* Header */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.5 }}
-          className="text-center mb-12"
-        >
-          <span className="inline-flex items-center gap-2 rounded-full border bg-background px-4 py-1.5 text-sm font-medium shadow-sm mb-6">
-            <Cpu className="h-4 w-4 text-primary" />
-            65+ AI Models
-          </span>
-          <h2 className="text-3xl md:text-4xl font-bold tracking-tight mb-4">
-            Powered by the Best AI Models
-          </h2>
-          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            Access cutting-edge AI from leading providers through your fal.ai
-            API key. New models added regularly.
+        <div className="mx-auto mb-14 max-w-2xl text-center">
+          <p className="text-[11px] font-medium uppercase tracking-[0.3em] text-muted-foreground">
+            The catalog
           </p>
-        </motion.div>
+          <h2 className="mt-4 text-3xl font-medium tracking-tight md:text-4xl">
+            {CATALOG_MODEL_COUNT} models, each with its price on the button
+          </h2>
+          <p className="mt-4 text-muted-foreground">
+            A Draft, a Workhorse and a Hero for every job, plus a few
+            specialists. Rates below are fal's own, at each model's default
+            settings — they bill your key directly.
+          </p>
+        </div>
 
-        {/* Model Categories Grid - Simplified */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
-          {modelCategories.map((category, index) => (
-            <motion.div
-              key={category.title}
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.5, delay: index * 0.1 }}
-              className={cn(
-                'rounded-xl border bg-card p-5 transition-all duration-300 hover:shadow-lg hover:-translate-y-1',
-                category.borderColor,
-              )}
+        <div className="gap-5 md:columns-2 lg:columns-3">
+          {CATALOG_GROUPS.map((group) => (
+            <div
+              key={group.title}
+              className="mb-5 break-inside-avoid rounded-xl border border-border bg-card"
             >
-              {/* Category Header */}
-              <div className="flex items-center gap-3 mb-4">
-                <div
-                  className={cn(
-                    'h-10 w-10 rounded-lg flex items-center justify-center',
-                    category.bgColor,
-                  )}
-                >
-                  <category.icon className={cn('h-5 w-5', category.color)} />
-                </div>
-                <h3 className="font-semibold">{category.title}</h3>
-              </div>
-
-              {/* Models List - Simple badges */}
-              <div className="flex flex-wrap gap-2">
-                {category.models.map((model) => (
-                  <span
-                    key={model}
-                    className="text-xs font-medium bg-muted px-2.5 py-1 rounded-full text-muted-foreground"
+              <h3 className="border-b border-border px-4 py-3 text-sm font-semibold">
+                {group.title}
+              </h3>
+              <ul>
+                {group.models.map((m) => (
+                  <li
+                    key={m.id}
+                    className="flex items-center gap-2.5 border-b border-border px-4 py-2.5 text-sm last:border-b-0"
                   >
-                    {model}
-                  </span>
+                    <ModelIcon
+                      modelId={m.id}
+                      className="size-3.5 text-muted-foreground"
+                    />
+                    <span className="min-w-0 flex-1 truncate">{m.name}</span>
+                    {m.tier && (
+                      <span
+                        className={cn(
+                          'shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium',
+                          m.tier === 'hero'
+                            ? 'bg-primary/15 text-primary'
+                            : 'bg-secondary text-muted-foreground',
+                        )}
+                      >
+                        {TIER_LABELS[m.tier]}
+                      </span>
+                    )}
+                    <span className="w-24 shrink-0 text-right text-xs tabular-nums text-muted-foreground">
+                      {formatRate(m.pricing) ?? '—'}
+                    </span>
+                  </li>
                 ))}
-              </div>
-            </motion.div>
+              </ul>
+            </div>
           ))}
         </div>
       </div>

@@ -1,192 +1,81 @@
 /**
- * Model Icons - Premium icon components for AI model providers
+ * Provider marks for model pickers — monochrome, like the design sheet
+ * (docs/design/mockups/01-design-system.jpg): no brand colours, the mark
+ * takes the surrounding text colour.
  *
- * Maps model IDs to their respective provider icons and colors
+ * Google, OpenAI and Black Forest Labs get their logo; every other provider
+ * gets a lettermark rather than a guessed logo.
  */
 
 import { cn } from '@/lib/utils'
 
-// Provider color schemes (blue/teal theme)
-export const PROVIDER_COLORS = {
-  google: {
-    bg: 'bg-blue-500/20',
-    border: 'border-blue-500/30',
-    text: 'text-blue-400',
-    gradient: 'from-blue-500 to-cyan-500',
-  },
-  openai: {
-    bg: 'bg-emerald-500/20',
-    border: 'border-emerald-500/30',
-    text: 'text-emerald-400',
-    gradient: 'from-emerald-500 to-teal-500',
-  },
-  flux: {
-    bg: 'bg-violet-500/20',
-    border: 'border-violet-500/30',
-    text: 'text-violet-400',
-    gradient: 'from-violet-500 to-purple-500',
-  },
-  imagineart: {
-    bg: 'bg-pink-500/20',
-    border: 'border-pink-500/30',
-    text: 'text-pink-400',
-    gradient: 'from-pink-500 to-rose-500',
-  },
-  bytedance: {
-    bg: 'bg-red-500/20',
-    border: 'border-red-500/30',
-    text: 'text-red-400',
-    gradient: 'from-red-500 to-orange-500',
-  },
-  recraft: {
-    bg: 'bg-amber-500/20',
-    border: 'border-amber-500/30',
-    text: 'text-amber-400',
-    gradient: 'from-amber-500 to-yellow-500',
-  },
-  bria: {
-    bg: 'bg-cyan-500/20',
-    border: 'border-cyan-500/30',
-    text: 'text-cyan-400',
-    gradient: 'from-cyan-500 to-sky-500',
-  },
-  alibaba: {
-    bg: 'bg-orange-500/20',
-    border: 'border-orange-500/30',
-    text: 'text-orange-400',
-    gradient: 'from-orange-500 to-amber-500',
-  },
-  runway: {
-    bg: 'bg-indigo-500/20',
-    border: 'border-indigo-500/30',
-    text: 'text-indigo-400',
-    gradient: 'from-indigo-500 to-blue-500',
-  },
-  luma: {
-    bg: 'bg-purple-500/20',
-    border: 'border-purple-500/30',
-    text: 'text-purple-400',
-    gradient: 'from-purple-500 to-fuchsia-500',
-  },
-  kling: {
-    bg: 'bg-teal-500/20',
-    border: 'border-teal-500/30',
-    text: 'text-teal-400',
-    gradient: 'from-teal-500 to-emerald-500',
-  },
-  minimax: {
-    bg: 'bg-sky-500/20',
-    border: 'border-sky-500/30',
-    text: 'text-sky-400',
-    gradient: 'from-sky-500 to-blue-500',
-  },
-  pika: {
-    bg: 'bg-lime-500/20',
-    border: 'border-lime-500/30',
-    text: 'text-lime-400',
-    gradient: 'from-lime-500 to-green-500',
-  },
-  xai: {
-    bg: 'bg-neutral-500/20',
-    border: 'border-neutral-500/30',
-    text: 'text-neutral-300',
-    gradient: 'from-neutral-400 to-slate-500',
-  },
-  lightricks: {
-    bg: 'bg-fuchsia-500/20',
-    border: 'border-fuchsia-500/30',
-    text: 'text-fuchsia-400',
-    gradient: 'from-fuchsia-500 to-pink-500',
-  },
-  default: {
-    bg: 'bg-slate-500/20',
-    border: 'border-slate-500/30',
-    text: 'text-slate-400',
-    gradient: 'from-slate-500 to-gray-500',
-  },
-} as const
+export type ProviderKey =
+  | 'google'
+  | 'openai'
+  | 'flux'
+  | 'bytedance'
+  | 'recraft'
+  | 'krea'
+  | 'ideogram'
+  | 'minimax'
+  | 'kling'
+  | 'elevenlabs'
+  | 'acestep'
+  | 'topaz'
+  | 'tencent'
+  | 'meshy'
+  | 'rodin'
+  | 'meta'
+  | 'anthropic'
+  | 'default'
 
-export type ProviderKey = keyof typeof PROVIDER_COLORS
+/** First match wins — order matters where ids overlap */
+const MATCHERS: Array<[ProviderKey, RegExp]> = [
+  ['google', /nano-banana|google|veo|lyria|gemini/],
+  ['openai', /openai|gpt/],
+  ['flux', /flux|blackforestlabs/],
+  ['bytedance', /bytedance|seedream|seedance|seedvr/],
+  ['recraft', /recraft/],
+  ['krea', /krea/],
+  ['ideogram', /ideogram/],
+  ['minimax', /minimax|hailuo/],
+  ['kling', /kling/],
+  ['elevenlabs', /elevenlabs/],
+  ['acestep', /ace-step/],
+  ['topaz', /topaz/],
+  ['tencent', /hunyuan/],
+  ['meshy', /meshy/],
+  ['rodin', /rodin|hyper3d/],
+  ['meta', /sam3d|sam-3/],
+  ['anthropic', /anthropic|claude/],
+]
 
-// Get provider from model ID
 export function getProviderFromModelId(modelId: string): ProviderKey {
-  const lowerModelId = modelId.toLowerCase()
-
-  if (
-    lowerModelId.includes('nano-banana') ||
-    lowerModelId.includes('google') ||
-    lowerModelId.includes('veo') ||
-    lowerModelId.includes('lyria')
-  ) {
-    return 'google'
-  }
-  if (lowerModelId.includes('gpt') || lowerModelId.includes('openai')) {
-    return 'openai'
-  }
-  if (lowerModelId.includes('flux')) {
-    return 'flux'
-  }
-  if (lowerModelId.includes('imagineart')) {
-    return 'imagineart'
-  }
-  if (lowerModelId.includes('bytedance') || lowerModelId.includes('seedream')) {
-    return 'bytedance'
-  }
-  if (lowerModelId.includes('recraft')) {
-    return 'recraft'
-  }
-  if (lowerModelId.includes('bria')) {
-    return 'bria'
-  }
-  if (lowerModelId.includes('wan') || lowerModelId.includes('alibaba')) {
-    return 'alibaba'
-  }
-  if (lowerModelId.includes('runway')) {
-    return 'runway'
-  }
-  if (lowerModelId.includes('luma') || lowerModelId.includes('ray')) {
-    return 'luma'
-  }
-  if (lowerModelId.includes('kling')) {
-    return 'kling'
-  }
-  if (lowerModelId.includes('minimax') || lowerModelId.includes('hailuo')) {
-    return 'minimax'
-  }
-  if (lowerModelId.includes('pika')) {
-    return 'pika'
-  }
-  if (lowerModelId.includes('xai') || lowerModelId.includes('grok')) {
-    return 'xai'
-  }
-  if (lowerModelId.includes('ltx') || lowerModelId.includes('lightricks')) {
-    return 'lightricks'
-  }
-
-  return 'default'
+  const id = modelId.toLowerCase()
+  return MATCHERS.find(([, re]) => re.test(id))?.[0] ?? 'default'
 }
 
-// Provider display names
 export const PROVIDER_NAMES: Record<ProviderKey, string> = {
   google: 'Google',
   openai: 'OpenAI',
-  flux: 'Black Forest',
-  imagineart: 'ImagineArt',
+  flux: 'Black Forest Labs',
   bytedance: 'ByteDance',
   recraft: 'Recraft',
-  bria: 'Bria',
-  alibaba: 'Alibaba',
-  runway: 'Runway',
-  luma: 'Luma AI',
-  kling: 'Kuaishou',
+  krea: 'Krea',
+  ideogram: 'Ideogram',
   minimax: 'MiniMax',
-  pika: 'Pika',
-  xai: 'xAI',
-  lightricks: 'Lightricks',
-  default: 'AI',
+  kling: 'Kuaishou',
+  elevenlabs: 'ElevenLabs',
+  acestep: 'ACE Studio',
+  topaz: 'Topaz Labs',
+  tencent: 'Tencent',
+  meshy: 'Meshy',
+  rodin: 'Hyper3D',
+  meta: 'Meta',
+  anthropic: 'Anthropic',
+  default: 'fal',
 }
 
-// Simple icon components for each provider
 interface IconProps {
   className?: string
 }
@@ -230,173 +119,77 @@ function FluxIcon({ className }: IconProps) {
   )
 }
 
-function SparkleIcon({ className }: IconProps) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      className={cn('size-4', className)}
-      fill="currentColor"
-    >
-      <path d="M12 0L14.59 9.41 24 12l-9.41 2.59L12 24l-2.59-9.41L0 12l9.41-2.59L12 0z" />
-    </svg>
-  )
+/** One or two letters in a rounded square */
+function lettermark(letters: string) {
+  return function Lettermark({ className }: IconProps) {
+    return (
+      <svg viewBox="0 0 24 24" className={cn('size-4', className)}>
+        <rect
+          x="1.5"
+          y="1.5"
+          width="21"
+          height="21"
+          rx="5"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.6"
+        />
+        <text
+          x="12"
+          y="12"
+          dy="0.36em"
+          textAnchor="middle"
+          fill="currentColor"
+          fontFamily="inherit"
+          fontWeight="700"
+          fontSize={letters.length > 1 ? 9.5 : 12}
+          letterSpacing="-0.3"
+        >
+          {letters}
+        </text>
+      </svg>
+    )
+  }
 }
 
-function WandIcon({ className }: IconProps) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      className={cn('size-4', className)}
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-    >
-      <path d="M15 4V2M15 16v-2M8 9h2M20 9h2M17.8 11.8L19 13M17.8 6.2L19 5M12.2 11.8L11 13M12.2 6.2L11 5M15 12a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" />
-      <path d="m2 22 10-10" />
-    </svg>
-  )
-}
-
-function FilmIcon({ className }: IconProps) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      className={cn('size-4', className)}
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-    >
-      <rect width="18" height="18" x="3" y="3" rx="2" />
-      <path d="M7 3v18M17 3v18M3 7h4M17 7h4M3 12h18M3 17h4M17 17h4" />
-    </svg>
-  )
-}
-
-function XaiIcon({ className }: IconProps) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      className={cn('size-4', className)}
-      fill="currentColor"
-    >
-      <path d="M2 3l8.5 9L2 21h2l7.5-8L19 21h3l-8.5-9L22 3h-2l-7.5 8L5 3H2z" />
-    </svg>
-  )
-}
-
-// Icon registry
 const PROVIDER_ICONS: Record<ProviderKey, React.FC<IconProps>> = {
   google: GoogleIcon,
   openai: OpenAIIcon,
   flux: FluxIcon,
-  imagineart: SparkleIcon,
-  bytedance: FilmIcon,
-  recraft: WandIcon,
-  bria: SparkleIcon,
-  alibaba: SparkleIcon,
-  runway: FilmIcon,
-  luma: FilmIcon,
-  kling: FilmIcon,
-  minimax: FilmIcon,
-  pika: FilmIcon,
-  xai: XaiIcon,
-  lightricks: FilmIcon,
-  default: SparkleIcon,
+  bytedance: lettermark('BD'),
+  recraft: lettermark('Rc'),
+  krea: lettermark('Kr'),
+  ideogram: lettermark('Id'),
+  minimax: lettermark('MM'),
+  kling: lettermark('Kl'),
+  elevenlabs: lettermark('11'),
+  acestep: lettermark('AS'),
+  topaz: lettermark('Tz'),
+  tencent: lettermark('Hy'),
+  meshy: lettermark('Me'),
+  rodin: lettermark('Ro'),
+  meta: lettermark('Mt'),
+  anthropic: lettermark('A'),
+  default: lettermark('f'),
 }
 
-// Main ModelIcon component
-interface ModelIconProps {
-  modelId: string
-  size?: 'sm' | 'md' | 'lg'
-  showBackground?: boolean
-  className?: string
-}
-
+/** The provider's mark, sized to sit beside a line of text */
 export function ModelIcon({
   modelId,
-  size = 'md',
-  showBackground = true,
   className,
-}: ModelIconProps) {
-  const provider = getProviderFromModelId(modelId)
-  const colors = PROVIDER_COLORS[provider]
-  const Icon = PROVIDER_ICONS[provider]
-
-  const sizeClasses = {
-    sm: 'size-6',
-    md: 'size-8',
-    lg: 'size-10',
-  }
-
-  const iconSizeClasses = {
-    sm: 'size-3',
-    md: 'size-4',
-    lg: 'size-5',
-  }
-
-  if (!showBackground) {
-    return (
-      <Icon className={cn(iconSizeClasses[size], colors.text, className)} />
-    )
-  }
-
-  return (
-    <div
-      className={cn(
-        'flex items-center justify-center rounded-lg border',
-        sizeClasses[size],
-        colors.bg,
-        colors.border,
-        className,
-      )}
-    >
-      <Icon className={cn(iconSizeClasses[size], colors.text)} />
-    </div>
-  )
-}
-
-// Credit badge component
-interface CreditBadgeProps {
-  credits: number
-  className?: string
-}
-
-export function CreditBadge({ credits, className }: CreditBadgeProps) {
-  return (
-    <span
-      className={cn(
-        'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium',
-        'bg-primary/10 text-primary border border-primary/20',
-        className,
-      )}
-    >
-      {credits} cr
-    </span>
-  )
-}
-
-// Provider badge component
-interface ProviderBadgeProps {
+}: {
   modelId: string
   className?: string
-}
-
-export function ProviderBadge({ modelId, className }: ProviderBadgeProps) {
+}) {
   const provider = getProviderFromModelId(modelId)
-  const colors = PROVIDER_COLORS[provider]
-  const name = PROVIDER_NAMES[provider]
-
+  const Icon = PROVIDER_ICONS[provider]
   return (
     <span
-      className={cn(
-        'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium',
-        colors.bg,
-        colors.text,
-        `border ${colors.border}`,
-        className,
-      )}
+      role="img"
+      aria-label={PROVIDER_NAMES[provider]}
+      className="inline-flex shrink-0"
     >
-      {name}
+      <Icon className={cn('size-4', className)} />
     </span>
   )
 }

@@ -140,6 +140,14 @@ export const getProjectFn = createServerFn({ method: 'GET' })
 /**
  * List user's projects
  */
+/** The project's first image asset, for cards without a thumbnail */
+const FIRST_IMAGE = {
+  where: { type: 'image' },
+  orderBy: { createdAt: 'asc' as const },
+  take: 1,
+  select: { storageUrl: true },
+}
+
 export const listProjectsFn = createServerFn({ method: 'GET' })
   .middleware([authMiddleware])
   .inputValidator(listProjectsSchema)
@@ -167,6 +175,8 @@ export const listProjectsFn = createServerFn({ method: 'GET' })
         _count: {
           select: { assets: true },
         },
+        // nothing sets thumbnailUrl yet; the first still stands in
+        assets: FIRST_IMAGE,
       },
     })
 
@@ -186,7 +196,7 @@ export const listProjectsFn = createServerFn({ method: 'GET' })
         fps: p.fps,
         duration: p.duration,
         status: p.status,
-        thumbnailUrl: p.thumbnailUrl,
+        thumbnailUrl: p.thumbnailUrl ?? p.assets[0]?.storageUrl ?? null,
         outputUrl: p.outputUrl,
         assetCount: p._count.assets,
         createdAt: p.createdAt,
@@ -618,6 +628,8 @@ export const searchProjectsFn = createServerFn({ method: 'GET' })
         _count: {
           select: { assets: true },
         },
+        // nothing sets thumbnailUrl yet; the first still stands in
+        assets: FIRST_IMAGE,
       },
     })
 
@@ -632,7 +644,7 @@ export const searchProjectsFn = createServerFn({ method: 'GET' })
         fps: p.fps,
         duration: p.duration,
         status: p.status,
-        thumbnailUrl: p.thumbnailUrl,
+        thumbnailUrl: p.thumbnailUrl ?? p.assets[0]?.storageUrl ?? null,
         outputUrl: p.outputUrl,
         folderId: p.folderId,
         assetCount: p._count.assets,

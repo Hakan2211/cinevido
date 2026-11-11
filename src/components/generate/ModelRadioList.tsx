@@ -1,12 +1,13 @@
 /**
  * ModelRadioList — the labs' model picker: models grouped Draft / Workhorse /
- * Hero (then specialists) with their fal rate on the right.
+ * Hero (then specialists), each with its provider mark and fal rate.
  */
 
 import { Info } from 'lucide-react'
 import { TIER_LABELS, formatRate } from '@/lib/pricing'
 import type { ModelTier, PriceRule } from '@/lib/pricing'
 import { cn } from '@/lib/utils'
+import { ModelIcon } from '@/lib/model-icons'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
   Tooltip,
@@ -82,7 +83,7 @@ export function ModelRadioList<M extends RadioModel>({
                         aria-checked={checked}
                         onClick={() => onChange(m.id)}
                         className={cn(
-                          'flex w-full items-center gap-3 px-3.5 py-2.5 text-left text-sm transition-colors',
+                          'flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-sm transition-colors',
                           checked ? 'bg-primary/[0.08]' : 'hover:bg-accent/50',
                         )}
                       >
@@ -96,6 +97,15 @@ export function ModelRadioList<M extends RadioModel>({
                             <span className="h-2 w-2 rounded-full bg-primary" />
                           )}
                         </span>
+                        <ModelIcon
+                          modelId={m.id}
+                          className={cn(
+                            'size-3.5',
+                            checked
+                              ? 'text-foreground'
+                              : 'text-muted-foreground',
+                          )}
+                        />
                         <span
                           className={cn(
                             'flex-1 truncate',

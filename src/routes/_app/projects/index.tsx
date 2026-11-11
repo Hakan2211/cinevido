@@ -1,8 +1,7 @@
 /**
- * Projects List Page
- *
- * Displays user's video projects with search, folders, and bulk actions.
- * Responsive grid layout with mobile-first design.
+ * Projects: every production, in the same cards as Home's "Recent
+ * projects" (16:9 thumbnail, name, last edit, status chip). Folders on the
+ * left, search / status / sort above, bulk select for move and delete.
  */
 
 import {
@@ -13,19 +12,26 @@ import {
 } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState, useCallback } from 'react'
+import { formatDistanceToNow } from 'date-fns'
 import {
-  Calendar,
+  Check,
   CheckSquare,
+  Film,
   Folder,
-  Layers,
-  Play,
+  MoreHorizontal,
   Plus,
+  Sparkles,
   Square,
   Trash2,
-  Video,
 } from 'lucide-react'
 import { Button } from '../../../components/ui/button'
-import { Card } from '../../../components/ui/card'
+import { Skeleton } from '../../../components/ui/skeleton'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '../../../components/ui/dropdown-menu'
 import {
   Dialog,
   DialogContent,
@@ -250,40 +256,17 @@ function ProjectsPage() {
     }
   }
 
-  const formatDuration = (frames: number, fps: number = 30) => {
-    const seconds = Math.floor(frames / fps)
-    const minutes = Math.floor(seconds / 60)
-    const remainingSeconds = seconds % 60
-    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`
-  }
-
-  const formatDate = (date: Date) => {
-    return new Date(date).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    })
-  }
-
   const projects = data?.projects || []
 
   // Loading state
   if (isLoading) {
     return (
-      <div className="flex h-full">
-        {/* Folder Sidebar - Hidden on mobile */}
-        <div className="hidden lg:block">
-          <div className="w-56 animate-pulse bg-muted/30" />
-        </div>
-        <div className="flex-1 space-y-6 p-4 md:p-6">
-          <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-bold md:text-3xl">Projects</h1>
-          </div>
-          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {[1, 2, 3, 4, 5, 6].map((i) => (
-              <Card key={i} className="h-64 animate-pulse bg-muted" />
-            ))}
-          </div>
+      <div className="mx-auto w-full max-w-7xl">
+        <h1 className="text-3xl font-semibold tracking-tight">Projects</h1>
+        <div className="mt-8 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <Skeleton key={i} className="aspect-video rounded-xl" />
+          ))}
         </div>
       </div>
     )
@@ -308,9 +291,9 @@ function ProjectsPage() {
   }
 
   return (
-    <div className="flex h-full">
+    <div className="mx-auto flex w-full max-w-7xl gap-8">
       {/* Folder Sidebar - Desktop */}
-      <div className="hidden lg:block">
+      <div className="hidden shrink-0 lg:block">
         <FolderSidebar
           selectedFolderId={selectedFolder}
           onFolderSelect={(folderId) => updateSearch({ folder: folderId })}
@@ -320,15 +303,15 @@ function ProjectsPage() {
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 overflow-y-auto">
-        <div className="space-y-4 p-4 md:space-y-6 md:p-6">
+      <div className="min-w-0 flex-1">
+        <div className="space-y-5">
           {/* Header */}
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
               {/* Mobile Folder Button */}
               <Sheet open={mobileFolderOpen} onOpenChange={setMobileFolderOpen}>
                 <SheetTrigger asChild>
-                  <Button variant="outline" size="icon" className="lg:hidden">
+                  <Button variant="secondary" size="icon" className="lg:hidden">
                     <Folder className="h-4 w-4" />
                   </Button>
                 </SheetTrigger>
@@ -344,9 +327,12 @@ function ProjectsPage() {
               </Sheet>
 
               <div>
-                <h1 className="text-2xl font-bold md:text-3xl">Projects</h1>
-                <p className="hidden text-muted-foreground sm:block">
-                  Create and manage your video projects
+                <h1 className="text-3xl font-semibold tracking-tight">
+                  Projects
+                </h1>
+                <p className="mt-1 hidden text-sm text-muted-foreground sm:block">
+                  Productions you have started. Open one to continue in the
+                  Studio.
                 </p>
               </div>
             </div>
@@ -355,7 +341,7 @@ function ProjectsPage() {
               {/* Bulk Mode Toggle */}
               {projects.length > 0 && (
                 <Button
-                  variant={isBulkMode ? 'secondary' : 'outline'}
+                  variant={isBulkMode ? 'secondary' : 'ghost'}
                   size="sm"
                   onClick={toggleBulkMode}
                   className="hidden sm:flex"
@@ -376,7 +362,7 @@ function ProjectsPage() {
 
               {/* Select All (when in bulk mode) */}
               {isBulkMode && projects.length > 0 && (
-                <Button variant="outline" size="sm" onClick={selectAll}>
+                <Button variant="ghost" size="sm" onClick={selectAll}>
                   Select All
                 </Button>
               )}
@@ -456,9 +442,9 @@ function ProjectsPage() {
 
           {/* Projects Grid */}
           {projects.length === 0 ? (
-            <Card className="flex flex-col items-center justify-center py-12">
-              <Video className="h-12 w-12 text-muted-foreground" />
-              <h3 className="mt-4 text-lg font-medium">
+            <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border px-6 py-16">
+              <Film className="h-10 w-10 text-muted-foreground/50" />
+              <h3 className="mt-4 font-medium">
                 {searchQuery || statusFilter !== 'all'
                   ? 'No projects found'
                   : 'No projects yet'}
@@ -466,136 +452,29 @@ function ProjectsPage() {
               <p className="mt-2 text-center text-sm text-muted-foreground">
                 {searchQuery || statusFilter !== 'all'
                   ? 'Try adjusting your search or filters'
-                  : 'Create your first video project to get started'}
+                  : 'Describe an idea on Home and the Director plans it with you.'}
               </p>
               {!searchQuery && statusFilter === 'all' && (
-                <Button className="mt-4" onClick={() => setIsCreateOpen(true)}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Create Project
+                <Button asChild className="mt-5">
+                  <Link to="/dashboard">
+                    <Sparkles className="h-4 w-4" />
+                    Start on Home
+                  </Link>
                 </Button>
               )}
-            </Card>
+            </div>
           ) : (
-            <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {projects.map((project) => {
-                const isSelected = selectedProjects.has(project.id)
-
-                return (
-                  <Link
-                    key={project.id}
-                    to="/projects/$projectId"
-                    params={{ projectId: project.id }}
-                    className="group"
-                    onClick={(e) => {
-                      if (isBulkMode) {
-                        e.preventDefault()
-                        toggleProjectSelection(project.id, e)
-                      }
-                    }}
-                  >
-                    <Card
-                      className={cn(
-                        'overflow-hidden transition-all',
-                        'hover:shadow-lg',
-                        isSelected && 'ring-2 ring-primary',
-                      )}
-                    >
-                      {/* Thumbnail */}
-                      <div
-                        className="relative bg-muted"
-                        style={{
-                          aspectRatio:
-                            project.width > project.height
-                              ? '16/9'
-                              : project.width === project.height
-                                ? '1/1'
-                                : '9/16',
-                          maxHeight: '200px',
-                        }}
-                      >
-                        {project.thumbnailUrl ? (
-                          <img
-                            src={project.thumbnailUrl}
-                            alt={project.name}
-                            className="h-full w-full object-cover"
-                          />
-                        ) : (
-                          <div className="flex h-full items-center justify-center">
-                            <Video className="h-12 w-12 text-muted-foreground/50" />
-                          </div>
-                        )}
-
-                        {/* Status badge */}
-                        <div className="absolute left-2 top-2">
-                          <span
-                            className={cn(
-                              'rounded-full px-2 py-1 text-xs font-medium',
-                              project.status === 'completed' &&
-                                'bg-green-500/90 text-white',
-                              project.status === 'rendering' &&
-                                'bg-yellow-500/90 text-white',
-                              project.status === 'failed' &&
-                                'bg-red-500/90 text-white',
-                              project.status === 'draft' &&
-                                'bg-gray-500/90 text-white',
-                            )}
-                          >
-                            {project.status}
-                          </span>
-                        </div>
-
-                        {/* Selection checkbox / Hover overlay */}
-                        {isBulkMode ? (
-                          <button
-                            onClick={(e) =>
-                              toggleProjectSelection(project.id, e)
-                            }
-                            className="absolute inset-0 flex items-center justify-center bg-black/30"
-                          >
-                            {isSelected ? (
-                              <CheckSquare className="h-8 w-8 text-primary" />
-                            ) : (
-                              <Square className="h-8 w-8 text-white" />
-                            )}
-                          </button>
-                        ) : (
-                          <div className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
-                            <Play className="h-12 w-12 text-white" />
-                          </div>
-                        )}
-
-                        {/* Delete button (non-bulk mode) */}
-                        {!isBulkMode && (
-                          <button
-                            onClick={(e) => handleDeleteProject(project.id, e)}
-                            className="absolute right-2 top-2 rounded-full bg-red-500/90 p-1.5 text-white opacity-0 transition-opacity hover:bg-red-600 group-hover:opacity-100"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        )}
-                      </div>
-
-                      {/* Info */}
-                      <div className="p-3 md:p-4">
-                        <h3 className="truncate font-medium">{project.name}</h3>
-                        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground md:text-sm">
-                          <span className="flex items-center gap-1">
-                            <Calendar className="h-3 w-3" />
-                            {formatDate(project.updatedAt)}
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <Layers className="h-3 w-3" />
-                            {project.assetCount}
-                          </span>
-                          {project.duration > 0 && (
-                            <span>{formatDuration(project.duration)}</span>
-                          )}
-                        </div>
-                      </div>
-                    </Card>
-                  </Link>
-                )
-              })}
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {projects.map((project) => (
+                <ProjectCard
+                  key={project.id}
+                  project={project}
+                  bulk={isBulkMode}
+                  selected={selectedProjects.has(project.id)}
+                  onToggleSelect={(e) => toggleProjectSelection(project.id, e)}
+                  onDelete={(e) => handleDeleteProject(project.id, e)}
+                />
+              ))}
             </div>
           )}
         </div>
@@ -623,4 +502,144 @@ function ProjectsPage() {
       />
     </div>
   )
+}
+
+type ProjectRow = {
+  id: string
+  name: string
+  fps: number
+  duration: number
+  status: string
+  thumbnailUrl: string | null
+  assetCount: number
+  updatedAt: Date | string
+}
+
+/** Status chips from the design sheet: Draft · Rendering · Done · Failed */
+const STATUS_CHIP: Record<string, { label: string; dot: string }> = {
+  draft: { label: 'Draft', dot: 'bg-muted-foreground' },
+  rendering: { label: 'Rendering', dot: 'bg-primary animate-pulse' },
+  completed: { label: 'Done', dot: 'bg-success' },
+  failed: { label: 'Failed', dot: 'bg-destructive' },
+}
+
+function ProjectCard({
+  project,
+  bulk,
+  selected,
+  onToggleSelect,
+  onDelete,
+}: {
+  project: ProjectRow
+  bulk: boolean
+  selected: boolean
+  onToggleSelect: (e: React.MouseEvent) => void
+  onDelete: (e: React.MouseEvent) => void
+}) {
+  const chip = STATUS_CHIP[project.status] ?? STATUS_CHIP.draft
+  return (
+    <Link
+      to="/projects/$projectId"
+      params={{ projectId: project.id }}
+      className="group block"
+      onClick={(e) => {
+        if (bulk) onToggleSelect(e)
+      }}
+    >
+      <div
+        className={cn(
+          'relative aspect-video overflow-hidden rounded-xl border bg-card transition-colors',
+          selected ? 'border-primary ring-1 ring-primary' : 'border-border',
+        )}
+      >
+        {project.thumbnailUrl ? (
+          <img
+            src={project.thumbnailUrl}
+            alt=""
+            loading="lazy"
+            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+          />
+        ) : (
+          <div className="flex h-full items-center justify-center bg-secondary">
+            <Film className="h-8 w-8 text-muted-foreground/40" />
+          </div>
+        )}
+
+        <span className="absolute top-2 left-2 flex items-center gap-1.5 rounded-md bg-black/65 px-2 py-0.5 text-[11px] font-medium text-white">
+          <span className={cn('h-1.5 w-1.5 rounded-full', chip.dot)} />
+          {chip.label}
+        </span>
+
+        {project.duration > 0 && (
+          <span className="absolute right-2 bottom-2 rounded-md bg-black/70 px-1.5 py-0.5 text-xs font-medium tabular-nums text-white">
+            {formatFrames(project.duration, project.fps)}
+          </span>
+        )}
+
+        {bulk && (
+          <span
+            className={cn(
+              'absolute top-2 right-2 flex h-6 w-6 items-center justify-center rounded-md border',
+              selected
+                ? 'border-primary bg-primary text-primary-foreground'
+                : 'border-white/60 bg-black/40',
+            )}
+          >
+            {selected && <Check className="h-4 w-4" />}
+          </span>
+        )}
+      </div>
+
+      <div className="mt-3 flex items-start gap-2">
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-medium">{project.name}</p>
+          <p className="text-xs text-muted-foreground">
+            Edited{' '}
+            {formatDistanceToNow(new Date(project.updatedAt), {
+              addSuffix: true,
+            })}
+            {project.assetCount > 0 &&
+              ` · ${project.assetCount} asset${project.assetCount === 1 ? '' : 's'}`}
+          </p>
+        </div>
+        {!bulk && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                }}
+                className="shrink-0 rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
+                aria-label="Project actions"
+              >
+                <MoreHorizontal className="h-4 w-4" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                className="text-destructive focus:text-destructive"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onDelete(e)
+                }}
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+      </div>
+    </Link>
+  )
+}
+
+/** 900 frames at 30fps → "00:30" */
+function formatFrames(frames: number, fps: number): string {
+  const total = Math.round(frames / (fps || 30))
+  const m = Math.floor(total / 60)
+  const sec = total % 60
+  return `${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`
 }

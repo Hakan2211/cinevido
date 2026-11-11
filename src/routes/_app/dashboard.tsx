@@ -302,7 +302,7 @@ function HomePage() {
 
       {/* Recent creations */}
       <section className="pb-12">
-        <SectionHeader title="Recent creations" to="/images" />
+        <SectionHeader title="Recent creations" to="/library" />
         {creationsLoading ? (
           <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-5">
             {Array.from({ length: 5 }).map((_, i) => (

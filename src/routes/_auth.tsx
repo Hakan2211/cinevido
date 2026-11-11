@@ -1,4 +1,5 @@
-import { Outlet, createFileRoute, redirect } from '@tanstack/react-router'
+import { Link, Outlet, createFileRoute, redirect } from '@tanstack/react-router'
+import { Wordmark } from '@/components/common'
 
 // NOTE: Server functions are dynamically imported in beforeLoad
 // to prevent Prisma and other server-only code from being bundled into the client.
@@ -6,7 +7,7 @@ import { Outlet, createFileRoute, redirect } from '@tanstack/react-router'
 
 /**
  * Auth Layout
- * Centered layout for authentication pages (login, signup)
+ * Wordmark on top, the form centred below (login, signup)
  * Redirects to dashboard if already authenticated
  */
 export const Route = createFileRoute('/_auth')({
@@ -40,8 +41,15 @@ export const Route = createFileRoute('/_auth')({
 
 function AuthLayout() {
   return (
-    <div className="grid min-h-screen place-items-center bg-muted/40 px-4">
-      <Outlet />
+    <div className="flex min-h-screen flex-col bg-background px-4">
+      <header className="flex justify-center pt-12 pb-10 sm:pt-20">
+        <Link to="/" aria-label="Cinevido home">
+          <Wordmark />
+        </Link>
+      </header>
+      <main className="flex flex-1 justify-center pb-16">
+        <Outlet />
+      </main>
     </div>
   )
 }

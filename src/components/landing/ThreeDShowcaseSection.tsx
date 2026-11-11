@@ -83,7 +83,7 @@ export function ThreeDShowcaseSection() {
             transition={{ duration: 0.5, delay: 0.2 }}
             className="relative"
           >
-            <div className="rounded-2xl border border-border/50 bg-gradient-to-b from-muted/50 to-muted/20 p-2 shadow-xl">
+            <div className="rounded-2xl border border-border bg-card p-2">
               {/* Model badge */}
               <div className="absolute top-5 left-5 z-10">
                 <span className="inline-flex items-center gap-2 rounded-full bg-black/60 backdrop-blur-sm px-3 py-1.5 text-xs font-medium text-white">
@@ -100,7 +100,7 @@ export function ThreeDShowcaseSection() {
                 </span>
               </div>
 
-              <div className="aspect-square rounded-xl overflow-hidden bg-gradient-to-br from-background via-muted/50 to-background">
+              <div className="aspect-square rounded-xl overflow-hidden bg-background">
                 <ModelViewer
                   src={`/api/proxy-glb?url=${encodeURIComponent(showcase3DModel.src)}`}
                   alt={showcase3DModel.title}

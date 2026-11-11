@@ -1,6 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import {
   BeforeAfterSection,
+  DirectorSection,
   FAQSection,
   HeroSection,
   ImageShowcaseSection,
@@ -27,6 +28,7 @@ function LandingPage() {
         <VideoShowcaseSection />
         <ThreeDShowcaseSection />
         <ModelsSection />
+        <DirectorSection />
         <PricingSection />
         <FAQSection />
       </main>

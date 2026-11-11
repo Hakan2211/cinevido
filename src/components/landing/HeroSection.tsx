@@ -1,218 +1,127 @@
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from '@tanstack/react-router'
-import { motion, AnimatePresence } from 'framer-motion'
-import { ArrowRight, Key, Sparkles } from 'lucide-react'
+import { AnimatePresence, motion } from 'framer-motion'
+import { ArrowRight, Play } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useUserAccess } from '@/hooks/use-user-access'
 import { heroImages } from '@/lib/showcase-assets'
+import { CATALOG_MODEL_COUNT } from './catalog-summary'
 
+/**
+ * Landing hero — the Home prompt's promise, on a still that changes every
+ * few seconds. Dark graphite, one amber action, no glow.
+ */
 export function HeroSection() {
   const { isLoggedIn, hasPlatformAccess } = useUserAccess()
-  const [currentImageIndex, setCurrentImageIndex] = useState(0)
+  const [index, setIndex] = useState(0)
 
-  // Rotate hero images
   useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentImageIndex((prev) => (prev + 1) % heroImages.length)
-    }, 4000)
-    return () => clearInterval(interval)
+    const t = setInterval(
+      () => setIndex((i) => (i + 1) % heroImages.length),
+      5000,
+    )
+    return () => clearInterval(t)
   }, [])
 
-  const scrollToSection = (id: string) => {
-    const element = document.getElementById(id)
-    if (element) {
-      element.scrollIntoView({ behavior: 'smooth' })
-    }
-  }
+  const scrollTo = (id: string) =>
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' })
+
+  const primary = hasPlatformAccess ? (
+    <Link to="/dashboard">
+      <Button size="lg" className="min-w-[200px]">
+        Open the studio
+        <ArrowRight className="h-4 w-4" />
+      </Button>
+    </Link>
+  ) : (
+    <Link
+      to={isLoggedIn ? '/pricing' : '/signup'}
+      search={isLoggedIn ? { auto_checkout: 'true' } : { redirect: 'checkout' }}
+    >
+      <Button size="lg" className="min-w-[200px]">
+        Get Cinevido · €149
+        <ArrowRight className="h-4 w-4" />
+      </Button>
+    </Link>
+  )
 
   return (
-    <section className="relative overflow-hidden bg-gradient-to-b from-background to-muted/30 pt-32 pb-24 lg:pt-40 lg:pb-32">
-      {/* Background decoration */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-1/4 -left-1/4 w-1/2 h-1/2 bg-primary/5 rounded-full blur-3xl" />
-        <div className="absolute bottom-1/4 -right-1/4 w-1/2 h-1/2 bg-primary/5 rounded-full blur-3xl" />
-        {/* Animated gradient orbs */}
-        <motion.div
-          animate={{
-            scale: [1, 1.2, 1],
-            opacity: [0.3, 0.5, 0.3],
-          }}
-          transition={{
-            duration: 8,
-            repeat: Infinity,
-            ease: 'easeInOut',
-          }}
-          className="absolute top-1/3 left-1/4 w-96 h-96 bg-gradient-to-r from-violet-500/20 to-purple-500/20 rounded-full blur-3xl"
-        />
-        <motion.div
-          animate={{
-            scale: [1.2, 1, 1.2],
-            opacity: [0.2, 0.4, 0.2],
-          }}
-          transition={{
-            duration: 10,
-            repeat: Infinity,
-            ease: 'easeInOut',
-          }}
-          className="absolute bottom-1/3 right-1/4 w-96 h-96 bg-gradient-to-r from-blue-500/20 to-cyan-500/20 rounded-full blur-3xl"
-        />
-      </div>
-
-      <div className="container mx-auto px-4 lg:px-8 relative z-10">
-        <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
-          {/* Left: Content */}
-          <div className="text-center lg:text-left">
-            {/* Badge */}
-            <div className="mb-6 animate-in fade-in slide-in-from-bottom-5 duration-500 fill-mode-both">
-              <span className="inline-flex items-center gap-2 rounded-full border bg-background px-4 py-1.5 text-sm font-medium shadow-sm">
-                <Key className="h-4 w-4 text-primary" />
-                BYOK - Bring Your Own Key
-              </span>
-            </div>
-
-            {/* Headline */}
-            <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight mb-6 animate-in fade-in slide-in-from-bottom-5 duration-500 fill-mode-both delay-100">
-              Create Stunning AI{' '}
-              <span className="bg-gradient-to-r from-orange-500 via-amber-500 to-orange-600 bg-clip-text text-transparent">
-                Art, Videos & 3D
-              </span>
-            </h1>
-
-            {/* Subheadline */}
-            <p className="text-lg md:text-xl text-muted-foreground mb-8 max-w-xl mx-auto lg:mx-0 animate-in fade-in slide-in-from-bottom-5 duration-500 fill-mode-both delay-200">
-              One platform for FLUX, Kling, Meshy and 10+ AI models. Connect
-              your fal.ai key — pay only for what you use. No subscriptions.
-            </p>
-
-            {/* CTA Buttons */}
-            <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start animate-in fade-in slide-in-from-bottom-5 duration-500 fill-mode-both delay-300">
-              {hasPlatformAccess ? (
-                <Link to="/dashboard">
-                  <Button size="lg" className="min-w-[200px] group">
-                    Go to Dashboard
-                    <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
-                  </Button>
-                </Link>
-              ) : isLoggedIn ? (
-                <Link to="/pricing" search={{ auto_checkout: 'true' }}>
-                  <Button size="lg" className="min-w-[200px] group">
-                    Buy Now for €149
-                    <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
-                  </Button>
-                </Link>
-              ) : (
-                <Link to="/signup" search={{ redirect: 'checkout' }}>
-                  <Button size="lg" className="min-w-[200px] group">
-                    Buy Now for €149
-                    <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
-                  </Button>
-                </Link>
-              )}
-              <Button
-                variant="outline"
-                size="lg"
-                className="min-w-[180px]"
-                onClick={() => scrollToSection('images')}
-              >
-                <Sparkles className="mr-2 h-4 w-4" />
-                See Examples
-              </Button>
-            </div>
-
-            {/* How it works - simplified */}
-            <div className="mt-12 flex flex-wrap justify-center lg:justify-start gap-6 animate-in fade-in slide-in-from-bottom-5 duration-500 fill-mode-both delay-400">
-              {[
-                { step: '1', label: 'Connect fal.ai key' },
-                { step: '2', label: 'Create content' },
-                { step: '3', label: 'Download & use' },
-              ].map((item, index) => (
-                <div key={item.step} className="flex items-center gap-2">
-                  <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-primary-foreground text-sm font-semibold">
-                    {item.step}
-                  </div>
-                  <span className="text-sm text-muted-foreground">
-                    {item.label}
-                  </span>
-                  {index < 2 && (
-                    <ArrowRight className="h-4 w-4 text-muted-foreground/50 hidden sm:block" />
-                  )}
-                </div>
-              ))}
-            </div>
+    <section className="relative pt-32 pb-20 lg:pt-40 lg:pb-28">
+      <div className="container mx-auto px-4 lg:px-8">
+        <div className="mx-auto max-w-3xl text-center">
+          <p className="text-[11px] font-medium uppercase tracking-[0.3em] text-muted-foreground">
+            AI film studio · bring your own fal key
+          </p>
+          <h1 className="mt-6 text-5xl font-medium tracking-tight md:text-6xl lg:text-7xl">
+            Ideas become films.
+          </h1>
+          <p className="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground">
+            Image, video, voice, music and 3D labs with the best models on fal,
+            each with its price on the Generate button. Coming next: the
+            Director, which turns a one-line brief into a priced shot plan,
+            drafts you review, and finals on a timeline.
+          </p>
+          <div className="mt-9 flex flex-col justify-center gap-3 sm:flex-row">
+            {primary}
+            <Button
+              variant="secondary"
+              size="lg"
+              className="min-w-[180px]"
+              onClick={() => scrollTo('models')}
+            >
+              <Play className="h-4 w-4 fill-current" />
+              See the models
+            </Button>
           </div>
+        </div>
 
-          {/* Right: Hero Image Showcase */}
-          <div className="relative animate-in fade-in zoom-in-95 duration-700 fill-mode-both delay-300">
-            <div className="relative rounded-2xl border bg-gradient-to-b from-muted/50 to-muted/20 p-2 shadow-2xl overflow-hidden">
-              {/* Image container */}
-              <div className="aspect-[4/3] rounded-xl overflow-hidden relative">
-                {/* initial={false}: first image is visible in the server HTML */}
-                <AnimatePresence mode="wait" initial={false}>
-                  <motion.img
-                    key={currentImageIndex}
-                    src={heroImages[currentImageIndex]}
-                    alt="AI Generated Art"
-                    className="absolute inset-0 w-full h-full object-cover"
-                    initial={{ opacity: 0, scale: 1.1 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.95 }}
-                    transition={{ duration: 0.7 }}
-                  />
-                </AnimatePresence>
-
-                {/* Overlay gradient */}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
-
-                {/* Badge */}
-                <div className="absolute top-4 left-4">
-                  <span className="inline-flex items-center gap-2 rounded-full bg-black/60 backdrop-blur-sm px-3 py-1.5 text-xs font-medium text-white">
-                    <Sparkles className="h-3 w-3" />
-                    AI Generated
-                  </span>
-                </div>
-              </div>
-
-              {/* Image indicators */}
-              <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-2">
-                {heroImages.map((_, index) => (
+        {/* Rotating still, framed like a monitor */}
+        <div className="relative mx-auto mt-16 max-w-5xl">
+          <div className="relative aspect-[21/9] overflow-hidden rounded-2xl border border-border bg-card">
+            {/* initial={false}: the first still is in the server HTML */}
+            <AnimatePresence mode="sync" initial={false}>
+              <motion.img
+                key={index}
+                src={heroImages[index]}
+                alt=""
+                className="absolute inset-0 h-full w-full object-cover"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 1.2 }}
+              />
+            </AnimatePresence>
+            <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-4 bg-black/45 px-5 py-3 text-xs text-white/80 backdrop-blur-sm">
+              <span>Generated with models on fal</span>
+              <span className="flex gap-1.5">
+                {heroImages.map((_, i) => (
                   <button
-                    key={index}
-                    onClick={() => setCurrentImageIndex(index)}
-                    className={`h-2 rounded-full transition-all duration-300 ${
-                      index === currentImageIndex
-                        ? 'w-6 bg-white'
-                        : 'w-2 bg-white/50 hover:bg-white/70'
+                    key={i}
+                    onClick={() => setIndex(i)}
+                    aria-label={`Show still ${i + 1}`}
+                    className={`h-1.5 rounded-full transition-all ${
+                      i === index ? 'w-5 bg-primary' : 'w-1.5 bg-white/40'
                     }`}
                   />
                 ))}
-              </div>
-            </div>
-
-            {/* Stats overlay */}
-            <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 w-[90%] md:w-auto animate-in fade-in slide-in-from-bottom-5 duration-500 fill-mode-both delay-600">
-              <div className="flex items-center justify-center gap-6 rounded-xl border bg-background/90 backdrop-blur-sm px-6 py-4 shadow-lg">
-                {[
-                  { value: '10+', label: 'AI Models' },
-                  { value: '€149', label: 'One-Time' },
-                  { value: 'Lifetime', label: 'Access' },
-                ].map((stat, index) => (
-                  <div key={stat.label} className="flex items-center gap-4">
-                    <div className="text-center">
-                      <div className="text-lg md:text-xl font-bold text-primary">
-                        {stat.value}
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        {stat.label}
-                      </div>
-                    </div>
-                    {index < 2 && (
-                      <div className="h-8 w-px bg-border hidden md:block" />
-                    )}
-                  </div>
-                ))}
-              </div>
+              </span>
             </div>
           </div>
+
+          <dl className="mx-auto mt-8 grid max-w-3xl grid-cols-3 divide-x divide-border text-center">
+            {[
+              { value: `${CATALOG_MODEL_COUNT}`, label: 'Curated models' },
+              { value: '€149', label: 'One-time, lifetime' },
+              { value: 'At cost', label: 'You pay fal directly' },
+            ].map((s) => (
+              <div key={s.label} className="px-4">
+                <dt className="text-xs text-muted-foreground">{s.label}</dt>
+                <dd className="mt-1 text-xl font-semibold tabular-nums">
+                  {s.value}
+                </dd>
+              </div>
+            ))}
+          </dl>
         </div>
       </div>
     </section>

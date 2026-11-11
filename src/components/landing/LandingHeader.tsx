@@ -2,7 +2,7 @@ import { Link } from '@tanstack/react-router'
 import { motion, useScroll, useTransform } from 'framer-motion'
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { Logo } from '@/components/common'
+import { Wordmark } from '@/components/common'
 import { AudioToggle } from '@/components/audio'
 import { MobileNav } from './MobileNav'
 import { cn } from '@/lib/utils'
@@ -14,7 +14,8 @@ const navItems = [
   { id: 'transform', label: 'Transform' },
   { id: 'videos', label: 'Videos' },
   { id: '3d', label: '3D Models' },
-  { id: 'models', label: 'AI Models' },
+  { id: 'models', label: 'Models' },
+  { id: 'director', label: 'Director' },
   { id: 'pricing', label: 'Pricing' },
 ]
 
@@ -62,18 +63,14 @@ export function LandingHeader() {
         className={cn(
           'pointer-events-auto transition-all duration-300 ease-in-out',
           isScrolled
-            ? 'bg-background/80 backdrop-blur-xl shadow-lg border border-border/50'
+            ? 'bg-background/85 backdrop-blur-xl border border-border'
             : 'bg-transparent backdrop-blur-none',
         )}
       >
         <div className="container mx-auto flex h-16 items-center justify-between px-4 lg:px-8">
           {/* Logo */}
           <Link to="/" className="flex items-center gap-2 group cursor-pointer">
-            <Logo
-              size={32}
-              className="transition-transform group-hover:scale-105"
-            />
-            <span className="text-xl font-bold">Cinevido</span>
+            <Wordmark />
           </Link>
 
           {/* Desktop Navigation */}
@@ -107,7 +104,7 @@ export function LandingHeader() {
               {isLoggedIn ? (
                 hasPlatformAccess ? (
                   <Link to="/dashboard">
-                    <Button size="sm">Dashboard</Button>
+                    <Button size="sm">Open the studio</Button>
                   </Link>
                 ) : (
                   <Link to="/pricing" search={{ auto_checkout: 'true' }}>

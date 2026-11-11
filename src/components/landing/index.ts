@@ -17,12 +17,6 @@ export { BeforeAfterSection } from './BeforeAfterSection'
 export { VideoShowcaseSection } from './VideoShowcaseSection'
 export { ThreeDShowcaseSection } from './ThreeDShowcaseSection'
 export { ModelsSection } from './ModelsSection'
+export { DirectorSection } from './DirectorSection'
 export { PricingSection } from './PricingSection'
 export { FAQSection } from './FAQSection'
-
-// Legacy exports (for backwards compatibility - can be removed later)
-export { FeaturesSection } from './FeaturesSection'
-export { ShowcaseSection } from './ShowcaseSection'
-export { UseCasesSection } from './UseCasesSection'
-export { HowItWorksSection } from './HowItWorksSection'
-export { CTASection } from './CTASection'
