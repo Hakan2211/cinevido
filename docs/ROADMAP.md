@@ -182,7 +182,7 @@ New in all three: `background: 'transparent'` (RGBA PNG, forces `output_format: 
 - [x] `supportsTransparentBackground` flag; **Transparent background** switch in the lab's Create and Edit tabs; `metadata.transparent` → results on a checkerboard, `object-contain`
 - [x] Tests: `job-cost.test.ts` (fal's own worked examples), `catalog.test.ts`; live schema check green incl. transparent payloads
 - [x] Defaults (2026-11-12): `DEFAULT_MODELS.image` = GPT Image 2.6 Flare. `DIRECTOR_MODELS.still` is pinned to Seedream 5 Flash ($0.027) instead of following it — budgets need a fixed price, GPT Image is token-billed
-- [ ] Retire Seedream 5 Pro ($0.0675) if 5.5 matches it — needs one side-by-side look (≈ $0.11)
+- [x] Retired Seedream 5 Pro text-to-image + edit ($0.0675; 2026-11-12, without the side-by-side, by decision). Stored preferences move to Seedream 5.5 via `MODEL_REPLACEMENTS` in `resolveModelId`
 
 **7b — Layerize** ✅ (items 1–3 and 4–7, 2026-11-12)
 1. **Layers tab** in the image lab (Create / Edit / **Layers** / Upscale): source image, optional "what to separate" prompt (fal supports `<bbox>` hints), max layers (default 8, not fal's 30), OCR switch. Cost shows the ceiling — "≤ $0.34" = max_images × rate (by source pixels) + $0.012 — and the job is re-priced at the real layer count when it returns (like SFX)
@@ -215,7 +215,8 @@ Built (items 4–7, 2026-11-12):
 
 - **2026-11-11** — Cut Aging (endpoints dead on fal). Keep 3D.
 - **2026-11-11** — Seedream: no 5.5 exists on fal; use Seedream 5 Pro + Flash.
-  *Superseded 2026-11-12:* Seedream 5.5 shipped on fal (Phase 7).
+  *Superseded 2026-11-12:* Seedream 5.5 shipped on fal (Phase 7); Seedream 5 Pro
+  retired the same day (5.5 is cheaper; Flash stays as the Director's fixed-price still).
 - **2026-11-11** — Credit balance uses a *separate read-only* fal key; a normal
   generation key gets 403 on `/v1/account/billing`.
 - **2026-11-11** — Visual direction: dark graphite + one amber accent, close to

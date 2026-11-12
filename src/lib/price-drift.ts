@@ -100,7 +100,7 @@ export function compareRule(
   if (!fal) return 'missing'
   if (!rule) return 'unpriced'
   const matches = ruleNumbers(rule).some((n) => same(n, fal.unit_price))
-  // fal's generic "units" (Seedream 5 Pro, SAM 3D) still match when the
+  // fal's generic "units" (SAM 3D) still match when the
   // number is the same; a different number in a foreign unit can't be judged
   if (!UNITS[rule.kind].includes(fal.unit.toLowerCase())) {
     return matches && rule.kind !== 'range' ? 'ok' : 'unit'

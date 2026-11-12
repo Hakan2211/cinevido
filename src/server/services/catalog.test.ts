@@ -157,6 +157,29 @@ describe('catalog', () => {
       DEFAULT_MODELS.image,
     )
   })
+
+  it('moves a retired Seedream 5 Pro preference to Seedream 5.5', () => {
+    expect(
+      IMAGE_MODELS.some((m) => m.id.startsWith('bytedance/seedream/v5/pro')),
+    ).toBe(false)
+    expect(
+      EDIT_MODELS.some((m) => m.id.startsWith('bytedance/seedream/v5/pro')),
+    ).toBe(false)
+    expect(
+      resolveModelId(
+        'bytedance/seedream/v5/pro/text-to-image',
+        IMAGE_MODELS,
+        DEFAULT_MODELS.image,
+      ),
+    ).toBe('bytedance/seedream/v5.5/text-to-image')
+    expect(
+      resolveModelId(
+        'bytedance/seedream/v5/pro/edit',
+        EDIT_MODELS,
+        DEFAULT_MODELS.edit,
+      ),
+    ).toBe('bytedance/seedream/v5.5/edit')
+  })
 })
 
 describe('payload builders send only declared fields', () => {

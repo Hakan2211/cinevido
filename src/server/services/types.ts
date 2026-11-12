@@ -135,16 +135,6 @@ export const IMAGE_MODELS: Array<ModelConfig> = [
 
   // === Hero ===
   {
-    id: 'bytedance/seedream/v5/pro/text-to-image',
-    name: 'Seedream 5 Pro',
-    provider: 'fal',
-    description: 'ByteDance - Flagship detail and composition',
-    tier: 'hero',
-    pricing: { kind: 'perImage', usd: 0.0675 },
-    supportsNumImages: true,
-    maxNumImages: 4,
-  },
-  {
     id: 'blackforestlabs/flux-3/text-to-image',
     name: 'FLUX 3',
     provider: 'fal',
@@ -497,15 +487,6 @@ export const EDIT_MODELS: Array<EditModelConfig> = [
     tier: 'hero',
     pricing: { kind: 'perImage', usd: 0.15 },
     supportsSeed: true,
-  },
-  {
-    id: 'bytedance/seedream/v5/pro/edit',
-    name: 'Seedream 5 Pro',
-    provider: 'fal',
-    maxImages: 10,
-    description: 'ByteDance - Flagship multi-source composition',
-    tier: 'hero',
-    pricing: { kind: 'perImage', usd: 0.0675 },
   },
   {
     id: 'openai/gpt-image-2.6/sunburst/edit',
@@ -1941,16 +1922,29 @@ export const DIRECTOR_MODELS = {
 } as const
 
 /**
- * Use `preferred` if the catalog still offers it, otherwise `fallback`.
- * Stored preferences (User.preferredImageModel, old job inputs) can name a
- * model we have since retired; this keeps them from failing at fal.
+ * Retired endpoints → what replaced them, so a stored preference moves to
+ * the successor instead of the generic default.
+ */
+export const MODEL_REPLACEMENTS: Readonly<Record<string, string>> = {
+  // retired 2026-11-12: Seedream 5.5 is the cheaper successor
+  'bytedance/seedream/v5/pro/text-to-image':
+    'bytedance/seedream/v5.5/text-to-image',
+  'bytedance/seedream/v5/pro/edit': 'bytedance/seedream/v5.5/edit',
+}
+
+/**
+ * Use `preferred` if the catalog still offers it, else its replacement if
+ * the catalog offers that, otherwise `fallback`. Stored preferences
+ * (User.preferredImageModel, old job inputs) can name a model we have since
+ * retired; this keeps them from failing at fal.
  */
 export function resolveModelId(
   preferred: string | null | undefined,
   catalog: ReadonlyArray<{ id: string }>,
   fallback: string,
 ): string {
-  return preferred && catalog.some((m) => m.id === preferred)
-    ? preferred
-    : fallback
+  if (!preferred) return fallback
+  if (catalog.some((m) => m.id === preferred)) return preferred
+  const next = MODEL_REPLACEMENTS[preferred]
+  return next && catalog.some((m) => m.id === next) ? next : fallback
 }
