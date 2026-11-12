@@ -53,6 +53,8 @@ export interface EditInput {
   numImages?: number
   /** Output aspect ratio; sent only to models that declare it */
   aspectRatio?: string
+  /** 'transparent' → RGBA PNG, sent only to models that support it */
+  background?: 'transparent'
 }
 
 export interface UpscaleInput {
@@ -449,6 +451,13 @@ export function buildEditPayload(input: EditInput, modelId: string) {
 
   if (input.aspectRatio && config?.aspectRatios?.includes(input.aspectRatio)) {
     payload.aspect_ratio = input.aspectRatio
+  }
+  if (
+    config?.supportsTransparentBackground &&
+    input.background === 'transparent'
+  ) {
+    payload.background = 'transparent'
+    payload.output_format = 'png'
   }
 
   return payload

@@ -45,6 +45,7 @@ const generateImageSchema = z.object({
   // GPT Image 2 specific
   imageSizePreset: z.string().optional(),
   outputFormat: z.enum(['jpeg', 'png', 'webp']).optional(),
+  background: z.literal('transparent').optional(),
 })
 
 const listImagesSchema = z.object({
@@ -116,6 +117,7 @@ export const generateImageFn = createServerFn({ method: 'POST' })
         numImages,
         imageSizePreset: data.imageSizePreset,
         outputFormat: data.outputFormat,
+        background: data.background,
       },
       userApiKey,
     )
@@ -140,6 +142,7 @@ export const generateImageFn = createServerFn({ method: 'POST' })
           numImages,
           imageSizePreset: data.imageSizePreset,
           outputFormat: data.outputFormat,
+          background: data.background,
         }),
         estimatedCostUsd: imageJobCost(modelId, {
           width: data.width || 1024,
@@ -332,6 +335,8 @@ export const getImageJobStatusFn = createServerFn({ method: 'GET' })
                 seed: result.seed,
                 batchIndex: i,
                 batchSize: allImages.length,
+                transparent:
+                  inputData.background === 'transparent' || undefined,
               }),
             },
           })

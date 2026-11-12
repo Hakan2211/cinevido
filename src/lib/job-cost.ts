@@ -26,6 +26,7 @@ import {
   UPSCALE_MODELS,
   VIDEO_MODELS,
   VIDEO_UPSCALE_MODELS,
+  imageRenderSize,
 } from '@/server/services/types'
 
 /** One number for a stored estimate: the midpoint, to a hundredth of a cent */
@@ -53,26 +54,35 @@ export function imageJobCost(
   },
 ): number | null {
   const model = find(IMAGE_MODELS, modelId)
+  const size = imageRenderSize(
+    modelId,
+    input.width ?? 1024,
+    input.height ?? 1024,
+  )
   return toUsd(
     estimateCost(model?.pricing, {
       numImages: model?.supportsNumImages ? input.numImages : 1,
-      width: input.width ?? 1024,
-      height: input.height ?? 1024,
+      width: size.width,
+      height: size.height,
       quality: input.quality,
       resolution: '1K',
     }),
   )
 }
 
-/** Edits are priced per output image; megapixel models assume ~1MP output */
+/**
+ * Edits are priced per output image; megapixel models assume ~1MP output.
+ * Reference images count where the model bills them (Seedream 5.5 Edit).
+ */
 export function editJobCost(
   modelId: string,
-  input: { quality?: string; numImages?: number },
+  input: { quality?: string; numImages?: number; imageUrls?: Array<string> },
 ): number | null {
   const model = find(EDIT_MODELS, modelId)
   return toUsd(
     estimateCost(model?.pricing, {
       numImages: input.numImages,
+      inputImages: input.imageUrls?.length,
       quality: input.quality,
       resolution: '1K',
     }),

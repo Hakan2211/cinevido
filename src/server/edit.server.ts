@@ -46,6 +46,7 @@ const editSchema = z.object({
   imageSizePreset: z.string().optional(),
   outputFormat: z.enum(['jpeg', 'png', 'webp']).optional(),
   numImages: z.number().min(1).max(4).optional(),
+  background: z.literal('transparent').optional(),
 })
 
 const upscaleSchema = z.object({
@@ -128,6 +129,7 @@ export const editImageFn = createServerFn({ method: 'POST' })
         imageSizePreset: data.imageSizePreset,
         outputFormat: data.outputFormat,
         numImages: data.numImages,
+        background: data.background,
       },
       userApiKey,
     )
@@ -152,6 +154,7 @@ export const editImageFn = createServerFn({ method: 'POST' })
           prompt: data.prompt,
           editType: 'edit',
           sourceAssetIds: data.sourceAssetIds,
+          background: data.background,
           // Save fal.ai queue URLs for status polling - DO NOT construct these from modelId!
           statusUrl: job.statusUrl,
           responseUrl: job.responseUrl,
@@ -423,6 +426,9 @@ export const getEditJobStatusFn = createServerFn({ method: 'GET' })
               editType: inputData.editType,
               sourceAssetId:
                 inputData.sourceAssetId || inputData.sourceAssetIds?.[0],
+              // reference count, for models that bill per input (Seedream 5.5)
+              inputImages: inputData.imageUrls?.length,
+              transparent: inputData.background === 'transparent' || undefined,
             }),
           },
         })

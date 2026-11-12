@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
+  editJobCost,
+  imageJobCost,
   imageUpscaleOutput,
   model3DCost,
   motionJobCost,
@@ -8,7 +10,7 @@ import {
   videoJobCost,
   videoUpscaleJobCost,
 } from './job-cost'
-import { estimateCost } from './pricing'
+import { estimateCost, formatRate } from './pricing'
 import {
   MOTION_CONTROL_MODELS,
   SFX_MODELS,
@@ -102,5 +104,48 @@ describe('job cost', () => {
     const base = model3DCost(hunyuan)!.min
     const pbr = model3DCost(hunyuan, { enablePbr: true })!.min
     expect(pbr).toBeGreaterThan(base)
+  })
+})
+
+describe('Seedream 5.5 pricing (per output, by pixels, + refs on edit)', () => {
+  const T2I = 'bytedance/seedream/v5.5/text-to-image'
+  const EDIT = 'bytedance/seedream/v5.5/edit'
+
+  it('bills the doubled render size: square is 2K, 16:9 stays under 2.61MP', () => {
+    // 1024² → 2048² = 4.19MP → $0.0405; 1024×576 → 2048×1152 = 2.36MP → $0.03
+    expect(imageJobCost(T2I, { width: 1024, height: 1024 })).toBe(0.0405)
+    expect(imageJobCost(T2I, { width: 1024, height: 576 })).toBe(0.03)
+    expect(imageJobCost(T2I, { width: 1024, height: 576, numImages: 2 })).toBe(
+      0.06,
+    )
+  })
+
+  it('adds $0.012 per reference image to an edit (default 2K output)', () => {
+    // fal's example: 2 inputs, one output at 2K = $0.0645
+    expect(editJobCost(EDIT, { imageUrls: ['a', 'b'] })).toBe(0.0645)
+    expect(editJobCost(EDIT, { imageUrls: ['a'] })).toBe(0.0525)
+  })
+
+  it('prices a finished edit from its real output size', () => {
+    const rule = {
+      kind: 'perImage',
+      usd: 0.0405,
+      overPixels: { px: 2_610_000, under: 0.03 },
+      perInputImage: 0.012,
+    } as const
+    // fal's example: 2 inputs at 1.5K = $0.054
+    expect(
+      estimateCost(rule, { width: 1536, height: 1536, inputImages: 2 })?.min,
+    ).toBeCloseTo(0.054)
+  })
+
+  it('shows both tiers in the picker', () => {
+    expect(
+      formatRate({
+        kind: 'perImage',
+        usd: 0.0405,
+        overPixels: { px: 1, under: 0.03 },
+      }),
+    ).toMatch(/^\$0\.03–0\.04\d?\/img$/)
   })
 })

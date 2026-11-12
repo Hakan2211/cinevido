@@ -19,6 +19,7 @@ import {
   Music,
   RefreshCw,
   Sparkles,
+  Layers,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { SettingsCard } from './SettingsCard'
@@ -352,6 +353,7 @@ function SpendChart({ usage }: { usage: UsageSummary }) {
 const KIND_ICON: Record<JobKind, typeof Film> = {
   Image: ImageIcon,
   Edit: ImageIcon,
+  Layers: Layers,
   Upscale: Sparkles,
   Video: Film,
   Motion: Film,

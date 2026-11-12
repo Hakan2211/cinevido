@@ -150,6 +150,22 @@ code {
 /* Premium utilities — the new design has no glow; these classes are kept as
    no-ops so older markup still renders cleanly while pages are ported. */
 @layer utilities {
+  /* Behind transparent (RGBA) images so the cut-out reads as one */
+  .bg-checker {
+    background-color: var(--card);
+    background-image:
+      linear-gradient(45deg, var(--muted) 25%, transparent 25%),
+      linear-gradient(-45deg, var(--muted) 25%, transparent 25%),
+      linear-gradient(45deg, transparent 75%, var(--muted) 75%),
+      linear-gradient(-45deg, transparent 75%, var(--muted) 75%);
+    background-size: 16px 16px;
+    background-position:
+      0 0,
+      0 8px,
+      8px -8px,
+      -8px 0;
+  }
+
   .premium-glow,
   .premium-glow-hover:hover,
   .btn-primary-glow,

@@ -26,6 +26,7 @@ import {
   Download,
   Hash,
   Image as ImageIcon,
+  Layers as LayersIcon,
   Loader2,
   Maximize2,
   MessageSquare,
@@ -51,10 +52,12 @@ import {
   GPT_IMAGE_CUSTOM_SIZE_LIMITS,
   GPT_IMAGE_OUTPUT_FORMATS,
   IMAGE_MODELS,
+  LAYERIZE_MODELS,
   SEEDVR_TARGET_RESOLUTIONS,
   TOPAZ_MODELS,
   UPSCALE_MODELS,
   aspectRatioToGptImageSize,
+  imageRenderSize,
   clampGptImageQuality,
   gptImageQualityTiers,
   isGptImageEditModel,
@@ -104,13 +107,24 @@ import {
 } from '@/components/generate'
 import type { CardAction, SlotImage } from '@/components/generate'
 import { downloadFile, generateFilename } from '@/lib/download'
-import { estimateCost, formatEstimate } from '@/lib/pricing'
+import { estimateCost, formatEstimate, formatUsd } from '@/lib/pricing'
+import {
+  DEFAULT_LAYER_COUNT,
+  LAYER_COMPOSITE_MODEL,
+  LAYER_COUNTS,
+  layerSetOf,
+  layerizeCeiling,
+  layerizeCost,
+} from '@/lib/layers'
+import type { LayerSet } from '@/lib/layers'
+import { LayerComposite, LayerStack } from '@/components/images/LayerStack'
 import { cn } from '@/lib/utils'
 
-type ImageMode = 'generate' | 'edit' | 'upscale'
+type ImageMode = 'generate' | 'edit' | 'layers' | 'upscale'
 const MODES: ReadonlyArray<{ value: ImageMode; label: string }> = [
   { value: 'generate', label: 'Create' },
   { value: 'edit', label: 'Edit' },
+  { value: 'layers', label: 'Layers' },
   { value: 'upscale', label: 'Upscale' },
 ]
 
@@ -156,6 +170,12 @@ interface ImageMetadata {
   quality?: string
   // set on edit/upscale results, for the before/after view
   sourceAssetId?: string
+  /** edits: how many reference images went in (Seedream 5.5 bills each) */
+  inputImages?: number
+  /** rendered with a transparent background (RGBA PNG) */
+  transparent?: boolean
+  /** set on a Layerize result: the base image plus every layer */
+  layerSet?: LayerSet
 }
 
 interface GeneratedImage {
@@ -183,10 +203,12 @@ const MODEL_LOOKUP = new Map<string, { config: ModelConfig; kind: ImageMode }>([
   ...IMAGE_MODELS.map((m) => [m.id, { config: m, kind: 'generate' }] as const),
   ...EDIT_MODELS.map((m) => [m.id, { config: m, kind: 'edit' }] as const),
   ...UPSCALE_MODELS.map((m) => [m.id, { config: m, kind: 'upscale' }] as const),
+  ...LAYERIZE_MODELS.map((m) => [m.id, { config: m, kind: 'layers' }] as const),
 ])
 
 function modelTitle(modelId: string | null): string {
   if (!modelId) return 'Upload'
+  if (modelId === LAYER_COMPOSITE_MODEL) return 'Layer composite'
   const hit = MODEL_LOOKUP.get(modelId)
   if (!hit) return modelId.split('/').slice(-2).join(' ')
   const { config, kind } = hit
@@ -198,13 +220,25 @@ function modelTitle(modelId: string | null): string {
 
 /** Estimated cost of one finished image (fal doesn't report it back) */
 function imageCost(image: GeneratedImage): string | null {
+  const set = layerSetOf(image.metadata)
+  if (set && image.model && LAYERIZE_MODELS.some((m) => m.id === image.model)) {
+    const label = formatEstimate(
+      layerizeCost({
+        outputs: set.layers.length,
+        width: set.width,
+        height: set.height,
+      }),
+    )
+    return label?.replace('≈ ', '') ?? null
+  }
   const hit = image.model ? MODEL_LOOKUP.get(image.model) : undefined
-  if (!hit) return null
+  if (!hit || hit.kind === 'layers') return null
   const label = formatEstimate(
     estimateCost(hit.config.pricing, {
       width: image.metadata?.width,
       height: image.metadata?.height,
       quality: image.metadata?.quality,
+      inputImages: image.metadata?.inputImages,
       resolution: '1K',
     }),
   )
@@ -246,6 +280,8 @@ function ImagesPage() {
     useState<GptImageOutputFormat>('png')
   const [gptCustomWidth, setGptCustomWidth] = useState(1920)
   const [gptCustomHeight, setGptCustomHeight] = useState(1080)
+  const [transparentBg, setTransparentBg] = useState(false)
+  const [editTransparentBg, setEditTransparentBg] = useState(false)
 
   // ---- Edit ----
   const [editPrompt, setEditPrompt] = useState('')
@@ -271,8 +307,18 @@ function ImagesPage() {
   const [faceEnhancementStrength, setFaceEnhancementStrength] = useState(0.8)
   const [faceEnhancementCreativity, setFaceEnhancementCreativity] = useState(0)
 
+  // ---- Layers ----
+  const [layersSource, setLayersSource] = useState<SlotImage | null>(null)
+  const [layersPrompt, setLayersPrompt] = useState('')
+  const [layersCount, setLayersCount] = useState<number>(DEFAULT_LAYER_COUNT)
+  const [layersText, setLayersText] = useState(false)
+  const [layerJobId, setLayerJobId] = useState<string | null>(null)
+  const [openSetId, setOpenSetId] = useState<string | null>(null)
+
   // ---- UI ----
-  const [pickerFor, setPickerFor] = useState<'edit' | 'upscale' | null>(null)
+  const [pickerFor, setPickerFor] = useState<
+    'edit' | 'upscale' | 'layers' | null
+  >(null)
   const [selectedImage, setSelectedImage] = useState<GeneratedImage | null>(
     null,
   )
@@ -328,11 +374,17 @@ function ImagesPage() {
   const isSeedVR = upscaleModel.includes('seedvr')
   const isTopaz = upscaleModel.includes('topaz')
 
+  const renderDims = imageRenderSize(model, dims.width, dims.height)
+  const createTransparent =
+    !!selectedModel?.supportsTransparentBackground && transparentBg
+  const editTransparent =
+    !!selectedEditModel?.supportsTransparentBackground && editTransparentBg
+
   // ---- Costs ----
   const createCostOne = formatEstimate(
     estimateCost(selectedModel?.pricing, {
-      width: dims.width,
-      height: dims.height,
+      width: renderDims.width,
+      height: renderDims.height,
       quality: isGpt ? gptQuality : undefined,
       resolution: '1K',
     }),
@@ -340,19 +392,28 @@ function ImagesPage() {
   const createCost = formatEstimate(
     estimateCost(selectedModel?.pricing, {
       numImages: batch,
-      width: dims.width,
-      height: dims.height,
+      width: renderDims.width,
+      height: renderDims.height,
       quality: isGpt ? gptQuality : undefined,
       resolution: '1K',
     }),
   )
-  // Edits are priced per output image; megapixel models assume ~1MP output
+  // Edits are priced per output image; megapixel models assume ~1MP output.
+  // Seedream 5.5 also bills each reference image.
   const editCost = formatEstimate(
     estimateCost(selectedEditModel?.pricing, {
       quality: isGptEdit ? gptEditQuality : undefined,
+      inputImages: Math.max(1, editRefs.length),
       resolution: '1K',
     }),
   )
+  // Layerize bills every returned layer: show the ceiling (all slots used)
+  const layersCeiling = layerizeCeiling({
+    maxLayers: layersCount,
+    width: layersSource?.metadata?.width,
+    height: layersSource?.metadata?.height,
+  })
+  const layersCost = layersCeiling ? `≤ ${formatUsd(layersCeiling.max)}` : null
   // Upscalers bill output megapixels
   const upscaleOut = useMemo(() => {
     const w = upscaleSource?.metadata?.width ?? 1024
@@ -432,6 +493,51 @@ function ImagesPage() {
     onSuccess: (result) => setCurrentJobId(result.jobId),
     onError: () => setPending(null),
   })
+
+  const layerizeMutation = useMutation({
+    mutationFn: async (
+      vars: Parameters<
+        typeof import('@/server/layers.server').startLayerizeFn
+      >[0],
+    ) => {
+      const { startLayerizeFn } = await import('@/server/layers.server')
+      return startLayerizeFn(vars)
+    },
+    onSuccess: (res) => setLayerJobId(res.jobId),
+  })
+
+  const { data: layerJob } = useQuery({
+    queryKey: ['layerizeJob', layerJobId],
+    queryFn: async () => {
+      const { getLayerizeJobStatusFn } = await import('@/server/layers.server')
+      return getLayerizeJobStatusFn({ data: { jobId: layerJobId! } })
+    },
+    enabled: !!layerJobId,
+    refetchInterval: (query) => {
+      const st = query.state.data?.status
+      return st === 'completed' || st === 'failed' ? false : 2500
+    },
+  })
+
+  useEffect(() => {
+    if (!layerJobId || !layerJob) return
+    if (layerJob.status === 'failed') {
+      setLayerJobId(null)
+      setJobError({
+        mode: 'layers',
+        message: layerJob.error || 'Layerize failed',
+      })
+      toast.error('Layerize failed', {
+        description: layerJob.error ?? undefined,
+      })
+    } else if (layerJob.status === 'completed' && layerJob.assetId) {
+      setLayerJobId(null)
+      setOpenSetId(layerJob.assetId)
+      queryClient.invalidateQueries({ queryKey: ['images'] })
+      queryClient.invalidateQueries({ queryKey: ['falCredits'] })
+      toast.success('Layers ready')
+    }
+  }, [layerJob, layerJobId, queryClient])
 
   const deleteMutation = useMutation({
     mutationFn: async (input: { data: { imageId: string } }) => {
@@ -608,6 +714,7 @@ function ImagesPage() {
             ? aspectRatioToGptImageSize(aspectRatio)
             : undefined,
         outputFormat: isGpt ? gptOutputFormat : undefined,
+        background: createTransparent ? 'transparent' : undefined,
       },
     })
   }
@@ -634,6 +741,7 @@ function ImagesPage() {
           ? clampGptImageQuality(editModel, gptEditQuality)
           : undefined,
         outputFormat: isGptEdit ? gptEditOutputFormat : undefined,
+        background: editTransparent ? 'transparent' : undefined,
       },
     })
   }
@@ -679,12 +787,49 @@ function ImagesPage() {
     })
   }
 
+  const layersBusy = layerizeMutation.isPending || !!layerJobId
+  const canLayerize = !!layersSource && !layersBusy
+
+  const handleLayerize = () => {
+    if (!canLayerize || !layersSource) return
+    setJobError(null)
+    setOpenSetId(null)
+    layerizeMutation.mutate({
+      data: {
+        imageUrl: layersSource.url,
+        sourceAssetId: layersSource.id,
+        prompt: layersPrompt.trim() || undefined,
+        maxLayers: layersCount,
+        textRecognition: layersText || undefined,
+        sourceWidth: layersSource.metadata?.width,
+        sourceHeight: layersSource.metadata?.height,
+      },
+    })
+  }
+
+  /** "Split into layers" from a card */
+  const handleLayerImage = (image: GeneratedImage) => {
+    setSelectedImage(null)
+    setLayersSource(toSlot(image))
+    setOpenSetId(null)
+    setMode('layers')
+  }
+
+  /** Open a finished layer set */
+  const handleOpenLayers = (image: GeneratedImage) => {
+    setSelectedImage(null)
+    setOpenSetId(image.id)
+    setMode('layers')
+  }
+
   const runPrimary =
     mode === 'generate'
       ? handleCreate
       : mode === 'edit'
         ? handleEdit
-        : handleUpscale
+        : mode === 'layers'
+          ? handleLayerize
+          : handleUpscale
 
   // Ctrl/Cmd+Enter in a prompt runs the current tab; Esc closes the sheet
   useEffect(() => {
@@ -812,7 +957,9 @@ function ImagesPage() {
       ? generateMutation.error
       : mode === 'edit'
         ? editMutation.error
-        : upscaleMutation.error
+        : mode === 'layers'
+          ? layerizeMutation.error
+          : upscaleMutation.error
   const panelError =
     mutationError instanceof Error
       ? mutationError.message
@@ -826,13 +973,17 @@ function ImagesPage() {
       ? 'Generate Image'
       : mode === 'edit'
         ? 'Edit Image'
-        : 'Upscale Image'
+        : mode === 'layers'
+          ? 'Split into Layers'
+          : 'Upscale Image'
   const panelSubtitle =
     mode === 'generate'
       ? 'Describe it and pick a model.'
       : mode === 'edit'
         ? 'Change an image with words, or combine several.'
-        : 'Sharpen and enlarge an image.'
+        : mode === 'layers'
+          ? 'Separate an image into cut-out layers you can move and edit.'
+          : 'Sharpen and enlarge an image.'
 
   const footer =
     mode === 'generate' ? (
@@ -854,6 +1005,17 @@ function ImagesPage() {
         costLabel={editCost}
         disabled={!canEdit}
         onClick={handleEdit}
+      />
+    ) : mode === 'layers' ? (
+      <GenerateButton
+        label="Split into layers"
+        icon={LayersIcon}
+        busy={layersBusy}
+        busyLabel="Separating…"
+        costLabel={layersCost}
+        disabled={!canLayerize}
+        onClick={handleLayerize}
+        hint="Billed per returned layer · the most it can cost is shown"
       />
     ) : (
       <GenerateButton
@@ -966,6 +1128,14 @@ function ImagesPage() {
               />
             )}
 
+            {selectedModel?.supportsTransparentBackground && (
+              <TransparentBackgroundSwitch
+                checked={transparentBg}
+                onCheckedChange={setTransparentBg}
+                description="Cut-out PNG — for logos, products and overlays"
+              />
+            )}
+
             {selectedModel?.supportsNegativePrompt && (
               <Field label="Negative prompt" hint="optional">
                 <textarea
@@ -1049,6 +1219,14 @@ function ImagesPage() {
               />
             </Field>
 
+            {selectedEditModel?.supportsTransparentBackground && (
+              <TransparentBackgroundSwitch
+                checked={editTransparentBg}
+                onCheckedChange={setEditTransparentBg}
+                description="Returns the result as a cut-out PNG"
+              />
+            )}
+
             {isGptEdit && (
               <GptOptions
                 modelId={editModel}
@@ -1058,6 +1236,64 @@ function ImagesPage() {
                 onFormatChange={setGptEditOutputFormat}
               />
             )}
+          </>
+        )}
+
+        {mode === 'layers' && (
+          <>
+            <Field label="Image">
+              {layersSource ? (
+                <FrameSlot
+                  image={layersSource}
+                  label="Image"
+                  aspect="square"
+                  onPick={() => setPickerFor('layers')}
+                  onClear={() => setLayersSource(null)}
+                />
+              ) : (
+                <EmptyImageDrop
+                  onPick={() => setPickerFor('layers')}
+                  title="Choose an image to split"
+                  hint="512–6000 px · upload or pick from your library"
+                />
+              )}
+            </Field>
+
+            <Field label="What to separate" hint="optional">
+              <textarea
+                value={layersPrompt}
+                onChange={(e) => setLayersPrompt(e.target.value)}
+                maxLength={1000}
+                rows={2}
+                placeholder="“the mug, the logo, the headline” — empty lets the model pick"
+                className="block w-full resize-none rounded-xl border border-input bg-background px-3.5 py-2.5 text-sm outline-none transition-colors placeholder:text-muted-foreground/70 focus:border-muted-foreground/60"
+              />
+            </Field>
+
+            <Field label="Up to">
+              <Segmented
+                options={LAYER_COUNTS.map((n) => ({
+                  value: n,
+                  label: `${n} layers`,
+                }))}
+                value={layersCount}
+                onChange={setLayersCount}
+              />
+              <p className="mt-2 text-xs text-muted-foreground">
+                More layers split finer. fal bills each returned layer plus the
+                base, so the price shown is the most it can cost.
+              </p>
+            </Field>
+
+            <div className="flex items-center justify-between gap-4 rounded-xl border border-border px-4 py-3">
+              <div>
+                <p className="text-sm font-medium">Read text</p>
+                <p className="text-xs text-muted-foreground">
+                  Text layers come back with their words, colour and font
+                </p>
+              </div>
+              <Switch checked={layersText} onCheckedChange={setLayersText} />
+            </div>
           </>
         )}
 
@@ -1232,13 +1468,15 @@ function ImagesPage() {
 
       {/* ================= Results ================= */}
       <LabResults count={total}>
-        {imagesLoading && images.length === 0 ? (
+        {mode === 'layers' && openSetId ? (
+          <LayerStack assetId={openSetId} onClose={() => setOpenSetId(null)} />
+        ) : imagesLoading && images.length === 0 ? (
           <div className={GRID}>
             {Array.from({ length: 8 }).map((_, i) => (
               <Skeleton key={i} className="aspect-square rounded-xl" />
             ))}
           </div>
-        ) : images.length === 0 && !pending ? (
+        ) : images.length === 0 && !pending && !layerJobId ? (
           <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border py-28 text-center">
             <ImageIcon className="h-10 w-10 text-muted-foreground/50" />
             <h3 className="mt-5 text-lg font-medium">No images yet</h3>
@@ -1250,6 +1488,25 @@ function ImagesPage() {
         ) : (
           <>
             <div className={GRID}>
+              {layerJobId && (
+                <PendingCard
+                  aspect="square"
+                  status={
+                    layerJob?.status === 'processing'
+                      ? 'Separating layers…'
+                      : 'Queued…'
+                  }
+                  eta="Usually under a minute"
+                  queuePosition={
+                    (layerJob && 'queuePosition' in layerJob
+                      ? layerJob.queuePosition
+                      : null) ?? null
+                  }
+                  onStopWaiting={() => setLayerJobId(null)}
+                  title={LAYERIZE_MODELS[0].name}
+                  cost={layersCost}
+                />
+              )}
               {pending &&
                 Array.from({ length: pending.count }).map((_, i) => (
                   <PendingCard
@@ -1279,6 +1536,8 @@ function ImagesPage() {
                   onAnimate={() => handleAnimate(image)}
                   onEdit={() => handleEditImage(image)}
                   onUpscale={() => handleUpscaleImage(image)}
+                  onLayers={() => handleLayerImage(image)}
+                  onOpenLayers={() => handleOpenLayers(image)}
                   onDownload={() => handleDownload(image.url, image.id)}
                   onCopyPrompt={
                     image.prompt
@@ -1310,13 +1569,16 @@ function ImagesPage() {
         title={
           pickerFor === 'edit'
             ? `Choose up to ${maxRefs} image${maxRefs === 1 ? '' : 's'}`
-            : 'Choose an image to upscale'
+            : pickerFor === 'layers'
+              ? 'Choose an image to split into layers'
+              : 'Choose an image to upscale'
         }
         multiple={pickerFor === 'edit' && maxRefs > 1}
         max={pickerFor === 'edit' ? maxRefs : 1}
         initial={pickerFor === 'edit' ? editRefs : []}
         onPick={(picked) => {
           if (pickerFor === 'edit') setEditRefs(picked.slice(0, maxRefs))
+          else if (pickerFor === 'layers') setLayersSource(picked[0] ?? null)
           else if (picked[0]) setUpscaleSource(picked[0])
         }}
       />
@@ -1370,6 +1632,27 @@ const GRID = 'grid grid-cols-2 gap-5 md:grid-cols-3 2xl:grid-cols-4'
 // =============================================================================
 // Pieces
 // =============================================================================
+
+/** Seedream 5.5's `background: 'transparent'` — RGBA PNG output */
+function TransparentBackgroundSwitch({
+  checked,
+  onCheckedChange,
+  description,
+}: {
+  checked: boolean
+  onCheckedChange: (next: boolean) => void
+  description: string
+}) {
+  return (
+    <div className="flex items-center justify-between gap-4 rounded-xl border border-border px-4 py-3">
+      <div>
+        <p className="text-sm font-medium">Transparent background</p>
+        <p className="text-xs text-muted-foreground">{description}</p>
+      </div>
+      <Switch checked={checked} onCheckedChange={onCheckedChange} />
+    </div>
+  )
+}
 
 function GptOptions({
   modelId,
@@ -1472,6 +1755,8 @@ function ImageCard({
   onAnimate,
   onEdit,
   onUpscale,
+  onLayers,
+  onOpenLayers,
   onDownload,
   onCopyPrompt,
   onDelete,
@@ -1483,13 +1768,19 @@ function ImageCard({
   onAnimate: () => void
   onEdit: () => void
   onUpscale: () => void
+  onLayers: () => void
+  onOpenLayers: () => void
   onDownload: () => void
   onCopyPrompt?: () => void
   onDelete: () => void
   isDownloading: boolean
   editLabel: string
 }) {
+  const set = layerSetOf(image.metadata)
   const hoverActions: Array<CardAction> = [
+    ...(set
+      ? [{ label: 'Open layers', icon: LayersIcon, onClick: onOpenLayers }]
+      : []),
     { label: 'Animate', icon: Play, onClick: onAnimate },
     { label: editLabel, icon: Paintbrush, onClick: onEdit },
     { label: 'Upscale', icon: ArrowUpCircle, onClick: onUpscale },
@@ -1505,6 +1796,9 @@ function ImageCard({
     { label: 'Animate', icon: Play, onClick: onAnimate },
     { label: editLabel, icon: Paintbrush, onClick: onEdit },
     { label: 'Upscale', icon: ArrowUpCircle, onClick: onUpscale },
+    set
+      ? { label: 'Open layers', icon: LayersIcon, onClick: onOpenLayers }
+      : { label: 'Split into layers', icon: LayersIcon, onClick: onLayers },
     ...(onCopyPrompt
       ? [{ label: 'Copy prompt', icon: Copy, onClick: onCopyPrompt }]
       : []),
@@ -1526,12 +1820,33 @@ function ImageCard({
       menuActions={menuActions}
       menuLabel="Image actions"
       media={
-        <img
-          src={image.url}
-          alt={image.prompt || 'Generated image'}
-          loading="lazy"
-          className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.02]"
-        />
+        set ? (
+          <div className="absolute inset-0 flex items-center justify-center bg-card transition-transform duration-500 group-hover:scale-[1.02]">
+            <LayerComposite
+              set={set}
+              views={Object.fromEntries(
+                Object.entries(set.views ?? {}).map(([z, v]) => [Number(z), v]),
+              )}
+              className={set.width >= set.height ? 'h-auto' : 'h-full w-auto'}
+            />
+            <span className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-md bg-background/80 px-1.5 py-0.5 text-[11px] font-medium">
+              <LayersIcon className="h-3 w-3" />
+              {set.layers.length}
+            </span>
+          </div>
+        ) : (
+          <img
+            src={image.url}
+            alt={image.prompt || 'Generated image'}
+            loading="lazy"
+            className={cn(
+              'absolute inset-0 h-full w-full transition-transform duration-500 group-hover:scale-[1.02]',
+              image.metadata?.transparent
+                ? 'bg-checker object-contain'
+                : 'object-cover',
+            )}
+          />
+        )
       }
     />
   )

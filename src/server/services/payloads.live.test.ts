@@ -21,6 +21,7 @@ import {
   buildVideoPayload,
 } from './fal.server'
 import { buildEditPayload } from './edit.server'
+import { buildLayerizePayload } from './layerize.server'
 import { buildMusicPayload } from './music.server'
 import { buildSpeechPayload } from './tts.server'
 import { buildSoundEffectPayload } from './sfx.server'
@@ -228,6 +229,37 @@ describe('catalog payloads match fal schemas', () => {
           )
           errors.push(...(await validate(m.id, payload)))
         }
+        if (m.supportsTransparentBackground) {
+          const cutout = buildImagePayload(
+            { prompt: 'a red apple', model: m.id, background: 'transparent' },
+            m.id,
+          )
+          errors.push(...(await validate(m.id, cutout)))
+        }
+      }
+      expect(errors).toEqual([])
+    },
+    TIMEOUT,
+  )
+
+  live(
+    'layerize',
+    async () => {
+      const errors: Array<string> = []
+      for (const maxLayers of [1, 8, 29, 99]) {
+        for (const extra of [
+          {},
+          { prompt: 'the mug', textRecognition: true },
+        ]) {
+          const payload = buildLayerizePayload({
+            imageUrl: IMG,
+            maxLayers,
+            ...extra,
+          })
+          errors.push(
+            ...(await validate('bytedance/seedream/v5.5/layerize', payload)),
+          )
+        }
       }
       expect(errors).toEqual([])
     },
@@ -254,10 +286,27 @@ describe('catalog payloads match fal schemas', () => {
         errors.push(...(await validate(m.id, payload)))
         for (const aspectRatio of m.aspectRatios ?? []) {
           const sized = buildEditPayload(
-            { prompt: 'make it night', imageUrls: [IMG], model: m.id, aspectRatio },
+            {
+              prompt: 'make it night',
+              imageUrls: [IMG],
+              model: m.id,
+              aspectRatio,
+            },
             m.id,
           )
           errors.push(...(await validate(m.id, sized)))
+        }
+        if (m.supportsTransparentBackground) {
+          const cutout = buildEditPayload(
+            {
+              prompt: 'cut out the subject',
+              imageUrls: [IMG],
+              model: m.id,
+              background: 'transparent',
+            },
+            m.id,
+          )
+          errors.push(...(await validate(m.id, cutout)))
         }
       }
       expect(errors).toEqual([])

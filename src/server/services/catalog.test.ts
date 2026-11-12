@@ -174,6 +174,22 @@ describe('payload builders send only declared fields', () => {
     expect(krea).toMatchObject({ seed: 1, negative_prompt: 'y' })
   })
 
+  it('sends a transparent background only to models that support it', () => {
+    const seedream = buildImagePayload(
+      { prompt: 'x', background: 'transparent', outputFormat: 'jpeg' },
+      'bytedance/seedream/v5.5/text-to-image',
+    )
+    expect(seedream).toMatchObject({
+      background: 'transparent',
+      output_format: 'png',
+    })
+    const flash = buildImagePayload(
+      { prompt: 'x', background: 'transparent' },
+      'bytedance/seedream/v5/flash/text-to-image',
+    )
+    expect(flash).not.toHaveProperty('background')
+  })
+
   it('throws on an unknown image model instead of sending it to fal', () => {
     expect(() =>
       buildImagePayload({ prompt: 'x' }, 'fal-ai/flux-pro/v1.1'),

@@ -19,12 +19,21 @@ export const TIER_LABELS: Record<ModelTier, string> = {
 }
 
 export type PriceRule =
-  /** a fixed price per output image, optionally by quality or resolution */
+  /**
+   * a fixed price per output image, optionally by quality or resolution.
+   * `overPixels`: `usd` is the price above `px` output pixels and `under` the
+   * price at or below it (Seedream 5.5: $0.0405 above 2.61MP, $0.03 up to it).
+   * Applied only when the output size is known; otherwise `usd` (the
+   * endpoint's default 2K size) stands.
+   * `perInputImage` is a fee per reference image, per output (Seedream 5.5 Edit).
+   */
   | {
       kind: 'perImage'
       usd: number
       byQuality?: Record<string, number>
       byResolution?: Record<string, number>
+      overPixels?: { px: number; under: number }
+      perInputImage?: number
     }
   /** billed per output megapixel (rounded up, minimum 1) */
   | { kind: 'perMegapixel'; usd: number }
@@ -54,6 +63,8 @@ export type PriceRule =
 
 export interface CostParams {
   numImages?: number
+  /** reference images sent with an edit */
+  inputImages?: number
   width?: number
   height?: number
   quality?: string
@@ -89,9 +100,16 @@ export function estimateCost(
 
   switch (rule.kind) {
     case 'perImage': {
-      const usd = rule.byQuality
+      let usd = rule.byQuality
         ? pick(rule.byQuality, params.quality, rule.usd)
         : pick(rule.byResolution, params.resolution, rule.usd)
+      if (rule.overPixels && params.width && params.height) {
+        usd =
+          params.width * params.height > rule.overPixels.px
+            ? rule.usd
+            : rule.overPixels.under
+      }
+      usd += (rule.perInputImage ?? 0) * Math.max(0, params.inputImages ?? 0)
       return exact(usd * images)
     }
     case 'perMegapixel': {
@@ -158,7 +176,9 @@ export function formatRate(rule: PriceRule | undefined): string | null {
   if (!rule) return null
   switch (rule.kind) {
     case 'perImage': {
-      const values = Object.values(rule.byQuality ?? rule.byResolution ?? {})
+      const values = rule.overPixels
+        ? [rule.overPixels.under, rule.usd]
+        : Object.values(rule.byQuality ?? rule.byResolution ?? {})
       if (values.length > 1) {
         return `${formatRateUsd(Math.min(...values))}–${formatRateUsd(Math.max(...values)).replace('$', '')}/img`
       }

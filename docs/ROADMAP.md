@@ -168,12 +168,45 @@ assemble on the timeline — without typing a second message.
 - [x] **Login / signup**: wordmark above the form, new card style
 - [x] **Price drift** (Admin → Price drift): `src/lib/price-drift.ts` (+ tests) compares each catalog rule to fal's pricing API (`src/server/price-drift.server.ts`, batches of 40, admin's key). First run, 62 endpoints: 44 match, 3 unpriced (MiniMax H3 Image — fal bills "units"), 11 in units we can't compare (GPT Image, Nano Banana 2.1, Seedance tokens, Hunyuan3D, Ideogram), **4 drift: MiniMax H3 Max / Turbo** (fal base $0.035/s and $0.0175/s vs our 480P rates $0.05/s / $0.025/s) — checked 2026-11-11: fal's pages show a 30% promo (Nov 1–15, 2026) that the pricing API quotes; standard rates from Nov 16 are $0.025/$0.04/$0.08 (Turbo) and $0.05/$0.08/$0.16 (Max) per second at 480P/768P/1080P, which is what the catalog has. No change
 
+### Phase 7 — Seedream 5.5 (released on fal 2026-11-11)
+Three endpoints: `bytedance/seedream/v5.5/text-to-image`, `/edit` and `/layerize`.
+Billing is per output image: **$0.03** up to 2.61MP (1K / 1.5K), **$0.0405** above
+(2K, the default). Edit adds **$0.012 per reference image, per output**. Layerize
+bills the base image + every layer as outputs, plus $0.012 once for the input.
+New in all three: `background: 'transparent'` (RGBA PNG, forces `output_format: png`).
+
+**7a — Text-to-image + Edit ✅ (2026-11-12)**
+- [x] Catalog: Seedream 5.5 in `IMAGE_MODELS` and `EDIT_MODELS` (Workhorse tier, batch ≤4 / 10 refs)
+- [x] `PriceRule.perImage` gained `overPixels` (price by output pixels) and `perInputImage`; `CostParams.inputImages`. `imageRenderSize()` (types.ts) is the one place the 2× native-2K size lives — payload and price both read it, so 1:1 / 4:3 cost $0.0405 and 16:9 / 9:16 cost $0.03
+- [x] Edit cost counts references (button, job estimate, finished card via `metadata.inputImages`)
+- [x] `supportsTransparentBackground` flag; **Transparent background** switch in the lab's Create and Edit tabs; `metadata.transparent` → results on a checkerboard, `object-contain`
+- [x] Tests: `job-cost.test.ts` (fal's own worked examples), `catalog.test.ts`; live schema check green incl. transparent payloads
+- [x] Defaults (2026-11-12): `DEFAULT_MODELS.image` = GPT Image 2.6 Flare. `DIRECTOR_MODELS.still` is pinned to Seedream 5 Flash ($0.027) instead of following it — budgets need a fixed price, GPT Image is token-billed
+- [ ] Retire Seedream 5 Pro ($0.0675) if 5.5 matches it — needs one side-by-side look (≈ $0.11)
+
+**7b — Layerize** (items 1–3 ✅ 2026-11-12; 4–7 planned)
+1. **Layers tab** in the image lab (Create / Edit / **Layers** / Upscale): source image, optional "what to separate" prompt (fal supports `<bbox>` hints), max layers (default 8, not fal's 30), OCR switch. Cost shows the ceiling — "≤ $0.34" = max_images × rate (by source pixels) + $0.012 — and the job is re-priced at the real layer count when it returns (like SFX)
+2. **Layer stack viewer**: base + layers by `z_index` with fal's names/descriptions, eye toggle, drag to move, download each PNG, "Save to library" (transparent assets with `layerOf`, `bbox`, `z`)
+3. **Edit one layer**: a layer → Seedream 5.5 Edit (transparent) → recomposite on a canvas at its bounding box → new image. Move / hide / delete layers is free (client canvas)
+4. **Text layers**: `enable_text_recognition` returns text, colour, weight and a similar font family → "Replace text" re-renders the layer, or drops it and puts an editable text clip on a component lane (posters, localisation)
+5. **Timeline / Studio**: "Send layers to timeline" stacks layers on V1…Vn with per-layer pan/scale → 2.5D parallax shots from one still, no video model cost
+6. **Project Bible**: "Cut out" on a reference image (Layerize with the subject named, or 5.5 Edit + transparent) → clean product / character references
+7. **Recipes / Director**: Product ad composites the cut-out product onto generated backgrounds; the Director gets a `layerize` tool only after 1–3 work in the lab
+
+Built (items 1–3):
+- [x] `LAYERIZE_MODELS` + `DEFAULT_MODELS.layerize` / `layerEdit` (types.ts); `src/lib/layers.ts` (types, cost, ceiling, CSS geometry, canvas clipping; tests in `layers.test.ts` incl. fal's worked example)
+- [x] `services/layerize.server.ts` (payload, queue submit, status, mock) — payload in the live schema check; `src/server/layers.server.ts`: `startLayerizeFn`, `getLayerizeJobStatusFn` (copies layers to storage, saves the set, re-prices the job at the real count; a claim on `progress` stops two tabs saving twice), `getLayerSetFn`, `applyLayerEditFn`, `saveLayerFn`, `composeLayersFn` (sharp)
+- [x] Lab **Layers** tab: source, "what to separate", up to 4 / 8 / 16 / 30 layers, Read text; button shows the ceiling ("≤ $0.28"). Viewer `src/components/images/LayerStack.tsx`: CSS composite, drag to move, eye toggle, per-layer Edit (Seedream 5.5 Edit, transparent, ≈ $0.053) / To library / PNG, Save as image, Reset. Cards: "Split into layers" in the menu; layer sets show the composite + count and open in the viewer
+- [x] Job type `layerize` → "Layers" in Settings → Usage; Layerize in Price drift
+- [x] Verified in `MOCK_GENERATION` mode end to end: split (≤ $0.28 → stored $0.162 for 5 outputs), drag + hide + Save as image, To library, layer edit applied (original URL kept), arrangement restored on reopen. No paid run
+
 ---
 
 ## Decisions
 
 - **2026-11-11** — Cut Aging (endpoints dead on fal). Keep 3D.
 - **2026-11-11** — Seedream: no 5.5 exists on fal; use Seedream 5 Pro + Flash.
+  *Superseded 2026-11-12:* Seedream 5.5 shipped on fal (Phase 7).
 - **2026-11-11** — Credit balance uses a *separate read-only* fal key; a normal
   generation key gets 403 on `/v1/account/billing`.
 - **2026-11-11** — Visual direction: dark graphite + one amber accent, close to
@@ -248,3 +281,17 @@ assemble on the timeline — without typing a second message.
 - **2026-11-11** — Price drift during a fal promotion is not drift: the catalog
   keeps standard rates (we quote high, never low). MiniMax H3 Max / Turbo flagged
   for this reason until the promo ends on 2026-11-15.
+- **2026-11-12** — Seedream 5.5 is priced by output pixels, so the lab prices
+  the size it actually requests (`imageRenderSize`), not the ~1MP UI size. A
+  price whose size is unknown (edit button before output) uses the 2K default:
+  quote high, never low.
+- **2026-11-12** — Transparent output always forces PNG; the lab shows a
+  checkerboard behind those results instead of cropping them to the card.
+- **2026-11-12** — A layer set is one image asset: `storageUrl` is the base
+  layer, `metadata.layerSet` the layers. Cards draw the stack with CSS. Saving a
+  layer to the library reuses its stored file (deleting an image never deletes
+  storage). Layer edits come in only through the caller's finished edit job and
+  composites read only stored layer URLs — the server never fetches a URL the
+  client sends.
+- **2026-11-12** — Layerize is charged at its ceiling (every slot) when submitted
+  and re-priced at the real layer count when it returns; failed runs cost $0.

@@ -65,6 +65,7 @@ export function ruleNumbers(rule: PriceRule): Array<number> {
       nums.push(rule.usd)
       add(rule.byQuality)
       add(rule.byResolution)
+      if (rule.overPixels) nums.push(rule.overPixels.under)
       break
     case 'perSecond':
       nums.push(rule.usd)

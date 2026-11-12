@@ -28,6 +28,8 @@ export interface ModelConfig {
   pricing?: PriceRule
   supportsSeed?: boolean
   supportsNegativePrompt?: boolean
+  /** `background: 'transparent'` → RGBA PNG (Seedream 5.5) */
+  supportsTransparentBackground?: boolean
 }
 
 // Extended config for edit models with image capacity info
@@ -79,6 +81,22 @@ export const IMAGE_MODELS: Array<ModelConfig> = [
     pricing: { kind: 'perImage', usd: 0.027 },
     supportsNumImages: true,
     maxNumImages: 4,
+  },
+  {
+    id: 'bytedance/seedream/v5.5/text-to-image',
+    name: 'Seedream 5.5',
+    provider: 'fal',
+    description: 'ByteDance - Newest Seedream, 2K, transparent PNG backgrounds',
+    tier: 'standard',
+    // per output: $0.03 up to 2.61MP (1K / 1.5K), $0.0405 above (2K, the default)
+    pricing: {
+      kind: 'perImage',
+      usd: 0.0405,
+      overPixels: { px: 2_610_000, under: 0.03 },
+    },
+    supportsNumImages: true,
+    maxNumImages: 4,
+    supportsTransparentBackground: true,
   },
   {
     id: 'minimax/h3-image/text-to-image',
@@ -321,6 +339,25 @@ export function validateGptImageCustomSize(
   return null
 }
 
+/**
+ * The pixel size a text-to-image model is actually asked for. Seedream 5 / 5.5
+ * and MiniMax H3 render natively at 2K, so the lab's ~1MP size is doubled;
+ * pricing reads this too (Seedream 5.5 bills by output pixels).
+ */
+export function imageRenderSize(
+  modelId: string,
+  width: number,
+  height: number,
+): { width: number; height: number } {
+  if (
+    modelId.startsWith('bytedance/seedream/v5') ||
+    modelId.startsWith('minimax/h3-image')
+  ) {
+    return { width: width * 2, height: height * 2 }
+  }
+  return { width, height }
+}
+
 // Map our aspect-ratio UI strings to gpt-image-2 size presets
 export function aspectRatioToGptImageSize(aspect: string): GptImageSizePreset {
   switch (aspect) {
@@ -392,7 +429,35 @@ export const EDIT_MODELS: Array<EditModelConfig> = [
       byResolution: { '1K': 0.044, '2K': 0.063, '4K': 0.138 },
     },
     supportsSeed: true,
-    aspectRatios: ['21:9', '16:9', '3:2', '4:3', '5:4', '1:1', '4:5', '3:4', '2:3', '9:16'],
+    aspectRatios: [
+      '21:9',
+      '16:9',
+      '3:2',
+      '4:3',
+      '5:4',
+      '1:1',
+      '4:5',
+      '3:4',
+      '2:3',
+      '9:16',
+    ],
+  },
+  {
+    id: 'bytedance/seedream/v5.5/edit',
+    name: 'Seedream 5.5',
+    provider: 'fal',
+    maxImages: 10,
+    description:
+      'ByteDance - Newest Seedream, up to 10 refs, transparent PNG output',
+    tier: 'standard',
+    // per output: $0.03 up to 2.61MP (1K / 1.5K), $0.0405 above (2K, the default), plus $0.012 per reference image
+    pricing: {
+      kind: 'perImage',
+      usd: 0.0405,
+      overPixels: { px: 2_610_000, under: 0.03 },
+      perInputImage: 0.012,
+    },
+    supportsTransparentBackground: true,
   },
   {
     id: 'blackforestlabs/flux-3/edit-image',
@@ -463,6 +528,32 @@ export const EDIT_MODELS: Array<EditModelConfig> = [
 ]
 
 // Topaz model options for different enhancement types
+// Split an image into a base plus cut-out layers (Seedream 5.5 Layerize)
+export interface LayerizeModelConfig extends ModelConfig {
+  /** fal bills each returned output (base + layers) at `pricing`, plus this once */
+  inputFeeUsd: number
+  /** the most outputs fal returns, base included */
+  maxOutputs: number
+}
+
+export const LAYERIZE_MODELS: Array<LayerizeModelConfig> = [
+  {
+    id: 'bytedance/seedream/v5.5/layerize',
+    name: 'Seedream 5.5 Layerize',
+    provider: 'fal',
+    description: 'ByteDance - Base image plus named, positioned PNG layers',
+    // per output (base + every layer): $0.03 up to 2.61MP, $0.0405 above,
+    // where the base image's size sets the rate; + $0.012 once for the input
+    pricing: {
+      kind: 'perImage',
+      usd: 0.0405,
+      overPixels: { px: 2_610_000, under: 0.03 },
+    },
+    inputFeeUsd: 0.012,
+    maxOutputs: 100,
+  },
+]
+
 export const TOPAZ_MODELS = [
   {
     id: 'Standard V2',
@@ -1262,6 +1353,7 @@ export type JobType =
   | 'edit'
   | 'upscale'
   | 'video-upscale'
+  | 'layerize'
 export type JobStatus = 'pending' | 'processing' | 'completed' | 'failed'
 
 export interface GenerationJobInput {
@@ -1800,7 +1892,8 @@ export function getDefaultMotionControlModel(): MotionControlModelConfig {
  * can never leave a feature pointing at an endpoint that no longer exists.
  */
 export const DEFAULT_MODELS = {
-  image: 'bytedance/seedream/v5/flash/text-to-image',
+  // GPT Image 2.6 Flare: the lab's default (token-billed, so priced as a range)
+  image: 'openai/gpt-image-2.6/flare/text-to-image',
   edit: 'google/nano-banana-2.1/edit',
   upscale: 'fal-ai/seedvr/upscale/image',
   textToVideo: 'kling/v4/flash/text-to-video',
@@ -1809,6 +1902,9 @@ export const DEFAULT_MODELS = {
   tts: 'elevenlabs/tts/eleven-v4',
   sfx: 'elevenlabs/sound-effects/v3',
   motionControl: 'fal-ai/kling-video/v3/pro/motion-control',
+  layerize: 'bytedance/seedream/v5.5/layerize',
+  /** edits one layer of a layer set; keeps it a cut-out */
+  layerEdit: 'bytedance/seedream/v5.5/edit',
 } as const
 
 /**
@@ -1821,7 +1917,9 @@ export const DEFAULT_MODELS = {
  * (a unit test checks this).
  */
 export const DIRECTOR_MODELS = {
-  still: DEFAULT_MODELS.image,
+  // Not DEFAULT_MODELS.image: budgets need a fixed per-image price, and the
+  // lab default (GPT Image 2.6) is token-billed
+  still: 'bytedance/seedream/v5/flash/text-to-image',
   draft: 'minimax/h3-max-turbo/image-to-video',
   finals: [
     { model: 'kling/v4/image-to-video', resolution: '1080p' },

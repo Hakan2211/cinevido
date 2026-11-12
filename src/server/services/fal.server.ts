@@ -22,6 +22,7 @@ import {
   getDefaultMotionControlModel,
   getMotionControlModelById,
   getVideoModelById,
+  imageRenderSize,
   isGptImageModel,
 } from './types'
 import type {
@@ -74,6 +75,8 @@ export interface ImageGenerationInput {
   // GPT Image 2 specific
   imageSizePreset?: string // Preset name (e.g. 'square_hd', 'landscape_4_3')
   outputFormat?: 'jpeg' | 'png' | 'webp' // Output format for GPT Image 2
+  /** 'transparent' → RGBA PNG, sent only to models that support it */
+  background?: 'transparent'
 }
 
 export type VideoGenerationType =
@@ -683,12 +686,12 @@ export function buildImagePayload(
       payload.resolution = '1k'
     }
   }
-  // === Seedream 5 / MiniMax H3 - native 2K, take explicit dimensions ===
+  // === Seedream 5 / 5.5 / MiniMax H3 - native 2K, take explicit dimensions ===
   else if (
     modelId.startsWith('bytedance/seedream/v5') ||
     modelId.startsWith('minimax/h3-image')
   ) {
-    payload.image_size = { width: width * 2, height: height * 2 }
+    payload.image_size = imageRenderSize(modelId, width, height)
   }
   // === FLUX.3 Klein, Krea 3, Ideogram 4.5, Recraft 4.1 - image_size preset ===
   else {
@@ -703,6 +706,14 @@ export function buildImagePayload(
   }
   if (config.supportsSeed && input.seed !== undefined) {
     payload.seed = input.seed
+  }
+  // Transparent output is RGBA, which only PNG carries
+  if (
+    config.supportsTransparentBackground &&
+    input.background === 'transparent'
+  ) {
+    payload.background = 'transparent'
+    payload.output_format = 'png'
   }
 
   return payload

@@ -23,6 +23,7 @@ import {
   MOTION_CONTROL_MODELS,
   MUSIC_MODELS,
   SFX_MODELS,
+  LAYERIZE_MODELS,
   UPSCALE_MODELS,
   VIDEO_MODELS,
   VIDEO_UPSCALE_MODELS,
@@ -41,6 +42,7 @@ async function getPrisma() {
 export type JobKind =
   | 'Image'
   | 'Edit'
+  | 'Layers'
   | 'Upscale'
   | 'Video'
   | 'Motion'
@@ -148,6 +150,7 @@ const MODEL_NAMES = new Map<string, string>(
     ...IMAGE_MODELS,
     ...EDIT_MODELS,
     ...UPSCALE_MODELS,
+    ...LAYERIZE_MODELS,
     ...VIDEO_MODELS,
     ...VIDEO_UPSCALE_MODELS,
     ...MOTION_CONTROL_MODELS,
@@ -163,6 +166,8 @@ function kindOf(type: string, input: Record<string, unknown>): JobKind {
       return 'Image'
     case 'edit':
       return 'Edit'
+    case 'layerize':
+      return 'Layers'
     case 'upscale':
     case 'video-upscale':
       return 'Upscale'
