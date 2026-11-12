@@ -16,25 +16,26 @@ import { z } from 'zod'
 import sharp from 'sharp'
 import { prisma } from '../db.server'
 import { authMiddleware } from './middleware.server'
-import { getUserFalApiKey } from './byok.server'
 import { ownedProjectId } from './project-access.server'
-import { uploadBuffer, uploadFromUrl } from './services/bunny.server'
+import { uploadBuffer } from './services/bunny.server'
 import { getUserStorageConfig } from './storage-config.server'
-import { getLayerizeStatus, submitLayerize } from './services/layerize.server'
-import { DEFAULT_MODELS, LAYERIZE_MODELS } from './services/types'
 import {
+  MAX_LAYERS,
+  advanceLayerizeJob,
+  startLayerizeJob,
+} from './services/layer-jobs.server'
+import {
+  CAMERA_MOVES,
   LAYER_COMPOSITE_MODEL,
+  addLayerSetToManifest,
   layerSetOf,
-  layerizeCeiling,
-  layerizeCost,
   placeOnCanvas,
   sortedLayers,
 } from '../lib/layers'
-import { toUsd } from '../lib/job-cost'
+import { layerTextSvg } from '../remotion/layer-text'
+import { migrateManifest, sequenceEndFrame } from '../remotion/types'
 import type { Box, Layer, LayerSet, LayerView } from '../lib/layers'
-import type { FalLayer, FalLayerizeResult } from './services/layerize.server'
-
-const MAX_LAYERS = LAYERIZE_MODELS[0].maxOutputs - 1
+import type { CameraMove } from '../lib/layers'
 // Mock storage hands back URLs that don't load; keep images viewable instead
 const MOCK = process.env.MOCK_GENERATION === 'true'
 
@@ -65,237 +66,26 @@ export const startLayerizeFn = createServerFn({ method: 'POST' })
   .middleware([authMiddleware])
   .inputValidator(startSchema)
   .handler(async ({ data, context }) => {
-    const w = data.sourceWidth
-    const h = data.sourceHeight
-    // fal's limits: 512×512 to 6000×6000, aspect 1:16 to 16:1
-    if (w && h && (w * h < 512 * 512 || w > 6000 || h > 6000)) {
-      throw new Error(
-        `Layerize takes images from 512×512 to 6000×6000 px; this one is ${w}×${h}.`,
-      )
-    }
-    if (w && h && Math.max(w / h, h / w) > 16) {
-      throw new Error('Layerize takes aspect ratios up to 16:1.')
-    }
-
-    const apiKey = await getUserFalApiKey(context.user.id)
-    const job = await submitLayerize(
-      {
-        imageUrl: data.imageUrl,
-        prompt: data.prompt,
-        maxLayers: data.maxLayers,
-        textRecognition: data.textRecognition,
-      },
-      apiKey,
-    )
-
-    // Charged at the ceiling now, re-priced at the real layer count on return
-    const ceiling = layerizeCeiling({
+    const { jobId } = await startLayerizeJob({
+      userId: context.user.id,
+      projectId: await ownedProjectId(data.projectId, context.user.id),
+      imageUrl: data.imageUrl,
+      sourceAssetId: data.sourceAssetId,
+      prompt: data.prompt,
       maxLayers: data.maxLayers,
-      width: w,
-      height: h,
+      textRecognition: data.textRecognition,
+      sourceWidth: data.sourceWidth,
+      sourceHeight: data.sourceHeight,
     })
-    const dbJob = await prisma.generationJob.create({
-      data: {
-        userId: context.user.id,
-        projectId: await ownedProjectId(data.projectId, context.user.id),
-        type: 'layerize',
-        status: 'pending',
-        provider: 'fal',
-        model: DEFAULT_MODELS.layerize,
-        input: JSON.stringify({
-          imageUrl: data.imageUrl,
-          sourceAssetId: data.sourceAssetId,
-          prompt: data.prompt,
-          maxLayers: data.maxLayers,
-          textRecognition: data.textRecognition,
-          sourceWidth: w,
-          sourceHeight: h,
-        }),
-        estimatedCostUsd: ceiling
-          ? toUsd({ min: ceiling.max, max: ceiling.max })
-          : null,
-        externalId: job.requestId,
-        statusUrl: job.statusUrl,
-        responseUrl: job.responseUrl,
-        cancelUrl: job.cancelUrl,
-      },
-    })
-    return { jobId: dbJob.id }
+    return { jobId }
   })
-
-/** fal's layers (or, failing that, its flat image list) as our Layer type */
-function toLayers(result: FalLayerizeResult): Array<Layer> {
-  const raw: Array<FalLayer> =
-    result.layers && result.layers.length > 0
-      ? result.layers
-      : (result.images ?? []).map((image, i) => ({ image, z_index: i }))
-  return raw
-    .filter((l) => l.image?.url)
-    .map((l) => ({
-      url: l.image.url,
-      z: l.z_index,
-      box:
-        l.z_index === 0
-          ? undefined
-          : (l.bounding_box?.absolute as Box | undefined),
-      name: l.name,
-      description: l.description,
-      text: l.text_recognition
-        ? (l.text_recognition as Layer['text'])
-        : undefined,
-      width: l.image.width,
-      height: l.image.height,
-    }))
-    .sort((a, b) => a.z - b.z)
-}
 
 export const getLayerizeJobStatusFn = createServerFn({ method: 'GET' })
   .middleware([authMiddleware])
   .inputValidator(jobIdSchema)
-  .handler(async ({ data, context }) => {
-    const job = await prisma.generationJob.findUnique({
-      where: { id: data.jobId },
-    })
-    if (!job || job.userId !== context.user.id || job.type !== 'layerize') {
-      throw new Error('Job not found')
-    }
-    const done = () => {
-      const output = parse<{ assetId?: string }>(job.output, {})
-      return {
-        status: job.status as 'completed' | 'failed',
-        assetId: output.assetId ?? null,
-        error: job.error,
-      }
-    }
-    if (job.status === 'completed' || job.status === 'failed') return done()
-    if (!job.statusUrl || !job.responseUrl)
-      throw new Error('Job has no queue URLs')
-
-    const apiKey = await getUserFalApiKey(context.user.id)
-    const fal = await getLayerizeStatus(job.statusUrl, job.responseUrl, apiKey)
-
-    if (fal.status === 'failed') {
-      await prisma.generationJob.update({
-        where: { id: job.id },
-        // fal doesn't bill a failed run
-        data: {
-          status: 'failed',
-          error: fal.error ?? 'Layerize failed',
-          estimatedCostUsd: 0,
-        },
-      })
-      return {
-        status: 'failed' as const,
-        assetId: null,
-        error: fal.error ?? 'Layerize failed',
-      }
-    }
-    if (fal.status !== 'completed' || !fal.result) {
-      if (fal.status === 'processing' && job.status !== 'processing') {
-        await prisma.generationJob.update({
-          where: { id: job.id },
-          data: { status: 'processing' },
-        })
-      }
-      return {
-        status: fal.status,
-        queuePosition: fal.queuePosition,
-        assetId: null,
-        error: null,
-      }
-    }
-
-    // Two tabs can poll at once: only the one that claims the job saves it
-    const claim = await prisma.generationJob.updateMany({
-      where: { id: job.id, progress: { lt: 99 } },
-      data: { progress: 99, status: 'processing' },
-    })
-    if (claim.count === 0) {
-      return { status: 'processing' as const, assetId: null, error: null }
-    }
-
-    try {
-      const input = parse<{
-        prompt?: string
-        sourceAssetId?: string
-        sourceWidth?: number
-        sourceHeight?: number
-      }>(job.input, {})
-      const fresh = toLayers(fal.result)
-      const base = fresh.find((l) => l.z === 0) ?? fresh[0]
-      if (!base) throw new Error('Layerize returned no images')
-
-      // Copy every layer off fal's temporary URLs (keep fal's on failure)
-      const storage = (await getUserStorageConfig(context.user.id)) ?? undefined
-      const stamp = Date.now()
-      const layers = await Promise.all(
-        fresh.map(async (layer) => {
-          if (MOCK) return layer
-          try {
-            const up = await uploadFromUrl(
-              layer.url,
-              {
-                folder: `images/${context.user.id}/layers`,
-                filename: `layer-${stamp}-${layer.z}.png`,
-              },
-              storage,
-            )
-            return { ...layer, url: up.url }
-          } catch (err) {
-            console.error('[LAYERS] upload failed, keeping fal URL:', err)
-            return layer
-          }
-        }),
-      )
-      const storedBase = layers.find((l) => l.z === base.z)!
-      const width = base.width ?? input.sourceWidth ?? 1024
-      const height = base.height ?? input.sourceHeight ?? 1024
-      const set: LayerSet = {
-        width,
-        height,
-        layers,
-        sourceAssetId: input.sourceAssetId,
-      }
-
-      const asset = await prisma.asset.create({
-        data: {
-          userId: context.user.id,
-          projectId: job.projectId,
-          type: 'image',
-          storageUrl: storedBase.url,
-          filename: `layers-${stamp}.png`,
-          prompt: input.prompt || null,
-          provider: 'fal',
-          model: job.model,
-          metadata: JSON.stringify({
-            width,
-            height,
-            sourceAssetId: input.sourceAssetId,
-            layerSet: set,
-          }),
-        },
-      })
-
-      const cost = layerizeCost({ outputs: layers.length, width, height })
-      await prisma.generationJob.update({
-        where: { id: job.id },
-        data: {
-          status: 'completed',
-          progress: 100,
-          output: JSON.stringify({ assetId: asset.id, layers: layers.length }),
-          estimatedCostUsd: toUsd(cost),
-        },
-      })
-      return { status: 'completed' as const, assetId: asset.id, error: null }
-    } catch (err) {
-      // release the claim so the next poll can try again
-      await prisma.generationJob.update({
-        where: { id: job.id },
-        data: { progress: 0 },
-      })
-      throw err
-    }
-  })
+  .handler(async ({ data, context }) =>
+    advanceLayerizeJob(data.jobId, context.user.id),
+  )
 
 /** The set asset, owned by the caller, with its parsed layer set */
 async function loadSet(assetId: string, userId: string) {
@@ -318,7 +108,13 @@ export const getLayerSetFn = createServerFn({ method: 'GET' })
   .inputValidator(z.object({ assetId: z.string() }))
   .handler(async ({ data, context }) => {
     const { asset, set } = await loadSet(data.assetId, context.user.id)
-    return { id: asset.id, url: asset.storageUrl, prompt: asset.prompt, set }
+    return {
+      id: asset.id,
+      url: asset.storageUrl,
+      prompt: asset.prompt,
+      projectId: asset.projectId,
+      set,
+    }
   })
 
 /**
@@ -450,11 +246,18 @@ export const composeLayersFn = createServerFn({ method: 'POST' })
 
     const overlays: Array<sharp.OverlayOptions> = []
     for (const layer of visible) {
-      const buf = await fetchBuffer(layer.url)
       const view = views.get(layer.z)
       const box: Box = layer.box ?? [0, 0, set.width, set.height]
       const place = placeOnCanvas(canvas, box, view?.dx ?? 0, view?.dy ?? 0)
       if (!place) continue
+      // live text is drawn, not fetched
+      const buf = layer.live
+        ? Buffer.from(
+            layerTextSvg(layer.live, place.width, place.height, {
+              pixels: true,
+            }),
+          )
+        : await fetchBuffer(layer.url)
       // an edited layer can come back at another size: fit it to its box
       let img = sharp(buf)
         .ensureAlpha()
@@ -527,4 +330,123 @@ export const composeLayersFn = createServerFn({ method: 'POST' })
       },
     })
     return { assetId: created.id, url }
+  })
+
+const liveTextSchema = z.object({
+  text: z.string().max(500),
+  color: z.string().max(40).optional(),
+  fontFamily: z.string().max(80).optional(),
+  bold: z.boolean().optional(),
+  italic: z.boolean().optional(),
+})
+
+/**
+ * Make a text layer editable (or turn it back into its pixels with `live:
+ * null`). Free: the text is drawn by us, not re-rendered by a model.
+ */
+export const setLayerLiveTextFn = createServerFn({ method: 'POST' })
+  .middleware([authMiddleware])
+  .inputValidator(
+    z.object({
+      assetId: z.string(),
+      z: z.number().int().min(1),
+      live: liveTextSchema.nullable(),
+    }),
+  )
+  .handler(async ({ data, context }) => {
+    const { asset, metadata, set } = await loadSet(
+      data.assetId,
+      context.user.id,
+    )
+    layerAt(set, data.z)
+    const next: LayerSet = {
+      ...set,
+      layers: set.layers.map((l) => {
+        if (l.z !== data.z) return l
+        const { live: _old, ...rest } = l
+        return data.live ? { ...rest, live: data.live } : rest
+      }),
+    }
+    await prisma.asset.update({
+      where: { id: asset.id },
+      data: { metadata: JSON.stringify({ ...metadata, layerSet: next }) },
+    })
+    return { set: next }
+  })
+
+const moveIds = CAMERA_MOVES.map((m) => m.id) as [
+  CameraMove,
+  ...Array<CameraMove>,
+]
+
+/**
+ * Put a layer set on a project's timeline as one 2.5D shot: each visible
+ * layer on its own video lane, live text on the overlay lanes, every layer
+ * with its own camera (nearer layers move more). No fal cost.
+ */
+export const sendLayersToTimelineFn = createServerFn({ method: 'POST' })
+  .middleware([authMiddleware])
+  .inputValidator(
+    z.object({
+      assetId: z.string(),
+      projectId: z.string(),
+      durationSec: z.number().min(1).max(30),
+      move: z.enum(moveIds),
+      /** the viewer's current arrangement; saved on the set too */
+      views: z.array(viewSchema).max(100).optional(),
+    }),
+  )
+  .handler(async ({ data, context }) => {
+    const { asset, metadata, set } = await loadSet(
+      data.assetId,
+      context.user.id,
+    )
+    const project = await prisma.project.findUnique({
+      where: { id: data.projectId },
+      select: { id: true, userId: true, name: true, fps: true, manifest: true },
+    })
+    if (!project || project.userId !== context.user.id) {
+      throw new Error('Project not found')
+    }
+    const views = data.views
+      ? Object.fromEntries(
+          data.views.map((v) => [
+            String(v.z),
+            { visible: v.visible, dx: v.dx, dy: v.dy },
+          ]),
+        )
+      : set.views
+    const arranged: LayerSet = { ...set, views }
+    const fps = project.fps || 30
+    const placed = addLayerSetToManifest(
+      migrateManifest(project.manifest),
+      arranged,
+      {
+        durationFrames: Math.round(data.durationSec * fps),
+        move: data.move,
+        assetId: asset.id,
+        label: asset.prompt?.slice(0, 40) || undefined,
+      },
+    )
+    await prisma.project.update({
+      where: { id: project.id },
+      data: {
+        manifest: JSON.stringify(placed.manifest),
+        duration: sequenceEndFrame(placed.manifest),
+      },
+    })
+    if (data.views) {
+      await prisma.asset.update({
+        where: { id: asset.id },
+        data: {
+          metadata: JSON.stringify({ ...metadata, layerSet: arranged }),
+        },
+      })
+    }
+    return {
+      projectId: project.id,
+      projectName: project.name,
+      clips: placed.clipIds.length,
+      startFrame: placed.startFrame,
+    }
   })

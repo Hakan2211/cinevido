@@ -176,21 +176,31 @@ export const proposePlanSchema = z.object({
     .string()
     .max(40)
     .optional()
-    .describe('What it is, in two or three words: "ad", "product teaser", "music video"'),
+    .describe(
+      'What it is, in two or three words: "ad", "product teaser", "music video"',
+    ),
   shots: z
     .array(
       z.object({
-        title: z.string().min(1).max(80).describe('Short shot name, e.g. "Morning Light"'),
+        title: z
+          .string()
+          .min(1)
+          .max(80)
+          .describe('Short shot name, e.g. "Morning Light"'),
         description: z
           .string()
           .min(1)
           .max(240)
-          .describe('One line for the storyboard card: what the viewer sees and why'),
+          .describe(
+            'One line for the storyboard card: what the viewer sees and why',
+          ),
         durationSec: z
           .number()
           .min(3)
           .max(15)
-          .describe('Shot length in seconds; 5 suits most shots, 8-10 for slow establishing shots'),
+          .describe(
+            'Shot length in seconds; 5 suits most shots, 8-10 for slow establishing shots',
+          ),
         prompt: z
           .string()
           .min(20)
@@ -202,13 +212,22 @@ export const proposePlanSchema = z.object({
           .string()
           .min(5)
           .max(500)
-          .describe('What moves during the shot: camera move and action, e.g. "slow push-in, steam rises from the cup"'),
+          .describe(
+            'What moves during the shot: camera move and action, e.g. "slow push-in, steam rises from the cup"',
+          ),
         cast: z
           .array(z.string().max(60))
           .max(4)
           .optional()
           .describe(
             'Names of Project Bible entries that appear in this shot (exact names from the Bible). Their reference images keep faces and products consistent. Omit when none appear.',
+          ),
+        packshot: z
+          .string()
+          .max(60)
+          .optional()
+          .describe(
+            "Name of a Bible product whose reference is cut out, to place exactly as it is on a set generated from this shot's prompt — the clean hero packshot (label and shape untouched). The prompt then describes only the set: surface, backdrop, light, with empty space in the centre. Use for the final product shot of an ad.",
           ),
       }),
     )
@@ -219,16 +238,23 @@ export const proposePlanSchema = z.object({
     .string()
     .max(2000)
     .optional()
-    .describe('Narration to record over the cut, if the brief wants one. Fit it to the total length (~2.5 words per second).'),
+    .describe(
+      'Narration to record over the cut, if the brief wants one. Fit it to the total length (~2.5 words per second).',
+    ),
   musicPrompt: z
     .string()
     .max(300)
     .optional()
-    .describe('Score as comma-separated genre tags, e.g. "warm acoustic, soft piano, 90 BPM". Omit for no music.'),
+    .describe(
+      'Score as comma-separated genre tags, e.g. "warm acoustic, soft piano, 90 BPM". Omit for no music.',
+    ),
 })
 
 export const updateShotSchema = z.object({
-  shotNumber: z.number().min(1).describe('1-based position of the shot in the plan'),
+  shotNumber: z
+    .number()
+    .min(1)
+    .describe('1-based position of the shot in the plan'),
   title: z.string().max(80).optional(),
   description: z.string().max(240).optional(),
   durationSec: z.number().min(3).max(15).optional(),
@@ -237,12 +263,25 @@ export const updateShotSchema = z.object({
     .max(1200)
     .optional()
     .describe('New first-frame image prompt (drops the renders of that shot)'),
-  motion: z.string().max(500).optional().describe('New motion prompt (drops the clips)'),
+  motion: z
+    .string()
+    .max(500)
+    .optional()
+    .describe('New motion prompt (drops the clips)'),
   cast: z
     .array(z.string().max(60))
     .max(4)
     .optional()
-    .describe('Project Bible names in this shot; replaces the cast (drops the renders of that shot)'),
+    .describe(
+      'Project Bible names in this shot; replaces the cast (drops the renders of that shot)',
+    ),
+  packshot: z
+    .string()
+    .max(60)
+    .optional()
+    .describe(
+      "Bible product (with a cut-out reference) to place unchanged on this shot's set; an empty string turns the packshot off. Drops the renders of that shot.",
+    ),
 })
 
 const voiceNames = TTS_VOICES.map((v) => v.name) as [string, ...Array<string>]
@@ -262,7 +301,11 @@ export const updateBibleSchema = z.object({
   entries: z
     .array(
       z.object({
-        name: z.string().min(1).max(60).describe('How shots refer to it: "Mara", "The bottle"'),
+        name: z
+          .string()
+          .min(1)
+          .max(60)
+          .describe('How shots refer to it: "Mara", "The bottle"'),
         kind: z.enum(['character', 'product', 'place']).optional(),
         description: z
           .string()
@@ -275,7 +318,9 @@ export const updateBibleSchema = z.object({
     )
     .max(8)
     .optional()
-    .describe('Characters, products and places to add or update (matched by name). Never removes entries or their images.'),
+    .describe(
+      'Characters, products and places to add or update (matched by name). Never removes entries or their images.',
+    ),
 })
 
 export const renderPlanSchema = z.object({
@@ -283,6 +328,49 @@ export const renderPlanSchema = z.object({
     .enum(['drafts', 'finals', 'direct'])
     .describe(
       '"drafts": cheap draft clips of every shot for review. "finals": re-render the kept shots on the final model and assemble the timeline. "direct": skip drafts, render finals of every shot.',
+    ),
+})
+
+export const splitIntoLayersSchema = z.object({
+  imageAssetId: z.string().describe('ID of the image asset to split'),
+  separate: z
+    .string()
+    .max(500)
+    .optional()
+    .describe(
+      'What to separate, in words ("the woman, the coffee cup, the headline"). Omit to let the model pick the elements.',
+    ),
+  maxLayers: z
+    .number()
+    .min(1)
+    .max(16)
+    .optional()
+    .describe(
+      'Most layers to return, not counting the base. Defaults to 8; each layer is billed.',
+    ),
+  readText: z
+    .boolean()
+    .optional()
+    .describe(
+      'Recognise text in text layers so it can be edited later. Defaults to false.',
+    ),
+})
+
+export const addLayersToTimelineSchema = z.object({
+  layerSetAssetId: z
+    .string()
+    .describe('ID of a layer-set image (listAssets shows `layers` on those)'),
+  durationSec: z
+    .number()
+    .min(1)
+    .max(30)
+    .optional()
+    .describe('Shot length in seconds. Defaults to 5.'),
+  camera: z
+    .enum(['push-in', 'pull-out', 'pan-left', 'pan-right', 'still'])
+    .optional()
+    .describe(
+      'Camera move; nearer layers move more than the base. Defaults to push-in.',
     ),
 })
 
@@ -309,6 +397,8 @@ export const TOOL_NAMES = {
   UPDATE_SHOT: 'updateShot',
   RENDER_PLAN: 'renderPlan',
   UPDATE_BIBLE: 'updateBible',
+  SPLIT_INTO_LAYERS: 'splitIntoLayers',
+  ADD_LAYERS_TO_TIMELINE: 'addLayersToTimeline',
 } as const
 
 export type ToolName = (typeof TOOL_NAMES)[keyof typeof TOOL_NAMES]
@@ -439,6 +529,24 @@ export const AGENT_TOOLS: Array<ToolDefinition> = [
   {
     type: 'function',
     function: {
+      name: TOOL_NAMES.SPLIT_INTO_LAYERS,
+      description:
+        'Split an image asset into cut-out layers with Seedream 5.5 Layerize (a base with the elements removed, plus one transparent PNG per element). Billed to the user fal account per output — the result says the most it can cost — and not charged to the production budget. Only call when the user asks to split, cut out or animate the parts of an image. Returns a job ID; the finished layer set appears in listAssets with `layers`.',
+      parameters: schemaToParameters(splitIntoLayersSchema),
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: TOOL_NAMES.ADD_LAYERS_TO_TIMELINE,
+      description:
+        'Put a finished layer set on the timeline as one 2.5D shot: each layer on its own video lane with its own camera, so nearer layers move more and the still plays with depth. Free — no video model. Appends at the end of the cut.',
+      parameters: schemaToParameters(addLayersToTimelineSchema),
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: TOOL_NAMES.LIST_ASSETS,
       description:
         'List all assets available in the project library. Can filter by type (image, video, audio). Returns asset IDs, URLs, and metadata.',
@@ -462,6 +570,8 @@ export type ProposePlanArgs = z.infer<typeof proposePlanSchema>
 export type UpdateShotArgs = z.infer<typeof updateShotSchema>
 export type RenderPlanArgs = z.infer<typeof renderPlanSchema>
 export type UpdateBibleArgs = z.infer<typeof updateBibleSchema>
+export type SplitIntoLayersArgs = z.infer<typeof splitIntoLayersSchema>
+export type AddLayersToTimelineArgs = z.infer<typeof addLayersToTimelineSchema>
 
 export type ToolArgs =
   | { name: typeof TOOL_NAMES.GET_PROJECT_STATE; args: GetProjectStateArgs }

@@ -64,13 +64,15 @@ import {
   stillCost,
   stillSize,
 } from '../../lib/production'
-import { isVoice, parseBible, stillRequest } from '../../lib/bible'
+import {
+  isVoice,
+  parseBible,
+  stillRequest,
+  waitingForCutout,
+} from '../../lib/bible'
+import { composePackshot } from '../services/packshot.server'
 import type { ProjectBible } from '../../lib/bible'
-import type {
-  PlanShot,
-  PlanStep,
-  ProductionPlan,
-} from '../../lib/production'
+import type { PlanShot, PlanStep, ProductionPlan } from '../../lib/production'
 import type { FalImageResult, FalVideoResult } from '../services/fal.server'
 import type { FalMusicResult } from '../services/music.server'
 
@@ -166,7 +168,14 @@ interface SubmitArgs {
   ctx: ProductionContext
   key: string
   shot?: PlanShot
-  stage: 'still' | 'draft' | 'final' | 'music' | 'reference'
+  stage:
+    | 'still'
+    | 'draft'
+    | 'final'
+    | 'music'
+    | 'reference'
+    | 'cutout'
+    | 'packshot'
   costUsd: number
 }
 
@@ -211,7 +220,12 @@ export async function submitJob(
         cancelUrl: fal.cancelUrl,
       },
     })
-    return { status: 'running', jobId: job.id, costUsd: args.costUsd, startedAt }
+    return {
+      status: 'running',
+      jobId: job.id,
+      costUsd: args.costUsd,
+      startedAt,
+    }
   } catch (error) {
     await prisma.generationJob.update({
       where: { id: job.id },
@@ -241,6 +255,29 @@ function submitStill(
   costUsd: number,
 ) {
   const request = stillRequest(bible, shot)
+  if (request.mode === 'packshot') {
+    // the set only; the cut-out is placed on it when it lands
+    const size = stillSize(plan.aspectRatio)
+    return submitJob({
+      ctx,
+      key,
+      shot,
+      stage: 'still',
+      costUsd,
+      type: 'image',
+      model: plan.models.still,
+      input: { prompt: request.prompt, ...size, packshot: true },
+      start: () =>
+        generateImage(
+          { prompt: request.prompt, model: plan.models.still, ...size },
+          key,
+        ),
+    }).then((step) =>
+      step.status === 'running'
+        ? { ...step, packshotOf: request.cutoutUrl }
+        : step,
+    )
+  }
   if (request.mode === 'reference') {
     const model = DIRECTOR_MODELS.referenceStill
     return submitJob({
@@ -280,12 +317,57 @@ function submitStill(
     model: plan.models.still,
     input: { prompt: request.prompt, ...size },
     start: () =>
-      generateImage({ prompt: request.prompt, model: plan.models.still, ...size }, key),
+      generateImage(
+        { prompt: request.prompt, model: plan.models.still, ...size },
+        key,
+      ),
   })
 }
 
+/**
+ * A packshot's set has landed: place the cut-out on it. The composite
+ * becomes the still; the set stays in the library. Failing here keeps the
+ * charge (fal billed the set) and leaves the shot to Retry.
+ */
+async function finishPackshot(
+  step: PlanStep,
+  shot: PlanShot,
+  ctx: ProductionContext,
+): Promise<PlanStep> {
+  if (step.status !== 'done' || !step.url || !step.packshotOf) {
+    return step.status === 'failed' ? { ...step, packshotOf: undefined } : step
+  }
+  try {
+    const out = await composePackshot({
+      backgroundUrl: step.url,
+      cutoutUrl: step.packshotOf,
+      userId: ctx.userId,
+      projectId: ctx.projectId,
+      shotId: shot.id,
+      title: shot.title,
+    })
+    return {
+      ...step,
+      url: out.url,
+      assetId: out.assetId,
+      packshotOf: undefined,
+    }
+  } catch (error) {
+    return {
+      ...step,
+      status: 'failed',
+      packshotOf: undefined,
+      error: `Placing the product failed: ${errorText(error)}`,
+    }
+  }
+}
+
 /** What the still of a shot costs as it would be submitted now */
-function stillPrice(plan: ProductionPlan, bible: ProjectBible, shot: PlanShot): number {
+function stillPrice(
+  plan: ProductionPlan,
+  bible: ProjectBible,
+  shot: PlanShot,
+): number {
   return stillCost(
     shot,
     plan.models,
@@ -395,7 +477,11 @@ async function makeVoiceover(
       status: 'pending',
       provider: 'fal',
       model: DIRECTOR_MODELS.voice,
-      input: JSON.stringify({ text: script, voice, production: { stage: 'voiceover' } }),
+      input: JSON.stringify({
+        text: script,
+        voice,
+        production: { stage: 'voiceover' },
+      }),
       estimatedCostUsd: costUsd,
     },
   })
@@ -442,7 +528,13 @@ async function makeVoiceover(
       where: { id: job.id },
       data: { status: 'failed', error: errorText(error) },
     })
-    return { status: 'failed', jobId: job.id, costUsd: 0, error: errorText(error), startedAt }
+    return {
+      status: 'failed',
+      jobId: job.id,
+      costUsd: 0,
+      error: errorText(error),
+      startedAt,
+    }
   }
 }
 
@@ -458,11 +550,19 @@ export async function pollStep(
   kind: MediaKind,
   ctx: ProductionContext,
   key: string,
-  label: { shot?: PlanShot; stage: string },
+  label: { shot?: PlanShot; stage: string; metadata?: Record<string, unknown> },
 ): Promise<PlanStep> {
   if (step.status !== 'running' || !step.jobId) return step
-  const job = await prisma.generationJob.findUnique({ where: { id: step.jobId } })
-  if (!job) return { ...step, status: 'failed', costUsd: 0, error: 'Job record missing' }
+  const job = await prisma.generationJob.findUnique({
+    where: { id: step.jobId },
+  })
+  if (!job)
+    return {
+      ...step,
+      status: 'failed',
+      costUsd: 0,
+      error: 'Job record missing',
+    }
 
   // finished elsewhere (another tab's tick)
   if (job.status === 'completed' && job.output) {
@@ -470,7 +570,12 @@ export async function pollStep(
     return { ...step, status: 'done', url: out.url, assetId: out.assetId }
   }
   if (job.status === 'failed') {
-    return { ...step, status: 'failed', costUsd: 0, error: job.error ?? 'Failed' }
+    return {
+      ...step,
+      status: 'failed',
+      costUsd: 0,
+      error: job.error ?? 'Failed',
+    }
   }
   if (!job.statusUrl || !job.responseUrl) return step
 
@@ -480,7 +585,11 @@ export async function pollStep(
       kind === 'music' && isMockMusic()
         ? (mockMusicStatus() as never)
         : job.type === 'edit'
-          ? ((await getEditJobStatus(job.statusUrl, job.responseUrl, key)) as never)
+          ? ((await getEditJobStatus(
+              job.statusUrl,
+              job.responseUrl,
+              key,
+            )) as never)
           : await getJobStatus(job.statusUrl, job.responseUrl, key)
   } catch {
     return step // transient — try again next tick
@@ -547,6 +656,7 @@ export async function pollStep(
         model: job.model,
         durationSeconds: kind === 'image' ? null : (step.durationSec ?? null),
         metadata: JSON.stringify({
+          ...label.metadata,
           production: { shotId: label.shot?.id, stage: label.stage },
         }),
       },
@@ -566,7 +676,11 @@ export async function pollStep(
       where: { id: job.id },
       data: { status: 'failed', error: errorText(error) },
     })
-    return { ...step, status: 'failed', error: `Saving the file failed: ${errorText(error)}` }
+    return {
+      ...step,
+      status: 'failed',
+      error: `Saving the file failed: ${errorText(error)}`,
+    }
   }
 }
 
@@ -588,14 +702,24 @@ export async function selfCheck(
   shot: PlanShot,
   videoUrl: string,
   key: string,
-): Promise<{ ok?: boolean; note: string; frameUrl?: string; costUsd: number; failed?: boolean }> {
-  if (MOCK) return { ok: true, note: 'Self-check skipped in mock mode.', costUsd: 0 }
+): Promise<{
+  ok?: boolean
+  note: string
+  frameUrl?: string
+  costUsd: number
+  failed?: boolean
+}> {
+  if (MOCK)
+    return { ok: true, note: 'Self-check skipped in mock mode.', costUsd: 0 }
 
   let frameUrl: string | undefined
   try {
     const res = await fetch(`https://fal.run/${DIRECTOR_MODELS.frameExtract}`, {
       method: 'POST',
-      headers: { Authorization: `Key ${key}`, 'Content-Type': 'application/json' },
+      headers: {
+        Authorization: `Key ${key}`,
+        'Content-Type': 'application/json',
+      },
       body: JSON.stringify({ video_url: videoUrl, frame_type: 'middle' }),
       signal: AbortSignal.timeout(60_000),
     })
@@ -604,7 +728,11 @@ export async function selfCheck(
     frameUrl = body.images?.[0]?.url
     if (!frameUrl) throw new Error('no frame returned')
   } catch (error) {
-    return { note: `Couldn't grab a frame to check (${errorText(error)}).`, costUsd: 0, failed: true }
+    return {
+      note: `Couldn't grab a frame to check (${errorText(error)}).`,
+      costUsd: 0,
+      failed: true,
+    }
   }
 
   try {
@@ -632,7 +760,9 @@ export async function selfCheck(
     const text = response.choices[0]?.message?.content
     const raw = typeof text === 'string' ? text : ''
     const json = raw.match(/\{[\s\S]*\}/)?.[0]
-    const parsed = json ? (JSON.parse(json) as { ok?: unknown; note?: unknown }) : {}
+    const parsed = json
+      ? (JSON.parse(json) as { ok?: unknown; note?: unknown })
+      : {}
     const ok = typeof parsed.ok === 'boolean' ? parsed.ok : undefined
     const note =
       typeof parsed.note === 'string' && parsed.note.trim()
@@ -642,9 +772,20 @@ export async function selfCheck(
           : ok
             ? 'Matches the brief.'
             : 'Looks off — retry suggested.'
-    return { ok, note, frameUrl, costUsd: response.usage?.cost ?? 0, failed: ok === undefined }
+    return {
+      ok,
+      note,
+      frameUrl,
+      costUsd: response.usage?.cost ?? 0,
+      failed: ok === undefined,
+    }
   } catch (error) {
-    return { note: `Self-check failed (${errorText(error)}).`, frameUrl, costUsd: 0, failed: true }
+    return {
+      note: `Self-check failed (${errorText(error)}).`,
+      frameUrl,
+      costUsd: 0,
+      failed: true,
+    }
   }
 }
 
@@ -699,8 +840,12 @@ async function assemble(
     if (step?.status !== 'done' || !step.url) continue
     let wordTimestamps: unknown
     if (kind === 'voice' && step.assetId) {
-      const asset = await prisma.asset.findUnique({ where: { id: step.assetId } })
-      wordTimestamps = asset?.metadata ? JSON.parse(asset.metadata).wordTimestamps : undefined
+      const asset = await prisma.asset.findUnique({
+        where: { id: step.assetId },
+      })
+      wordTimestamps = asset?.metadata
+        ? JSON.parse(asset.metadata).wordTimestamps
+        : undefined
     }
     const sec = step.durationSec ?? cutFrames / fps
     const placed = addClip(manifest, kind, {
@@ -730,7 +875,11 @@ async function assemble(
   })
   return {
     ...plan,
-    assembly: { clipIds, signature: cutSignature(plan), at: new Date().toISOString() },
+    assembly: {
+      clipIds,
+      signature: cutSignature(plan),
+      at: new Date().toISOString(),
+    },
   }
 }
 
@@ -742,13 +891,29 @@ function charge(plan: ProductionPlan, step: PlanStep) {
   plan.spentUsd = Math.round((plan.spentUsd + step.costUsd) * 10_000) / 10_000
 }
 
-function refund(plan: ProductionPlan, before: PlanStep | undefined, after: PlanStep) {
-  if (before?.status === 'running' && after.status === 'failed' && after.costUsd === 0) {
-    plan.spentUsd = Math.max(0, Math.round((plan.spentUsd - before.costUsd) * 10_000) / 10_000)
+function refund(
+  plan: ProductionPlan,
+  before: PlanStep | undefined,
+  after: PlanStep,
+) {
+  if (
+    before?.status === 'running' &&
+    after.status === 'failed' &&
+    after.costUsd === 0
+  ) {
+    plan.spentUsd = Math.max(
+      0,
+      Math.round((plan.spentUsd - before.costUsd) * 10_000) / 10_000,
+    )
   }
 }
 
-function stop(plan: ProductionPlan, budgetUsd: number, what: string, costUsd: number) {
+function stop(
+  plan: ProductionPlan,
+  budgetUsd: number,
+  what: string,
+  costUsd: number,
+) {
   const left = Math.max(0, budgetUsd - plan.spentUsd)
   plan.stopped = `Stopped at the budget: ${what} needs ≈$${costUsd.toFixed(2)} and $${left.toFixed(2)} of $${budgetUsd.toFixed(2)} is left. Raise the budget to continue.`
 }
@@ -765,7 +930,8 @@ export async function tickProduction(ctx: ProductionContext): Promise<{
 }> {
   return withProjectLock(ctx.projectId, async () => {
     const { project, plan, bible } = await loadProduction(ctx)
-    if (!plan) return { plan: null, budgetUsd: project.budgetUsd, assembled: false }
+    if (!plan)
+      return { plan: null, budgetUsd: project.budgetUsd, assembled: false }
     const budget = project.budgetUsd
     const key = await getUserFalApiKey(ctx.userId)
     const before = JSON.stringify(plan)
@@ -776,17 +942,28 @@ export async function tickProduction(ctx: ProductionContext): Promise<{
         for (const stage of ['still', 'draft', 'final'] as const) {
           const step = shot[stage]
           if (step?.status !== 'running') continue
-          const next = await pollStep(step, stage === 'still' ? 'image' : 'video', ctx, key, {
-            shot,
-            stage,
-          })
+          let next = await pollStep(
+            step,
+            stage === 'still' ? 'image' : 'video',
+            ctx,
+            key,
+            {
+              shot,
+              stage,
+            },
+          )
           refund(plan, step, next)
+          if (stage === 'still' && next.packshotOf) {
+            next = await finishPackshot(next, shot, ctx)
+          }
           shot[stage] = next
         }
       }),
     )
     if (plan.music?.step?.status === 'running') {
-      const next = await pollStep(plan.music.step, 'music', ctx, key, { stage: 'music' })
+      const next = await pollStep(plan.music.step, 'music', ctx, key, {
+        stage: 'music',
+      })
       refund(plan, plan.music.step, next)
       plan.music.step = next
     }
@@ -806,6 +983,8 @@ export async function tickProduction(ctx: ProductionContext): Promise<{
         shot.final = { ...shot.draft!, costUsd: 0 }
         continue
       }
+      // a cut-out of its cast is on its way: the still waits for it
+      if (need === 'still' && waitingForCutout(bible, shot)) continue
       const price = priceShot(shot, plan.models, plan.aspectRatio)
       const cost =
         need === 'still'
@@ -829,9 +1008,17 @@ export async function tickProduction(ctx: ProductionContext): Promise<{
       for (const need of audioNeeds(plan)) {
         // audio goes last so it never starves a shot of budget
         if (plan.shots.some((s) => s.wantFinal && shotNeed(s) !== null)) break
-        const cost = need === 'music' ? priceMusic(plan) : priceVoiceover(plan.voiceover!.script)
+        const cost =
+          need === 'music'
+            ? priceMusic(plan)
+            : priceVoiceover(plan.voiceover!.script)
         if (!canAfford(plan, budget, cost)) {
-          stop(plan, budget, need === 'music' ? 'the music' : 'the voiceover', cost)
+          stop(
+            plan,
+            budget,
+            need === 'music' ? 'the music' : 'the voiceover',
+            cost,
+          )
           break
         }
         const step =
@@ -850,7 +1037,8 @@ export async function tickProduction(ctx: ProductionContext): Promise<{
       await Promise.all(
         checks.map(async (shot) => {
           const result = await selfCheck(shot, shot.draft!.url!, key)
-          plan.spentUsd = Math.round((plan.spentUsd + result.costUsd) * 10_000) / 10_000
+          plan.spentUsd =
+            Math.round((plan.spentUsd + result.costUsd) * 10_000) / 10_000
           shot.check = {
             status: result.failed ? 'failed' : 'done',
             ok: result.ok,
@@ -891,27 +1079,33 @@ export async function requestRender(
 ): Promise<{ plan: ProductionPlan; message: string }> {
   return withProjectLock(ctx.projectId, async () => {
     const { project, plan } = await loadProduction(ctx)
-    if (!plan) throw new Error('There is no plan yet — ask the Director for one.')
+    if (!plan)
+      throw new Error('There is no plan yet — ask the Director for one.')
     const budget = project.budgetUsd
     const left = Math.max(0, budget - plan.spentUsd)
 
     let projected = 0
     if (stage === 'drafts') {
       for (const shot of plan.shots) {
-        if (shot.draft?.status === 'done' || shot.draft?.status === 'running') continue
+        if (shot.draft?.status === 'done' || shot.draft?.status === 'running')
+          continue
         const p = priceShot(shot, plan.models, plan.aspectRatio)
-        projected += (shot.still?.status === 'done' ? 0 : p.stillUsd) + p.draftUsd
+        projected +=
+          (shot.still?.status === 'done' ? 0 : p.stillUsd) + p.draftUsd
       }
     } else if (stage === 'finals') {
       if (!plan.shots.some((s) => s.decision)) {
-        throw new Error('Keep or promote at least one shot before rendering finals.')
+        throw new Error(
+          'Keep or promote at least one shot before rendering finals.',
+        )
       }
       projected = finalsCost(plan)
     } else {
       for (const shot of plan.shots) {
         if (shot.final?.status === 'done') continue
         const p = priceShot(shot, plan.models, plan.aspectRatio)
-        projected += (shot.still?.status === 'done' ? 0 : p.stillUsd) + p.finalUsd
+        projected +=
+          (shot.still?.status === 'done' ? 0 : p.stillUsd) + p.finalUsd
       }
       projected += planTotals(plan).audioUsd
     }
@@ -963,7 +1157,11 @@ export async function reviewShot(
           throw new Error('There is no finished draft to promote.')
         }
         // changing your mind after a final exists drops that final
-        if (shot.decision !== action && shot.final && shot.final.status !== 'running') {
+        if (
+          shot.decision !== action &&
+          shot.final &&
+          shot.final.status !== 'running'
+        ) {
           shot.final = undefined
         }
         shot.decision = action
@@ -974,7 +1172,8 @@ export async function reviewShot(
         shot.wantFinal = false
         break
       case 'retry':
-        if (shotBusyStage(shot)) throw new Error('That shot is still rendering.')
+        if (shotBusyStage(shot))
+          throw new Error('That shot is still rendering.')
         // a new still and a new draft; the old ones stay in the library
         shot.still = undefined
         shot.draft = undefined
@@ -985,7 +1184,8 @@ export async function reviewShot(
         shot.wantFinal = false
         break
       case 'retryFinal':
-        if (shot.final?.status === 'running') throw new Error('The final is still rendering.')
+        if (shot.final?.status === 'running')
+          throw new Error('The final is still rendering.')
         shot.final = undefined
         if (shot.still?.status === 'failed') shot.still = undefined
         shot.wantFinal = true
@@ -998,5 +1198,7 @@ export async function reviewShot(
 }
 
 function shotBusyStage(shot: PlanShot): boolean {
-  return [shot.still, shot.draft, shot.final, shot.check].some((s) => s?.status === 'running')
+  return [shot.still, shot.draft, shot.final, shot.check].some(
+    (s) => s?.status === 'running',
+  )
 }

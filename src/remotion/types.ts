@@ -64,8 +64,34 @@ export interface ManifestClip {
   wordTimestamps?: Array<WordTimestampProps>
   /** Component overlays only */
   component?: ComponentType
+  /**
+   * Set on clips cut from a layer set: the clip is drawn at `box` inside the
+   * layer set's canvas (cover-fitted to the frame) instead of filling the
+   * frame, and the canvas moves with its own camera — the 2.5D parallax.
+   */
+  placement?: ClipPlacement
 
   props?: Record<string, any>
+}
+
+/** A camera position over a layer canvas: offset in canvas fractions, zoom */
+export interface CameraKey {
+  /** horizontal offset, fraction of the canvas width (+ = right) */
+  x: number
+  /** vertical offset, fraction of the canvas height (+ = down) */
+  y: number
+  /** zoom around the canvas centre, 1 = cover-fit */
+  scale: number
+}
+
+export interface ClipPlacement {
+  /** the layer set's canvas, pixels */
+  canvas: { width: number; height: number }
+  /** where this clip sits in that canvas, [left, top, right, bottom] pixels */
+  box: [number, number, number, number]
+  /** camera at the clip's first and last frame (eased in between) */
+  from: CameraKey
+  to: CameraKey
 }
 
 export interface ManifestTrack {
@@ -170,6 +196,7 @@ export type ComponentType =
   | 'BigTitle'
   | 'ImageOverlay'
   | 'LowerThird'
+  | 'LayerText'
 
 export type TransitionType =
   | 'cut'
@@ -218,6 +245,17 @@ export interface LowerThirdProps {
   backgroundColor?: string
   textColor?: string
   position?: 'left' | 'center' | 'right'
+}
+
+/** Live text that replaced a text layer — drawn into the clip's placement box */
+export interface LayerTextProps {
+  /** lines separated by
+   */
+  text: string
+  color?: string
+  fontFamily?: string
+  bold?: boolean
+  italic?: boolean
 }
 
 // =============================================================================
@@ -303,6 +341,32 @@ function num(value: unknown, fallback: number): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback
 }
 
+function normalizeCamera(raw: any): CameraKey {
+  return {
+    x: Math.min(1, Math.max(-1, num(raw?.x, 0))),
+    y: Math.min(1, Math.max(-1, num(raw?.y, 0))),
+    scale: Math.min(4, Math.max(0.25, num(raw?.scale, 1))),
+  }
+}
+
+function normalizePlacement(raw: any): ClipPlacement | undefined {
+  if (!raw || typeof raw !== 'object') return undefined
+  const width = num(raw.canvas?.width, 0)
+  const height = num(raw.canvas?.height, 0)
+  const box = Array.isArray(raw.box)
+    ? raw.box.map((v: unknown) => num(v, NaN))
+    : []
+  if (width <= 0 || height <= 0 || box.length !== 4 || box.some(Number.isNaN)) {
+    return undefined
+  }
+  return {
+    canvas: { width, height },
+    box: box as [number, number, number, number],
+    from: normalizeCamera(raw.from),
+    to: normalizeCamera(raw.to),
+  }
+}
+
 function normalizeClip(raw: any): ManifestClip | null {
   if (!raw || typeof raw !== 'object') return null
   const kind: ClipKind = raw.component
@@ -328,6 +392,7 @@ function normalizeClip(raw: any): ManifestClip | null {
       : undefined,
     component: raw.component,
     props: raw.props && typeof raw.props === 'object' ? raw.props : undefined,
+    placement: normalizePlacement(raw.placement),
   }
 }
 

@@ -10,12 +10,15 @@
 import {
   AbsoluteFill,
   Audio,
+  Easing,
   Img,
   Sequence,
   Video,
   interpolate,
   useCurrentFrame,
+  useVideoConfig,
 } from 'remotion'
+import { layerTextSvg } from './layer-text'
 import { KaraokeText } from './components/overlays/KaraokeText'
 import { BigTitle } from './components/overlays/BigTitle'
 import { ImageOverlay } from './components/overlays/ImageOverlay'
@@ -23,9 +26,11 @@ import { LowerThird } from './components/overlays/LowerThird'
 import { createEmptyManifest } from './types'
 import type {
   BigTitleProps,
+  ClipPlacement,
   CompositionProps,
   ImageOverlayProps,
   KaraokeTextProps,
+  LayerTextProps,
   LowerThirdProps,
   ManifestClip,
   ManifestTrack,
@@ -68,7 +73,11 @@ const ClipRenderer: React.FC<{ clip: ManifestClip; track: ManifestTrack }> = ({
 }) => {
   switch (clip.kind) {
     case 'component':
-      return <ComponentClip clip={clip} />
+      return clip.placement ? (
+        <VisualClip clip={clip} track={track} />
+      ) : (
+        <ComponentClip clip={clip} />
+      )
     case 'audio':
       return track.muted ? null : <AudioClip clip={clip} track={track} />
     case 'image':
@@ -120,6 +129,17 @@ const VisualClip: React.FC<{ clip: ManifestClip; track: ManifestTrack }> = ({
   )
   const opacity = Number(outgoing.opacity ?? 1) * fadeIn
 
+  if (clip.placement) {
+    const placed = <PlacedMedia clip={clip} placement={clip.placement} />
+    return (
+      <AbsoluteFill
+        style={{ ...outgoing, opacity, filter: filterStyle || undefined }}
+      >
+        {placed}
+      </AbsoluteFill>
+    )
+  }
+
   if (!clip.url) return null
 
   const media =
@@ -142,6 +162,89 @@ const VisualClip: React.FC<{ clip: ManifestClip; track: ManifestTrack }> = ({
       style={{ ...outgoing, opacity, filter: filterStyle || undefined }}
     >
       {media}
+    </AbsoluteFill>
+  )
+}
+
+// =============================================================================
+// Layer clips — drawn inside a layer set's canvas that the camera moves over
+// =============================================================================
+
+const easeCamera = Easing.inOut(Easing.ease)
+
+/** Where the canvas and the clip's box sit in the frame at this frame */
+export function placementStyles(
+  placement: ClipPlacement,
+  frame: number,
+  durationFrames: number,
+  frameSize: { width: number; height: number },
+): { canvas: React.CSSProperties; box: React.CSSProperties } {
+  const { canvas, box, from, to } = placement
+  const t = easeCamera(
+    Math.min(1, Math.max(0, frame / Math.max(1, durationFrames - 1))),
+  )
+  const lerp = (a: number, b: number) => a + (b - a) * t
+  const cover = Math.max(
+    frameSize.width / canvas.width,
+    frameSize.height / canvas.height,
+  )
+  const cw = canvas.width * cover
+  const ch = canvas.height * cover
+  return {
+    canvas: {
+      position: 'absolute',
+      width: cw,
+      height: ch,
+      left: (frameSize.width - cw) / 2 + lerp(from.x, to.x) * cw,
+      top: (frameSize.height - ch) / 2 + lerp(from.y, to.y) * ch,
+      transform: `scale(${lerp(from.scale, to.scale)})`,
+      transformOrigin: 'center',
+    },
+    box: {
+      position: 'absolute',
+      left: `${(box[0] / canvas.width) * 100}%`,
+      top: `${(box[1] / canvas.height) * 100}%`,
+      width: `${((box[2] - box[0]) / canvas.width) * 100}%`,
+      height: `${((box[3] - box[1]) / canvas.height) * 100}%`,
+    },
+  }
+}
+
+const PlacedMedia: React.FC<{
+  clip: ManifestClip
+  placement: ClipPlacement
+}> = ({ clip, placement }) => {
+  const frame = useCurrentFrame()
+  const { width, height } = useVideoConfig()
+  const styles = placementStyles(placement, frame, clip.durationFrames, {
+    width,
+    height,
+  })
+  const [l, t, r, b] = placement.box
+  return (
+    <AbsoluteFill style={{ overflow: 'hidden' }}>
+      <div style={styles.canvas}>
+        <div style={styles.box}>
+          {clip.component === 'LayerText' ? (
+            <div
+              style={{ width: '100%', height: '100%' }}
+              // markup is built by layerTextSvg, which escapes every value
+              dangerouslySetInnerHTML={{
+                __html: layerTextSvg(
+                  (clip.props ?? { text: '' }) as LayerTextProps,
+                  r - l,
+                  b - t,
+                ),
+              }}
+            />
+          ) : clip.url ? (
+            <Img
+              src={clip.url}
+              style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+            />
+          ) : null}
+        </div>
+      </div>
     </AbsoluteFill>
   )
 }

@@ -46,6 +46,11 @@ export interface PlanStep {
   durationSec?: number
   /** what this step was charged against the budget at submit */
   costUsd: number
+  /**
+   * A packshot's background still: when it lands, this cut-out (URL) is
+   * placed on it and the composite becomes the shot's still.
+   */
+  packshotOf?: string
   error?: string
   startedAt: string
 }
@@ -78,6 +83,12 @@ export interface PlanShot {
    * a reference image make the still an edit of those references.
    */
   cast?: Array<string>
+  /**
+   * A Bible entry (id) placed unchanged on a generated set — the hero
+   * packshot. Needs a cut-out reference; until it has one the still is a
+   * reference edit like any cast shot. Always also in `cast`.
+   */
+  packshot?: string
   still?: PlanStep
   draft?: PlanStep
   check?: ShotCheck
@@ -138,6 +149,8 @@ export interface PlanDraftInput {
     motion: string
     /** Bible entry ids, already resolved from names */
     cast?: Array<string>
+    /** Bible entry id, already resolved */
+    packshot?: string
   }>
   voiceoverScript?: string
   musicPrompt?: string
@@ -276,7 +289,10 @@ export function totalSeconds(plan: Pick<ProductionPlan, 'shots'>): number {
 export function musicDuration(plan: Pick<ProductionPlan, 'shots'>): number {
   const m = MUSIC_MODELS.find((x) => x.id === DIRECTOR_MODELS.music)
   const sec = Math.ceil(totalSeconds(plan))
-  return Math.min(m?.maxDurationSec ?? sec, Math.max(m?.minDurationSec ?? 1, sec))
+  return Math.min(
+    m?.maxDurationSec ?? sec,
+    Math.max(m?.minDurationSec ?? 1, sec),
+  )
 }
 
 export function priceVoiceover(script: string): number {
@@ -387,6 +403,19 @@ export function chooseFinalModel(
 
 export const MAX_SHOTS = 12
 
+/** A shot's cast, with its packshot subject always in it */
+function castFields(
+  cast: ReadonlyArray<string> | undefined,
+  packshot: string | undefined,
+): Pick<PlanShot, 'cast' | 'packshot'> {
+  const ids = [...(cast ?? [])]
+  if (packshot && !ids.includes(packshot)) ids.unshift(packshot)
+  return {
+    ...(ids.length ? { cast: ids } : {}),
+    ...(packshot ? { packshot } : {}),
+  }
+}
+
 /** Turn the Director's proposal into a priced plan that fits the budget */
 export function buildPlan(
   input: PlanDraftInput,
@@ -403,7 +432,7 @@ export function buildPlan(
       durationSec: Math.max(1, Math.round(s.durationSec || 5)),
       prompt: s.prompt.trim(),
       motion: s.motion.trim(),
-      ...(s.cast?.length ? { cast: [...s.cast] } : {}),
+      ...castFields(s.cast, s.packshot),
       decision: null,
       wantDraft: false,
       wantFinal: false,
@@ -471,6 +500,8 @@ export interface ShotEdit {
   motion: string
   /** Bible entry ids; undefined keeps the shot's cast */
   cast?: Array<string>
+  /** Bible entry id to place as a packshot; undefined keeps, null clears */
+  packshot?: string | null
 }
 
 const sameCast = (a?: Array<string>, b?: Array<string>) =>
@@ -495,9 +526,14 @@ export function applyPlanEdit(
 
   const byId = new Map(plan.shots.map((s) => [s.id, s]))
   const shots: Array<PlanShot> = edit.shots.slice(0, MAX_SHOTS).map((e, i) => {
-    const durationSec = shotDuration(Math.max(1, Math.round(e.durationSec)), models)
+    const durationSec = shotDuration(
+      Math.max(1, Math.round(e.durationSec)),
+      models,
+    )
     const prev = e.id ? byId.get(e.id) : undefined
     const cast = e.cast ?? prev?.cast
+    const packshot =
+      e.packshot === null ? undefined : (e.packshot ?? prev?.packshot)
     const base: PlanShot = {
       id: prev?.id ?? `shot-${i + 1}-${Math.random().toString(36).slice(2, 7)}`,
       title: e.title.trim().slice(0, 80) || `Shot ${i + 1}`,
@@ -505,14 +541,17 @@ export function applyPlanEdit(
       durationSec,
       prompt: e.prompt.trim(),
       motion: e.motion.trim(),
-      ...(cast?.length ? { cast: [...cast] } : {}),
+      ...castFields(cast, packshot),
       decision: null,
       wantDraft: false,
       wantFinal: false,
     }
     if (!prev) return base
     // a new cast is a new picture, like a new prompt
-    const stillOk = prev.prompt === base.prompt && sameCast(prev.cast, base.cast)
+    const stillOk =
+      prev.prompt === base.prompt &&
+      sameCast(prev.cast, base.cast) &&
+      prev.packshot === base.packshot
     const clipsOk =
       stillOk && prev.motion === base.motion && prev.durationSec === durationSec
     return {
@@ -536,7 +575,10 @@ export function applyPlanEdit(
     stopped: undefined,
     updatedAt: now.toISOString(),
   }
-  next.format = formatLabel(next, plan.format.split(' · ')[0].replace(/^\d+s\s*/, ''))
+  next.format = formatLabel(
+    next,
+    plan.format.split(' · ')[0].replace(/^\d+s\s*/, ''),
+  )
   return next
 }
 
@@ -681,7 +723,9 @@ export function shotPreview(
   return null
 }
 
-export function parsePlan(json: string | null | undefined): ProductionPlan | null {
+export function parsePlan(
+  json: string | null | undefined,
+): ProductionPlan | null {
   if (!json) return null
   try {
     const plan = JSON.parse(json) as ProductionPlan

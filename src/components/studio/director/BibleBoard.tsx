@@ -5,7 +5,9 @@
  * same face and product appear in every shot.
  *
  * Edits are local until Save. Generate saves first, then makes a reference
- * portrait from the entry's description (priced on the button).
+ * portrait from the entry's description (priced on the button). Cut out
+ * removes a reference's background (transparent PNG): a cleaner reference,
+ * and the image a packshot places on its set.
  */
 
 import { useEffect, useMemo, useState } from 'react'
@@ -15,8 +17,10 @@ import {
   ImagePlus,
   Loader2,
   Plus,
+  Scissors,
   Sparkles,
   Trash2,
+  Undo2,
   X,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -36,6 +40,8 @@ import { formatUsd } from '@/lib/pricing'
 import {
   BIBLE_KINDS,
   MAX_BIBLE_ENTRIES,
+  canCutOut,
+  cutoutCost,
   newEntryId,
   referenceCost,
 } from '@/lib/bible'
@@ -74,6 +80,9 @@ export function BibleBoard({
             ? {
                 ...e,
                 pending: s.pending,
+                pendingCutout: s.pendingCutout,
+                cutout: s.cutout,
+                uncut: s.uncut,
                 imageUrl: s.imageUrl ?? e.imageUrl,
                 assetId: s.assetId ?? e.assetId,
               }
@@ -131,8 +140,15 @@ export function BibleBoard({
       onSuccess: () => state.generate.mutate(id),
     })
   }
+  const cutout = (id: string) => {
+    if (!dirty) return state.cutout.mutate(id)
+    state.save.mutate(bibleToInput(draft), {
+      onSuccess: () => state.cutout.mutate(id),
+    })
+  }
   const valid = draft.entries.every((e) => e.name.trim())
   const refPrice = formatUsd(referenceCost())
+  const cutPrice = formatUsd(cutoutCost())
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -251,6 +267,14 @@ export function BibleBoard({
                       (state.generate.isPending &&
                         state.generate.variables === entry.id)
                     }
+                    cutPrice={cutPrice}
+                    cutting={
+                      (!!entry.pendingCutout &&
+                        entry.pending?.status === 'running') ||
+                      (state.cutout.isPending &&
+                        state.cutout.variables === entry.id)
+                    }
+                    onCutout={() => cutout(entry.id)}
                     onChange={(p) => patchEntry(entry.id, p)}
                     onPick={() => setPicking(entry.id)}
                     onGenerate={() => generate(entry.id)}
@@ -284,7 +308,10 @@ function EntryCard({
   entry,
   shots,
   refPrice,
+  cutPrice,
   generating,
+  cutting,
+  onCutout,
   onChange,
   onPick,
   onGenerate,
@@ -293,7 +320,10 @@ function EntryCard({
   entry: BibleEntry
   shots: number
   refPrice: string
+  cutPrice: string
   generating: boolean
+  cutting: boolean
+  onCutout: () => void
   onChange: (p: Partial<BibleEntry>) => void
   onPick: () => void
   onGenerate: () => void
@@ -303,15 +333,68 @@ function EntryCard({
     entry.pending?.status === 'failed' ? entry.pending.error : undefined
   return (
     <article className="flex flex-col overflow-hidden rounded-xl border border-border bg-card">
-      <div className="group relative aspect-square bg-muted">
+      <div
+        className={cn(
+          'group relative aspect-square',
+          entry.cutout ? 'bg-checker' : 'bg-muted',
+        )}
+      >
         {entry.imageUrl ? (
           <>
             <img
               src={entry.imageUrl}
               alt={entry.name}
-              className="h-full w-full object-cover"
+              className={cn(
+                'h-full w-full',
+                entry.cutout ? 'object-contain p-3' : 'object-cover',
+              )}
             />
-            <div className="absolute inset-x-0 bottom-0 flex gap-1.5 bg-background/80 p-2 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+            {cutting && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-background/70 text-sm text-muted-foreground">
+                <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                Cutting out…
+              </div>
+            )}
+            {entry.cutout && (
+              <span className="absolute top-2 left-2 rounded-md bg-background/80 px-1.5 py-0.5 text-[11px] text-muted-foreground">
+                Cut out
+              </span>
+            )}
+            {failed && entry.pendingCutout && (
+              <p className="absolute inset-x-2 top-2 flex items-start gap-1.5 rounded-md bg-background/90 p-1.5 text-xs text-destructive">
+                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                <span className="line-clamp-2">Cut-out failed: {failed}</span>
+              </p>
+            )}
+            <div className="absolute inset-x-0 bottom-0 flex flex-wrap gap-1.5 bg-background/80 p-2 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+              {canCutOut(entry) && !cutting && (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="w-full"
+                  onClick={onCutout}
+                  title="Remove the background (transparent PNG) — a cleaner reference, and packshots can place it on any set"
+                >
+                  <Scissors /> Cut out · ≈ {cutPrice}
+                </Button>
+              )}
+              {entry.uncut && (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="w-full"
+                  onClick={() =>
+                    onChange({
+                      imageUrl: entry.uncut!.imageUrl,
+                      assetId: entry.uncut!.assetId,
+                      cutout: undefined,
+                      uncut: undefined,
+                    })
+                  }
+                >
+                  <Undo2 /> Undo cut-out
+                </Button>
+              )}
               <Button
                 size="sm"
                 variant="secondary"

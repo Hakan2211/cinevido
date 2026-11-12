@@ -12,6 +12,13 @@
 import { estimateCost } from './pricing'
 import type { CostEstimate } from './pricing'
 import { LAYERIZE_MODELS } from '@/server/services/types'
+import { addClip, tracksOfKind, trackEndFrame } from '../remotion/types'
+import type {
+  CameraKey,
+  LayerTextProps,
+  ManifestClip,
+  ProjectManifest,
+} from '../remotion/types'
 
 /** [left, top, right, bottom] */
 export type Box = [number, number, number, number]
@@ -42,6 +49,12 @@ export interface Layer {
   text?: LayerText
   /** set when the layer was replaced by an edit: what fal returned first */
   originalUrl?: string
+  /**
+   * Editable text drawn in place of the layer's pixels (a text layer the user
+   * made editable). Shown in the viewer, baked by "Save as image", and sent
+   * to the timeline as a LayerText clip.
+   */
+  live?: LayerTextProps
   width?: number
   height?: number
 }
@@ -173,4 +186,176 @@ export function placeOnCanvas(
       height: bottom - top,
     },
   }
+}
+
+// =============================================================================
+// Text layers
+// =============================================================================
+
+/** fal's recognised text as editable text: lines, first styled run's look */
+export function liveTextFromLayer(layer: Layer): LayerTextProps | null {
+  const t = layer.text
+  if (!t?.text?.trim()) return null
+  const lines =
+    t.lines
+      ?.map((line) => (line.runs ?? []).map((r) => r.text).join(''))
+      .filter((line) => line.trim()) ?? []
+  const style = t.lines
+    ?.flatMap((line) => line.runs ?? [])
+    .find((r) => r.style)?.style
+  return {
+    text: lines.length > 0 ? lines.join('\n') : t.text.trim(),
+    color: style?.foreground_color,
+    fontFamily: style?.similar_font_family,
+    bold: style?.bold,
+    italic: style?.italic,
+  }
+}
+
+/** What "Replace text" asks the layer edit model for */
+export function replaceTextPrompt(oldText: string, newText: string): string {
+  const from = oldText.replace(/\s+/g, ' ').trim()
+  const to = newText.replace(/\s+/g, ' ').trim()
+  return `Replace the text "${from}" with "${to}". Keep exactly the same typeface, weight, colour, size, letter spacing and effects, in the same place. Change nothing else and keep the background transparent.`
+}
+
+// =============================================================================
+// Layers → timeline (2.5D parallax)
+// =============================================================================
+
+export type CameraMove =
+  | 'push-in'
+  | 'pull-out'
+  | 'pan-left'
+  | 'pan-right'
+  | 'still'
+
+export const CAMERA_MOVES: ReadonlyArray<{ id: CameraMove; label: string }> = [
+  { id: 'push-in', label: 'Push in' },
+  { id: 'pull-out', label: 'Pull out' },
+  { id: 'pan-left', label: 'Pan left' },
+  { id: 'pan-right', label: 'Pan right' },
+  { id: 'still', label: 'Still' },
+]
+
+const round4 = (n: number) => Math.round(n * 10_000) / 10_000
+
+/**
+ * The camera for one layer: nearer layers (depth → 1) move and zoom more
+ * than the base (depth 0), which is what reads as depth. The base always
+ * stays zoomed enough to cover the frame while it moves.
+ */
+export function parallaxCamera(
+  move: CameraMove,
+  depth: number,
+): { from: CameraKey; to: CameraKey } {
+  const d = Math.min(1, Math.max(0, depth))
+  const key = (x: number, scale: number): CameraKey => ({
+    x: round4(x),
+    y: 0,
+    scale: round4(scale),
+  })
+  switch (move) {
+    case 'push-in':
+      return { from: key(0, 1.02), to: key(0, 1.06 + 0.14 * d) }
+    case 'pull-out':
+      return { from: key(0, 1.06 + 0.14 * d), to: key(0, 1.02) }
+    case 'pan-left':
+    case 'pan-right': {
+      // the camera pans left → the picture slides right, the front most
+      const sign = move === 'pan-left' ? 1 : -1
+      const x = 0.015 + 0.05 * d
+      const scale = 1.08 + 0.04 * d
+      return { from: key(-sign * x, scale), to: key(sign * x, scale) }
+    }
+    case 'still':
+    default:
+      return { from: key(0, 1), to: key(0, 1) }
+  }
+}
+
+/** Where the cut currently ends on the picture lanes */
+export function pictureEndFrame(manifest: ProjectManifest): number {
+  return [
+    ...tracksOfKind(manifest, 'video'),
+    ...tracksOfKind(manifest, 'component'),
+  ].reduce((max, t) => Math.max(max, trackEndFrame(t)), 0)
+}
+
+/**
+ * Stack a layer set on the timeline as one shot: every visible layer on its
+ * own video lane (V1 = base, V2…), live text on the overlay lanes, all
+ * starting together at the end of the cut, each with its parallax camera.
+ * Moved layers keep their new place. Returns the manifest and clip ids.
+ */
+export function addLayerSetToManifest(
+  manifest: ProjectManifest,
+  set: LayerSet,
+  opts: {
+    durationFrames: number
+    move: CameraMove
+    startFrame?: number
+    assetId?: string
+    label?: string
+  },
+): { manifest: ProjectManifest; clipIds: Array<string>; startFrame: number } {
+  const views = set.views ?? {}
+  const visible = sortedLayers(set).filter(
+    (l) => views[String(l.z)]?.visible ?? true,
+  )
+  if (visible.length === 0) throw new Error('Show at least one layer')
+
+  const start = Math.max(
+    0,
+    Math.round(opts.startFrame ?? pictureEndFrame(manifest)),
+  )
+  const duration = Math.max(1, Math.round(opts.durationFrames))
+  const canvas = { width: set.width, height: set.height }
+  let next = manifest
+  const clipIds: Array<string> = []
+  let videoLane = 0
+  let textLane = 0
+
+  visible.forEach((layer, rank) => {
+    const view = views[String(layer.z)]
+    const [l, t, r, b] = layer.box ?? [0, 0, set.width, set.height]
+    const dx = view?.dx ?? 0
+    const dy = view?.dy ?? 0
+    const depth = visible.length > 1 ? rank / (visible.length - 1) : 0
+    const name = layer.z === 0 ? 'Base' : (layer.name ?? `Layer ${layer.z}`)
+    const base: Omit<ManifestClip, 'id' | 'kind'> = {
+      label: `${opts.label ? `${opts.label} · ` : ''}${name}`.slice(0, 80),
+      startFrame: start,
+      durationFrames: duration,
+      sourceInFrame: 0,
+      transitionFrames: 0,
+      gain: 1,
+      placement: {
+        canvas,
+        box: [l + dx, t + dy, r + dx, b + dy],
+        ...parallaxCamera(opts.move, depth),
+      },
+    }
+    const placed = layer.live
+      ? addClip(
+          next,
+          'component',
+          {
+            ...base,
+            kind: 'component',
+            component: 'LayerText',
+            props: { ...layer.live },
+          },
+          textLane++,
+        )
+      : addClip(
+          next,
+          'video',
+          { ...base, kind: 'image', url: layer.url, assetId: opts.assetId },
+          videoLane++,
+        )
+    next = placed.manifest
+    clipIds.push(placed.clip.id)
+  })
+  return { manifest: next, clipIds, startFrame: start }
 }

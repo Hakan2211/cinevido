@@ -51,19 +51,22 @@ import {
   priceShot,
   shotBusy,
 } from '../../lib/production'
-import {
-  requestRender,
-  savePlan,
-  withProjectLock,
-} from './production.server'
+import { requestRender, savePlan, withProjectLock } from './production.server'
 import {
   isVoice,
   parseBible,
   resolveCast,
+  resolvePackshot,
   summarizeBible,
   upsertEntries,
 } from '../../lib/bible'
 import { saveBible } from './production.server'
+import { startLayerizeJob } from '../services/layer-jobs.server'
+import {
+  addLayerSetToManifest,
+  layerSetOf,
+  sortedLayers,
+} from '../../lib/layers'
 import type { ProjectBible } from '../../lib/bible'
 import type { ProductionPlan } from '../../lib/production'
 import type { ProjectManifest, TrackKind } from '../services/index.server'
@@ -73,8 +76,10 @@ import type {
   GenerateVideoArgs,
   GenerateVoiceoverArgs,
   ListAssetsArgs,
+  AddLayersToTimelineArgs,
   ProposePlanArgs,
   RenderPlanArgs,
+  SplitIntoLayersArgs,
   UpdateBibleArgs,
   UpdateShotArgs,
   UpdateTimelineArgs,
@@ -844,7 +849,7 @@ export async function executeListAssets(
           url: asset.storageUrl,
           prompt: asset.prompt?.slice(0, 100),
           durationSeconds: asset.durationSeconds,
-          metadata: asset.metadata ? JSON.parse(asset.metadata) : null,
+          ...compactMetadata(asset.metadata),
           createdAt: asset.createdAt,
         })),
       },
@@ -886,6 +891,7 @@ export function summarizePlan(
         ...(s.cast?.length
           ? { cast: s.cast.map((id) => names.get(id)).filter(Boolean) }
           : {}),
+        ...(s.packshot ? { packshot: names.get(s.packshot) } : {}),
         draftUsd: +(p.stillUsd + p.draftUsd).toFixed(3),
         finalUsd: +p.finalUsd.toFixed(3),
         draft: s.draft?.status,
@@ -935,18 +941,24 @@ export async function executeProposePlan(
         }
       }
       const unknown = new Set<string>()
+      const notes = new Set<string>()
       const shots = args.shots.map((shot) => {
         const cast = resolveCast(bible, shot.cast)
         for (const name of shot.cast ?? []) {
           if (!resolveCast(bible, [name]).length) unknown.add(name)
         }
-        return { ...shot, cast }
+        const pack = shot.packshot ? resolvePackshot(bible, shot.packshot) : {}
+        if (pack.warning) notes.add(pack.warning)
+        return { ...shot, cast, packshot: pack.id }
       })
-      const plan = buildPlan({ ...args, shots }, {
-        budgetUsd: project.budgetUsd,
-        width: project.width,
-        height: project.height,
-      })
+      const plan = buildPlan(
+        { ...args, shots },
+        {
+          budgetUsd: project.budgetUsd,
+          width: project.width,
+          height: project.height,
+        },
+      )
       // the budget is the project's: what earlier plans spent still counts
       plan.spentUsd = previous?.spentUsd ?? 0
       await savePlan(context.projectId, plan)
@@ -954,9 +966,16 @@ export async function executeProposePlan(
         success: true,
         data: {
           ...summarizePlan(plan, project.budgetUsd, bible),
-          ...(unknown.size
+          ...(unknown.size || notes.size
             ? {
-                warning: `Not in the Bible, left out of the cast: ${[...unknown].join(', ')}. Add them with updateBible first.`,
+                warning: [
+                  unknown.size
+                    ? `Not in the Bible, left out of the cast: ${[...unknown].join(', ')}. Add them with updateBible first.`
+                    : '',
+                  ...notes,
+                ]
+                  .filter(Boolean)
+                  .join(' '),
               }
             : {}),
         },
@@ -983,7 +1002,10 @@ export async function executeUpdateShot(
       const plan = parsePlan(project?.plan)
       const bible = parseBible(project?.bible)
       if (!project || project.userId !== context.userId || !plan) {
-        return { success: false, error: 'There is no plan to change — propose one first.' }
+        return {
+          success: false,
+          error: 'There is no plan to change — propose one first.',
+        }
       }
       const index = Math.round(args.shotNumber) - 1
       const shot = plan.shots[index]
@@ -991,8 +1013,15 @@ export async function executeUpdateShot(
         return { success: false, error: `There is no shot ${args.shotNumber}.` }
       }
       if (shotBusy(shot)) {
-        return { success: false, error: `Shot ${args.shotNumber} is still rendering.` }
+        return {
+          success: false,
+          error: `Shot ${args.shotNumber} is still rendering.`,
+        }
       }
+      const pack =
+        args.packshot === undefined || args.packshot.trim() === ''
+          ? {}
+          : resolvePackshot(bible, args.packshot)
       const next = applyPlanEdit(plan, {
         shots: plan.shots.map((s, i) =>
           i === index
@@ -1004,17 +1033,30 @@ export async function executeUpdateShot(
                 prompt: args.prompt ?? s.prompt,
                 motion: args.motion ?? s.motion,
                 cast: args.cast ? resolveCast(bible, args.cast) : s.cast,
+                packshot:
+                  args.packshot === undefined
+                    ? undefined
+                    : args.packshot.trim() === ''
+                      ? null
+                      : (pack.id ?? undefined),
               }
             : s,
         ),
       })
       await savePlan(context.projectId, next)
-      return { success: true, data: summarizePlan(next, project.budgetUsd, bible) }
+      return {
+        success: true,
+        data: {
+          ...summarizePlan(next, project.budgetUsd, bible),
+          ...(pack.warning && { warning: pack.warning }),
+        },
+      }
     })
   } catch (error) {
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Failed to update the shot',
+      error:
+        error instanceof Error ? error.message : 'Failed to update the shot',
     }
   }
 }
@@ -1029,7 +1071,8 @@ export async function executeRenderPlan(
   } catch (error) {
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Failed to start the render',
+      error:
+        error instanceof Error ? error.message : 'Failed to start the render',
     }
   }
 }
@@ -1057,7 +1100,149 @@ export async function executeUpdateBible(
   } catch (error) {
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Failed to update the Bible',
+      error:
+        error instanceof Error ? error.message : 'Failed to update the Bible',
+    }
+  }
+}
+
+// =============================================================================
+// Layers: split an image, put a layer set on the timeline
+// =============================================================================
+
+/** An asset's metadata for the model — a layer set as a short layer list */
+function compactMetadata(json: string | null): Record<string, unknown> {
+  if (!json) return {}
+  let metadata: Record<string, unknown>
+  try {
+    metadata = JSON.parse(json)
+  } catch {
+    return {}
+  }
+  const set = layerSetOf(metadata)
+  if (!set) return { metadata }
+  const { layerSet: _set, ...rest } = metadata
+  return {
+    metadata: rest,
+    layers: sortedLayers(set).map((l) => ({
+      z: l.z,
+      name: l.z === 0 ? 'Base' : (l.name ?? `Layer ${l.z}`),
+      ...(l.live || l.text
+        ? { text: (l.live?.text ?? l.text?.text)?.slice(0, 80) }
+        : {}),
+    })),
+  }
+}
+
+async function ownedImage(assetId: string, context: ToolContext) {
+  const asset = await prisma.asset.findUnique({ where: { id: assetId } })
+  if (!asset || asset.userId !== context.userId || asset.type !== 'image') {
+    return null
+  }
+  return asset
+}
+
+export async function executeSplitIntoLayers(
+  args: SplitIntoLayersArgs,
+  context: ToolContext,
+): Promise<ToolResult> {
+  try {
+    const asset = await ownedImage(args.imageAssetId, context)
+    if (!asset) return { success: false, error: 'Image asset not found' }
+    const meta = (() => {
+      try {
+        return JSON.parse(asset.metadata ?? '{}') as {
+          width?: number
+          height?: number
+        }
+      } catch {
+        return {}
+      }
+    })()
+    const { jobId, ceilingUsd, maxLayers } = await startLayerizeJob({
+      userId: context.userId,
+      projectId: context.projectId,
+      imageUrl: asset.storageUrl,
+      sourceAssetId: asset.id,
+      prompt: args.separate,
+      maxLayers: args.maxLayers ?? 8,
+      textRecognition: args.readText,
+      sourceWidth: meta.width,
+      sourceHeight: meta.height,
+      // the Studio's job poller follows `processing` jobs to completion
+      status: 'processing',
+    })
+    return {
+      success: true,
+      data: {
+        jobId,
+        status: 'processing',
+        maxLayers,
+        costCeilingUsd: ceilingUsd,
+        message: `Splitting into up to ${maxLayers} layers (at most $${(ceilingUsd ?? 0).toFixed(2)}, re-priced at the real layer count). Takes about a minute; then it is in listAssets with \`layers\`.`,
+      },
+    }
+  } catch (error) {
+    return {
+      success: false,
+      error:
+        error instanceof Error ? error.message : 'Failed to split the image',
+    }
+  }
+}
+
+export async function executeAddLayersToTimeline(
+  args: AddLayersToTimelineArgs,
+  context: ToolContext,
+): Promise<ToolResult> {
+  try {
+    const asset = await ownedImage(args.layerSetAssetId, context)
+    const set = asset ? layerSetOf(JSON.parse(asset.metadata ?? '{}')) : null
+    if (!asset || !set) {
+      return {
+        success: false,
+        error: 'That asset is not a layer set — split an image first.',
+      }
+    }
+    const project = await prisma.project.findUnique({
+      where: { id: context.projectId },
+      select: { userId: true, fps: true, manifest: true },
+    })
+    if (!project || project.userId !== context.userId) {
+      return { success: false, error: 'Project not found' }
+    }
+    const fps = project.fps || 30
+    const placed = addLayerSetToManifest(
+      migrateManifest(project.manifest),
+      set,
+      {
+        durationFrames: Math.round((args.durationSec ?? 5) * fps),
+        move: args.camera ?? 'push-in',
+        assetId: asset.id,
+        label: asset.prompt?.slice(0, 40) || undefined,
+      },
+    )
+    await prisma.project.update({
+      where: { id: context.projectId },
+      data: {
+        manifest: JSON.stringify(placed.manifest),
+        duration: sequenceEndFrame(placed.manifest),
+      },
+    })
+    return {
+      success: true,
+      data: {
+        clips: placed.clipIds.length,
+        startFrame: placed.startFrame,
+        durationFrames: Math.round((args.durationSec ?? 5) * fps),
+        message: `Added ${placed.clipIds.length} layers as one shot at frame ${placed.startFrame}.`,
+      },
+    }
+  } catch (error) {
+    return {
+      success: false,
+      error:
+        error instanceof Error ? error.message : 'Failed to add the layers',
     }
   }
 }
@@ -1107,6 +1292,15 @@ export async function executeTool(
 
     case TOOL_NAMES.UPDATE_BIBLE:
       return executeUpdateBible(args as UpdateBibleArgs, context)
+
+    case TOOL_NAMES.SPLIT_INTO_LAYERS:
+      return executeSplitIntoLayers(args as SplitIntoLayersArgs, context)
+
+    case TOOL_NAMES.ADD_LAYERS_TO_TIMELINE:
+      return executeAddLayersToTimeline(
+        args as AddLayersToTimelineArgs,
+        context,
+      )
 
     default:
       return { success: false, error: `Unknown tool: ${toolName}` }

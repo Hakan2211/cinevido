@@ -28,6 +28,8 @@ export interface RecipeField {
     fallbackName: string
     /** text field that describes its look */
     describeFrom?: string
+    /** offer "Cut out the background" for the photo (products) */
+    cutout?: boolean
   }
 }
 
@@ -79,6 +81,7 @@ export const RECIPES: Array<Recipe> = [
           nameFrom: 'product',
           fallbackName: 'The product',
           describeFrom: 'look',
+          cutout: true,
         },
       },
       {
@@ -108,6 +111,9 @@ export const RECIPES: Array<Recipe> = [
         opt('Mood', val(v, 'mood')),
         'Six shots of 5 seconds: 1 a hook that sets the world, 2 the moment of need, 3 and 4 the product in use, 5 a macro detail of the product, 6 a clean hero packshot with space for the tagline.',
         'The product is in the Project Bible — put it in the cast of every shot it appears in.',
+        val(v, 'photoCutout')
+          ? 'Its photo is being cut out of its background: make shot 6 a packshot of it (set `packshot` to the product) and write that prompt as the set only — surface, backdrop, light, an empty centre.'
+          : '',
         val(v, 'tagline')
           ? `A short voiceover that ends on the tagline "${val(v, 'tagline')}". Music that fits the mood.`
           : 'A short voiceover and music that fits the mood.',
@@ -235,6 +241,7 @@ export const RECIPES: Array<Recipe> = [
           kind: 'product',
           nameFrom: 'subject',
           fallbackName: 'The subject',
+          cutout: true,
         },
       },
     ],
@@ -310,8 +317,34 @@ export function getRecipe(id: string): Recipe | undefined {
   return RECIPES.find((r) => r.id === id)
 }
 
+/**
+ * The values a recipe's brief reads: the form's text, plus a marker for each
+ * photo that was given (`<field>` = "photo") and each one being cut out
+ * (`<field>Cutout` = "yes").
+ */
+export function recipeBriefValues(
+  values: RecipeValues,
+  images: Record<string, unknown>,
+  cutouts: Record<string, boolean | undefined> = {},
+): RecipeValues {
+  const out: RecipeValues = { ...values }
+  for (const [id, image] of Object.entries(images)) {
+    if (!image) continue
+    out[id] = 'photo'
+    if (cutouts[id]) out[`${id}Cutout`] = 'yes'
+  }
+  return out
+}
+
 export function recipeReady(recipe: Recipe, values: RecipeValues): boolean {
   return recipe.fields.every((f) => !f.required || val(values, f.id))
+}
+
+export type RecipeBibleEntry = BibleEntryInput & {
+  /** the form field the entry came from */
+  fieldId: string
+  imageUrl?: string
+  assetId?: string
 }
 
 /**
@@ -325,11 +358,9 @@ export function recipeBible(
   images: Record<string, { url: string; assetId?: string } | undefined>,
 ): {
   style: string
-  entries: Array<BibleEntryInput & { imageUrl?: string; assetId?: string }>
+  entries: Array<RecipeBibleEntry>
 } {
-  const entries: Array<
-    BibleEntryInput & { imageUrl?: string; assetId?: string }
-  > = []
+  const entries: Array<RecipeBibleEntry> = []
   for (const f of recipe.fields) {
     if (f.kind !== 'image' || !f.bible) continue
     const image = images[f.id]
@@ -340,6 +371,7 @@ export function recipeBible(
     // an entry is worth having with a photo, or with words to draw from
     if (!image && !description) continue
     entries.push({
+      fieldId: f.id,
       name: name.slice(0, 60),
       kind: f.bible.kind,
       description,

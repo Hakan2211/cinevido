@@ -97,6 +97,7 @@ const shotEditSchema = z.object({
   prompt: z.string().min(1).max(1200),
   motion: z.string().max(500),
   cast: z.array(z.string().max(40)).max(4).optional(),
+  packshot: z.string().max(40).nullable().optional(),
 })
 
 /** Edit plan: shots, order, final model. Re-priced on the server. */
@@ -118,7 +119,9 @@ export const updatePlanFn = createServerFn({ method: 'POST' })
       const { project, plan } = await loadProduction(ctx)
       if (!plan) throw new Error('No plan to edit')
       if (plan.shots.some(shotBusy)) {
-        throw new Error('Wait for the running renders to finish before editing the plan.')
+        throw new Error(
+          'Wait for the running renders to finish before editing the plan.',
+        )
       }
       const next = applyPlanEdit(plan, {
         title: data.title,

@@ -184,7 +184,7 @@ New in all three: `background: 'transparent'` (RGBA PNG, forces `output_format: 
 - [x] Defaults (2026-11-12): `DEFAULT_MODELS.image` = GPT Image 2.6 Flare. `DIRECTOR_MODELS.still` is pinned to Seedream 5 Flash ($0.027) instead of following it — budgets need a fixed price, GPT Image is token-billed
 - [ ] Retire Seedream 5 Pro ($0.0675) if 5.5 matches it — needs one side-by-side look (≈ $0.11)
 
-**7b — Layerize** (items 1–3 ✅ 2026-11-12; 4–7 planned)
+**7b — Layerize** ✅ (items 1–3 and 4–7, 2026-11-12)
 1. **Layers tab** in the image lab (Create / Edit / **Layers** / Upscale): source image, optional "what to separate" prompt (fal supports `<bbox>` hints), max layers (default 8, not fal's 30), OCR switch. Cost shows the ceiling — "≤ $0.34" = max_images × rate (by source pixels) + $0.012 — and the job is re-priced at the real layer count when it returns (like SFX)
 2. **Layer stack viewer**: base + layers by `z_index` with fal's names/descriptions, eye toggle, drag to move, download each PNG, "Save to library" (transparent assets with `layerOf`, `bbox`, `z`)
 3. **Edit one layer**: a layer → Seedream 5.5 Edit (transparent) → recomposite on a canvas at its bounding box → new image. Move / hide / delete layers is free (client canvas)
@@ -199,6 +199,15 @@ Built (items 1–3):
 - [x] Lab **Layers** tab: source, "what to separate", up to 4 / 8 / 16 / 30 layers, Read text; button shows the ceiling ("≤ $0.28"). Viewer `src/components/images/LayerStack.tsx`: CSS composite, drag to move, eye toggle, per-layer Edit (Seedream 5.5 Edit, transparent, ≈ $0.053) / To library / PNG, Save as image, Reset. Cards: "Split into layers" in the menu; layer sets show the composite + count and open in the viewer
 - [x] Job type `layerize` → "Layers" in Settings → Usage; Layerize in Price drift
 - [x] Verified in `MOCK_GENERATION` mode end to end: split (≤ $0.28 → stored $0.162 for 5 outputs), drag + hide + Save as image, To library, layer edit applied (original URL kept), arrangement restored on reopen. No paid run
+
+Built (items 4–7, 2026-11-12):
+- [x] **Text layers** (item 4): a layer with recognised text gets **Replace text** (Seedream 5.5 Edit re-draws the words in the same type, ≈ $0.053, prompt from `replaceTextPrompt`) or **Make editable** (free): `Layer.live` (text, colour, font, bold, italic, from fal's first styled run) is drawn as SVG by `src/remotion/layer-text.ts` — the same markup in the viewer, the Remotion preview/render and "Save as image" (sharp), sized to the layer's box, every value escaped. "Original pixels" undoes it. `setLayerLiveTextFn`
+- [x] **Layers → timeline** (item 5): viewer **To timeline** (project, 3/5/8/10s, Push in / Pull out / Pan left / Pan right / Still, "Add N layers · free"). `ManifestClip.placement` = layer-set canvas + box + camera `from`/`to` (pan in canvas fractions, zoom); the composition cover-fits the canvas to the frame and eases the camera per clip. `addLayerSetToManifest` (lib/layers.ts) puts each visible layer on V1…Vn (moved layers where they were put), live text on the overlay lane as a `LayerText` clip, all at the end of the picture lanes; `parallaxCamera` moves nearer layers more and keeps the base covering the frame. Inspector: per-clip Zoom / Pan X / Pan Y start → end sliders, and a Text field for text clips. `migrateManifest` normalises placements (bad ones dropped, values clamped). `sendLayersToTimelineFn`
+- [x] **Bible cut-out** (item 6): **Cut out · ≈ $0.052** on a character/product reference (Seedream 5.5 Edit, transparent, `cutoutPrompt`); `BibleEntry.cutout` / `uncut` (for **Undo cut-out**) / `pendingCutout`, polled like a reference portrait; the cut-out state belongs to its image (a new image drops it). Checkerboard + "Cut out" badge on the card. `cutoutReferenceFn`
+- [x] **Packshots** (item 7): `PlanShot.packshot` (a Bible entry, always also in the cast). With a cut-out, the still is the set only (shot prompt + "leave the centre empty, don't show the product", text-to-image at the still price) and `composePackshot` (`services/packshot.server.ts`, sharp) places the untouched cut-out on it — trimmed, centred, base at 86% height, soft contact shadow — before the draft animates it. Without a cut-out it is an ordinary reference shot; a still waits while a cast cut-out is in flight. Plan editor: "<product> on set" chips; Director: `packshot` on `proposePlan` / `updateShot` (by name, with warnings)
+- [x] **Recipes**: Product ad / Social short photos get a **Cut out the background · ≈ $0.052** switch; Create shows the added cost, creates the project with client-made entry ids and starts the cut-out; the Product ad brief then asks for shot 6 as a packshot. Fixed: recipe briefs never saw their photo (`recipeBriefValues`)
+- [x] **Director tools** (item 7): `splitIntoLayers` (Layerize on a project image, charged to the user's key at its ceiling like the lab — not the budget; the job is `processing` so the Studio's poller finishes it via the shared `services/layer-jobs.server.ts`) and `addLayersToTimeline` (free). `listAssets` shows a layer set as a short `layers` list instead of its whole metadata
+- [x] Tests: `layers-timeline.test.ts` (parallax, manifest stacking, migration, live text SVG/escaping/fit), `bible.test.ts` (cut-out state, packshots, recipe markers). Verified in `MOCK_GENERATION` mode: Make editable → live text in the viewer; To timeline → V1–V3 + T1, parallax visible when scrubbing, Inspector camera fields; Bible Cut out → spinner → cut-out badge + Undo; recipe switch → "Create · ≈ $0.052" (not pressed). `composePackshot` checked on generated test images. No paid run
 
 ---
 
@@ -295,3 +304,17 @@ Built (items 1–3):
   client sends.
 - **2026-11-12** — Layerize is charged at its ceiling (every slot) when submitted
   and re-priced at the real layer count when it returns; failed runs cost $0.
+- **2026-11-12** — Editable text is drawn by us (SVG), not re-rendered: free to
+  change, identical in viewer, preview, render and composite. fal only names a
+  *similar* font, so the stack falls back to a generic serif / sans / mono.
+- **2026-11-12** — Layers on the timeline are ordinary image clips with a
+  `placement`; the parallax is per-clip camera keys, so the cut stays editable
+  and nothing new has to render. The composition is still cuts-first: only
+  layer clips get pan/zoom in the Inspector.
+- **2026-11-12** — Cut-outs use Seedream 5.5 Edit + transparent, not Layerize:
+  one output at a fixed price, the subject named in the prompt.
+- **2026-11-12** — Packshots composite the user's own cut-out on a generated set
+  (sharp) instead of asking a model to redraw the product: the label stays
+  exact. Priced high (as a reference edit) in the plan, charged at the still
+  price when it runs. Cut-outs, like reference portraits, are billed to the
+  user's key but not to the production budget.

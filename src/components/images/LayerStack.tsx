@@ -3,12 +3,21 @@
  * list on the right. Layers can be hidden, dragged to a new place, edited one
  * at a time with Seedream 5.5 Edit (stays a cut-out), downloaded, saved to the
  * library on their own, or baked into a new image ("Save as image").
+ *
+ * Text layers (fal's text recognition) can have their text replaced by the
+ * edit model, or be made editable: drawn by us as live text, free to change,
+ * and sent to the timeline as a text clip. "To timeline" stacks the visible
+ * layers on a project's video lanes as one 2.5D parallax shot.
  */
 
 import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useNavigate } from '@tanstack/react-router'
 import {
   ArrowLeft,
+  Bold,
+  Clapperboard,
+  Italic,
   Download,
   Eye,
   EyeOff,
@@ -18,10 +27,20 @@ import {
   RotateCcw,
   Save,
   Type,
+  Undo2,
 } from 'lucide-react'
 import { toast } from 'sonner'
-import type { Layer, LayerSet, LayerView } from '@/lib/layers'
-import { layerRect, sortedLayers } from '@/lib/layers'
+import type { CameraMove, Layer, LayerSet, LayerView } from '@/lib/layers'
+import {
+  CAMERA_MOVES,
+  layerRect,
+  liveTextFromLayer,
+  replaceTextPrompt,
+  sortedLayers,
+} from '@/lib/layers'
+import { layerTextSvg } from '@/remotion/layer-text'
+import type { LayerTextProps } from '@/remotion/types'
+import { Segmented } from '@/components/generate'
 import { estimateCost, formatEstimate } from '@/lib/pricing'
 import { downloadFile } from '@/lib/download'
 import { cn } from '@/lib/utils'
@@ -89,34 +108,50 @@ export function LayerComposite({
         if (!view.visible) return null
         const r = layerRect(set, layer, view)
         const movable = !!onMove && layer.z !== 0
+        const common = {
+          onPointerDown: (e: React.PointerEvent) => {
+            if (!onSelect) return
+            e.stopPropagation()
+            onSelect(layer.z)
+            if (movable) {
+              ;(e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId)
+              drag.current = { z: layer.z, x: e.clientX, y: e.clientY }
+            }
+          },
+          className: cn(
+            'absolute select-none object-contain',
+            movable && 'cursor-move',
+            selected === layer.z &&
+              layer.z !== 0 &&
+              'outline outline-2 outline-primary',
+          ),
+          style: {
+            left: `${r.left}%`,
+            top: `${r.top}%`,
+            width: `${r.width}%`,
+            height: `${r.height}%`,
+          },
+        }
+        if (layer.live && layer.box) {
+          const [l, t, rr, b] = layer.box
+          return (
+            <div
+              key={layer.z}
+              {...common}
+              // layerTextSvg escapes every value it writes
+              dangerouslySetInnerHTML={{
+                __html: layerTextSvg(layer.live, rr - l, b - t),
+              }}
+            />
+          )
+        }
         return (
           <img
             key={layer.z}
             src={layer.url}
             alt={layer.name ?? (layer.z === 0 ? 'Base' : `Layer ${layer.z}`)}
             draggable={false}
-            onPointerDown={(e) => {
-              if (!onSelect) return
-              e.stopPropagation()
-              onSelect(layer.z)
-              if (movable) {
-                ;(e.target as HTMLElement).setPointerCapture?.(e.pointerId)
-                drag.current = { z: layer.z, x: e.clientX, y: e.clientY }
-              }
-            }}
-            className={cn(
-              'absolute select-none object-contain',
-              movable && 'cursor-move',
-              selected === layer.z &&
-                layer.z !== 0 &&
-                'outline outline-2 outline-primary',
-            )}
-            style={{
-              left: `${r.left}%`,
-              top: `${r.top}%`,
-              width: `${r.width}%`,
-              height: `${r.height}%`,
-            }}
+            {...common}
           />
         )
       })}
@@ -147,6 +182,13 @@ export function LayerStack({
   const [editJob, setEditJob] = useState<{ jobId: string; z: number } | null>(
     null,
   )
+  /** a text layer whose words are being replaced (paid) or edited live (free) */
+  const [textEdit, setTextEdit] = useState<{
+    z: number
+    mode: 'replace' | 'live'
+    value: LayerTextProps
+  } | null>(null)
+  const [timelineOpen, setTimelineOpen] = useState(false)
 
   useEffect(() => {
     if (set) setViews(initialViews(set))
@@ -163,12 +205,12 @@ export function LayerStack({
 
   // ---- edit one layer ----
   const startEdit = useMutation({
-    mutationFn: async (layer: Layer) => {
+    mutationFn: async ({ layer, prompt }: { layer: Layer; prompt: string }) => {
       const { editImageFn } = await import('@/server/edit.server')
       return editImageFn({
         data: {
           imageUrls: [layer.url],
-          prompt: editPrompt.trim(),
+          prompt: prompt.trim(),
           model: DEFAULT_MODELS.layerEdit,
           sourceAssetIds: [assetId],
           // separated layers stay cut-outs; the base is a full image
@@ -176,10 +218,11 @@ export function LayerStack({
         },
       })
     },
-    onSuccess: (res, layer) => {
+    onSuccess: (res, { layer }) => {
       setEditJob({ jobId: res.jobId, z: layer.z })
       setEditing(null)
       setEditPrompt('')
+      setTextEdit(null)
     },
     onError: (err) => toast.error(err.message),
   })
@@ -259,6 +302,22 @@ export function LayerStack({
     onError: (err) => toast.error(err.message),
   })
 
+  const liveText = useMutation({
+    mutationFn: async (args: { z: number; live: LayerTextProps | null }) => {
+      const { setLayerLiveTextFn } = await import('@/server/layers.server')
+      return setLayerLiveTextFn({ data: { assetId, ...args } })
+    },
+    onSuccess: (res, { live }) => {
+      queryClient.setQueryData(['layerSet', assetId], (old: typeof data) =>
+        old ? { ...old, set: res.set } : old,
+      )
+      queryClient.invalidateQueries({ queryKey: ['images'] })
+      setTextEdit(null)
+      toast.success(live ? 'Text updated' : 'Back to the original pixels')
+    },
+    onError: (err) => toast.error(err.message),
+  })
+
   if (isLoading) {
     return <Skeleton className="aspect-video w-full rounded-xl" />
   }
@@ -299,6 +358,14 @@ export function LayerStack({
             </Button>
           )}
           <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setTimelineOpen((o) => !o)}
+          >
+            <Clapperboard className="h-4 w-4" />
+            To timeline
+          </Button>
+          <Button
             size="sm"
             onClick={() => compose.mutate()}
             disabled={compose.isPending}
@@ -312,6 +379,18 @@ export function LayerStack({
           </Button>
         </div>
       </div>
+
+      {timelineOpen && (
+        <SendToTimeline
+          assetId={assetId}
+          defaultProjectId={data?.projectId ?? null}
+          views={views}
+          layerCount={
+            set.layers.filter((l) => (views[l.z] ?? SHOWN).visible).length
+          }
+          onDone={() => setTimelineOpen(false)}
+        />
+      )}
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="bg-checker overflow-hidden rounded-xl border border-border">
@@ -368,7 +447,7 @@ export function LayerStack({
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="flex items-center gap-1.5 truncate text-sm font-medium">
-                        {layer.text && (
+                        {(layer.text || layer.live) && (
                           <Type className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                         )}
                         {layer.z === 0
@@ -379,12 +458,14 @@ export function LayerStack({
                         className="truncate text-xs text-muted-foreground"
                         title={layer.text?.text ?? layer.description}
                       >
-                        {layer.text?.text
-                          ? `“${layer.text.text}”`
-                          : (layer.description ??
-                            (layer.z === 0
-                              ? 'Background with the layers removed'
-                              : ''))}
+                        {layer.live
+                          ? `“${layer.live.text.replace(/\n/g, ' ')}” · editable`
+                          : layer.text?.text
+                            ? `“${layer.text.text}”`
+                            : (layer.description ??
+                              (layer.z === 0
+                                ? 'Background with the layers removed'
+                                : ''))}
                       </p>
                     </div>
                     <button
@@ -404,49 +485,153 @@ export function LayerStack({
                     </button>
                   </div>
 
-                  {selected === layer.z && !isEditing && (
-                    <div className="mt-2 flex flex-wrap gap-1.5">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={!!editJob}
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setEditing(layer.z)
-                        }}
-                      >
-                        <Paintbrush className="h-3.5 w-3.5" />
-                        Edit
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={saveLayer.isPending}
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          saveLayer.mutate(layer.z)
-                        }}
-                      >
-                        <ImagePlus className="h-3.5 w-3.5" />
-                        To library
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          downloadFile(
-                            layer.url,
-                            `${(layer.name ?? `layer-${layer.z}`).replace(/[^\w-]+/g, '-').toLowerCase()}.png`,
-                            { onError: (err) => toast.error(err.message) },
-                          )
-                        }}
-                      >
-                        <Download className="h-3.5 w-3.5" />
-                        PNG
-                      </Button>
-                    </div>
+                  {selected === layer.z &&
+                    !isEditing &&
+                    textEdit?.z !== layer.z &&
+                    layer.z !== 0 &&
+                    (layer.live || layer.text?.text) && (
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {layer.live ? (
+                          <>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setTextEdit({
+                                  z: layer.z,
+                                  mode: 'live',
+                                  value: { ...layer.live! },
+                                })
+                              }}
+                            >
+                              <Type className="h-3.5 w-3.5" />
+                              Edit text
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              disabled={liveText.isPending}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                liveText.mutate({ z: layer.z, live: null })
+                              }}
+                            >
+                              <Undo2 className="h-3.5 w-3.5" />
+                              Original pixels
+                            </Button>
+                          </>
+                        ) : (
+                          <>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled={!!editJob}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                const live = liveTextFromLayer(layer)
+                                if (live)
+                                  setTextEdit({
+                                    z: layer.z,
+                                    mode: 'replace',
+                                    value: live,
+                                  })
+                              }}
+                            >
+                              <Paintbrush className="h-3.5 w-3.5" />
+                              Replace text
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                const live = liveTextFromLayer(layer)
+                                if (live)
+                                  setTextEdit({
+                                    z: layer.z,
+                                    mode: 'live',
+                                    value: live,
+                                  })
+                              }}
+                            >
+                              <Type className="h-3.5 w-3.5" />
+                              Make editable
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                    )}
+
+                  {textEdit?.z === layer.z && (
+                    <TextLayerForm
+                      layer={layer}
+                      edit={textEdit}
+                      onChange={(value) => setTextEdit({ ...textEdit, value })}
+                      onCancel={() => setTextEdit(null)}
+                      busy={startEdit.isPending || liveText.isPending}
+                      onSubmit={() => {
+                        if (textEdit.mode === 'live') {
+                          liveText.mutate({ z: layer.z, live: textEdit.value })
+                        } else {
+                          const before = liveTextFromLayer(layer)?.text ?? ''
+                          startEdit.mutate({
+                            layer,
+                            prompt: replaceTextPrompt(
+                              before,
+                              textEdit.value.text,
+                            ),
+                          })
+                        }
+                      }}
+                    />
                   )}
+
+                  {selected === layer.z &&
+                    !isEditing &&
+                    textEdit?.z !== layer.z && (
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={!!editJob}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setEditing(layer.z)
+                          }}
+                        >
+                          <Paintbrush className="h-3.5 w-3.5" />
+                          Edit
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={saveLayer.isPending}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            saveLayer.mutate(layer.z)
+                          }}
+                        >
+                          <ImagePlus className="h-3.5 w-3.5" />
+                          To library
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            downloadFile(
+                              layer.url,
+                              `${(layer.name ?? `layer-${layer.z}`).replace(/[^\w-]+/g, '-').toLowerCase()}.png`,
+                              { onError: (err) => toast.error(err.message) },
+                            )
+                          }}
+                        >
+                          <Download className="h-3.5 w-3.5" />
+                          PNG
+                        </Button>
+                      </div>
+                    )}
 
                   {isEditing && (
                     <div
@@ -471,7 +656,9 @@ export function LayerStack({
                           size="sm"
                           className="flex-1"
                           disabled={!editPrompt.trim() || startEdit.isPending}
-                          onClick={() => startEdit.mutate(layer)}
+                          onClick={() =>
+                            startEdit.mutate({ layer, prompt: editPrompt })
+                          }
                         >
                           {startEdit.isPending ? (
                             <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -504,6 +691,227 @@ export function LayerStack({
           </ul>
         </div>
       </div>
+    </div>
+  )
+}
+
+/**
+ * Replace text (re-rendered by the edit model, paid) or edit it live (drawn
+ * by us, free): the words, and for live text its colour, weight and slant.
+ */
+function TextLayerForm({
+  layer,
+  edit,
+  onChange,
+  onSubmit,
+  onCancel,
+  busy,
+}: {
+  layer: Layer
+  edit: { mode: 'replace' | 'live'; value: LayerTextProps }
+  onChange: (value: LayerTextProps) => void
+  onSubmit: () => void
+  onCancel: () => void
+  busy: boolean
+}) {
+  const v = edit.value
+  const live = edit.mode === 'live'
+  const original = liveTextFromLayer(layer)?.text ?? ''
+  const unchanged = !live && v.text.trim() === original.trim()
+  return (
+    <div className="mt-2 space-y-2" onClick={(e) => e.stopPropagation()}>
+      <textarea
+        autoFocus
+        value={v.text}
+        onChange={(e) => onChange({ ...v, text: e.target.value })}
+        maxLength={500}
+        rows={Math.min(4, Math.max(2, v.text.split('\n').length))}
+        className="block w-full resize-none rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:border-muted-foreground/60"
+      />
+      {live && (
+        <div className="flex items-center gap-1.5">
+          <input
+            type="color"
+            aria-label="Text colour"
+            value={/^#[0-9a-f]{6}$/i.test(v.color ?? '') ? v.color : '#ffffff'}
+            onChange={(e) => onChange({ ...v, color: e.target.value })}
+            className="h-8 w-8 cursor-pointer rounded-md border border-border bg-background p-0.5"
+          />
+          <Button
+            type="button"
+            size="sm"
+            variant={v.bold ? 'secondary' : 'ghost'}
+            aria-pressed={!!v.bold}
+            aria-label="Bold"
+            onClick={() => onChange({ ...v, bold: !v.bold })}
+          >
+            <Bold className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant={v.italic ? 'secondary' : 'ghost'}
+            aria-pressed={!!v.italic}
+            aria-label="Italic"
+            onClick={() => onChange({ ...v, italic: !v.italic })}
+          >
+            <Italic className="h-3.5 w-3.5" />
+          </Button>
+          <span
+            className="min-w-0 truncate text-xs text-muted-foreground"
+            title={v.fontFamily}
+          >
+            {v.fontFamily ?? 'Sans serif'}
+          </span>
+        </div>
+      )}
+      <div className="flex gap-1.5">
+        <Button
+          size="sm"
+          className="flex-1"
+          disabled={!v.text.trim() || busy || unchanged}
+          onClick={onSubmit}
+        >
+          {busy ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : live ? (
+            <Type className="h-3.5 w-3.5" />
+          ) : (
+            <Paintbrush className="h-3.5 w-3.5" />
+          )}
+          {live ? 'Save text · free' : 'Replace text'}
+          {!live && LAYER_EDIT_COST && (
+            <span className="font-normal tabular-nums opacity-80">
+              · {LAYER_EDIT_COST}
+            </span>
+          )}
+        </Button>
+        <Button size="sm" variant="ghost" onClick={onCancel}>
+          Cancel
+        </Button>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        {live
+          ? 'Drawn as live text where the words sat. Stays editable on the timeline as a text clip.'
+          : `${LAYER_EDIT?.name} Edit re-draws the words in the same type, billed to your fal account`}
+      </p>
+    </div>
+  )
+}
+
+const LENGTHS = [3, 5, 8, 10] as const
+
+/** "To timeline": pick a project, a length and a camera move; free */
+function SendToTimeline({
+  assetId,
+  defaultProjectId,
+  views,
+  layerCount,
+  onDone,
+}: {
+  assetId: string
+  defaultProjectId: string | null
+  views: Views
+  layerCount: number
+  onDone: () => void
+}) {
+  const navigate = useNavigate()
+  const { data: projects } = useQuery({
+    queryKey: ['projects', 'picker'],
+    queryFn: async () => {
+      const { listProjectsFn } = await import('@/server/project.server')
+      return (await listProjectsFn({ data: { limit: 50 } })).projects
+    },
+  })
+  const [projectId, setProjectId] = useState<string>('')
+  const [length, setLength] = useState<number>(5)
+  const [move, setMove] = useState<CameraMove>('push-in')
+  const chosen = projectId || defaultProjectId || projects?.[0]?.id || ''
+
+  const send = useMutation({
+    mutationFn: async () => {
+      const { sendLayersToTimelineFn } = await import('@/server/layers.server')
+      return sendLayersToTimelineFn({
+        data: {
+          assetId,
+          projectId: chosen,
+          durationSec: length,
+          move,
+          views: Object.entries(views).map(([z, v]) => ({
+            z: Number(z),
+            ...v,
+          })),
+        },
+      })
+    },
+    onSuccess: (res) => {
+      onDone()
+      toast.success(`${res.clips} layers added to ${res.projectName}`, {
+        action: {
+          label: 'Open',
+          onClick: () =>
+            navigate({
+              to: '/projects/$projectId',
+              params: { projectId: res.projectId },
+            }),
+        },
+      })
+    },
+    onError: (err) => toast.error(err.message),
+  })
+
+  return (
+    <div className="grid gap-4 rounded-xl border border-border bg-card p-4 md:grid-cols-[minmax(0,1fr)_auto_auto_auto] md:items-end">
+      <label className="block min-w-0">
+        <span className="mb-2 block text-sm font-medium">Project</span>
+        <select
+          value={chosen}
+          onChange={(e) => setProjectId(e.target.value)}
+          className="h-9 w-full rounded-lg border border-input bg-background px-2 text-sm"
+        >
+          {!projects?.length && <option value="">No projects yet</option>}
+          {projects?.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      <div>
+        <span className="mb-2 block text-sm font-medium">Length</span>
+        <Segmented
+          size="sm"
+          options={LENGTHS.map((l) => ({ value: l, label: `${l}s` }))}
+          value={length}
+          onChange={setLength}
+        />
+      </div>
+      <div>
+        <span className="mb-2 block text-sm font-medium">Camera</span>
+        <Segmented
+          size="sm"
+          options={CAMERA_MOVES.map((m) => ({ value: m.id, label: m.label }))}
+          value={move}
+          onChange={setMove}
+        />
+      </div>
+      <Button
+        onClick={() => send.mutate()}
+        disabled={!chosen || send.isPending || layerCount === 0}
+      >
+        {send.isPending ? (
+          <Loader2 className="h-4 w-4 animate-spin" />
+        ) : (
+          <Clapperboard className="h-4 w-4" />
+        )}
+        Add {layerCount} layers · free
+      </Button>
+      <p className="text-xs text-muted-foreground md:col-span-4">
+        Each visible layer goes on its own video lane (V1 is the base), editable
+        text on the overlay lane, all at the end of the cut. Nearer layers move
+        more than the base, so the still plays as a shot with depth — no video
+        model, no cost.
+      </p>
     </div>
   )
 }

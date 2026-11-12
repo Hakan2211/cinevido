@@ -1,20 +1,36 @@
 import { describe, expect, it } from 'vitest'
 import {
   MAX_BIBLE_ENTRIES,
+  bibleFromInput,
+  canCutOut,
+  cutoutCost,
+  cutoutPrompt,
   emptyBible,
   parseBible,
   referenceCost,
   referencePrompt,
   resolveCast,
+  resolvePackshot,
   shotReferences,
   stillRequest,
   upsertEntries,
+  waitingForCutout,
 } from './bible'
 import { applyPlanEdit, buildPlan, priceShot } from './production'
-import { RECIPES, recipeBible, recipeProjectName, recipeReady } from './recipes'
+import {
+  RECIPES,
+  recipeBible,
+  recipeBriefValues,
+  recipeProjectName,
+  recipeReady,
+} from './recipes'
 import type { ProjectBible } from './bible'
 import { buildEditPayload } from '@/server/services/edit.server'
-import { DIRECTOR_MODELS, EDIT_MODELS } from '@/server/services/types'
+import {
+  DEFAULT_MODELS,
+  DIRECTOR_MODELS,
+  EDIT_MODELS,
+} from '@/server/services/types'
 
 const bible = (): ProjectBible => ({
   version: 1,
@@ -227,6 +243,7 @@ describe('recipes', () => {
     })
     expect(seeded.entries).toEqual([
       {
+        fieldId: 'photo',
         name: 'Ember cold brew',
         kind: 'product',
         description: 'matte black can',
@@ -250,5 +267,200 @@ describe('recipes', () => {
     const brief = r.brief({ topic: 'heat pumps' })
     expect(brief).not.toContain('Audience:')
     expect(brief).not.toContain('undefined')
+  })
+})
+
+describe('cut-outs', () => {
+  const withCut = (): ProjectBible => {
+    const b = bible()
+    b.entries[2] = {
+      ...b.entries[2],
+      imageUrl: 'https://cdn/cup-cut.png',
+      cutout: true,
+      uncut: { imageUrl: 'https://cdn/cup.png', assetId: 'a-cup' },
+    }
+    return b
+  }
+
+  it('costs one Seedream 5.5 Edit output at the 2K rate plus the reference', () => {
+    expect(cutoutCost()).toBeCloseTo(0.0405 + 0.012)
+    expect(cutoutPrompt({ kind: 'product', name: 'Ember cup' })).toContain(
+      'transparent',
+    )
+  })
+
+  it('is offered for people and products with an image, once', () => {
+    const b = withCut()
+    expect(canCutOut(b.entries[0])).toBe(true) // Mara
+    expect(canCutOut(b.entries[1])).toBe(false) // a place, no image
+    expect(canCutOut(b.entries[2])).toBe(false) // already cut out
+  })
+
+  it('keeps the cut-out while the image stays, drops it when the image changes', () => {
+    const prev = withCut()
+    const input = (imageUrl?: string) => ({
+      style: prev.style,
+      entries: prev.entries.map((e) => ({
+        id: e.id,
+        kind: e.kind,
+        name: e.name,
+        description: e.description,
+        imageUrl: e.id === 'ref-cup' ? imageUrl : e.imageUrl,
+      })),
+    })
+    const kept = bibleFromInput(input('https://cdn/cup-cut.png'), prev)
+      .entries[2]
+    expect(kept.cutout).toBe(true)
+    expect(kept.uncut?.imageUrl).toBe('https://cdn/cup.png')
+    // "Undo cut-out" sends the old image back
+    const undone = bibleFromInput(input('https://cdn/cup.png'), prev).entries[2]
+    expect(undone.cutout).toBeUndefined()
+    expect(undone.uncut).toBeUndefined()
+  })
+
+  it('a running cut-out survives a save of the same image, not a new one', () => {
+    const prev = bible()
+    prev.entries[0].pending = {
+      status: 'running',
+      costUsd: 0.05,
+      startedAt: 'now',
+    }
+    prev.entries[0].pendingCutout = true
+    const entries = (url: string) =>
+      prev.entries.map((e) => ({
+        id: e.id,
+        kind: e.kind,
+        name: e.name,
+        description: e.description,
+        imageUrl: e.id === 'ref-mara' ? url : e.imageUrl,
+      }))
+    const same = bibleFromInput(
+      { style: '', entries: entries('https://cdn/mara.png') },
+      prev,
+    )
+    expect(same.entries[0].pendingCutout).toBe(true)
+    expect(waitingForCutout(same, { cast: ['ref-mara'] })).toBe(true)
+    const other = bibleFromInput(
+      { style: '', entries: entries('https://cdn/other.png') },
+      prev,
+    )
+    expect(other.entries[0].pending).toBeUndefined()
+    expect(waitingForCutout(other, { cast: ['ref-mara'] })).toBe(false)
+  })
+})
+
+describe('packshots', () => {
+  const withCut = (): ProjectBible => {
+    const b = bible()
+    b.entries[2] = {
+      ...b.entries[2],
+      imageUrl: 'https://cdn/cup-cut.png',
+      cutout: true,
+    }
+    return b
+  }
+
+  it('generate only the set and place the cut-out once it exists', () => {
+    const req = stillRequest(withCut(), {
+      prompt: 'Walnut table, morning window light.',
+      cast: ['ref-cup'],
+      packshot: 'ref-cup',
+    })
+    expect(req.mode).toBe('packshot')
+    if (req.mode !== 'packshot') return
+    expect(req.cutoutUrl).toBe('https://cdn/cup-cut.png')
+    expect(req.prompt).toContain('Do not show Ember cup')
+    expect(req.prompt).toContain('Style: 35mm film')
+  })
+
+  it('fall back to a reference edit while the product has no cut-out', () => {
+    const b = bible()
+    b.entries[2].imageUrl = 'https://cdn/cup.png'
+    const req = stillRequest(b, {
+      prompt: 'Table',
+      cast: ['ref-cup'],
+      packshot: 'ref-cup',
+    })
+    expect(req.mode).toBe('reference')
+  })
+
+  it('resolve by name with a warning when there is nothing to place', () => {
+    expect(resolvePackshot(withCut(), 'ember CUP')).toEqual({ id: 'ref-cup' })
+    expect(resolvePackshot(bible(), 'Ember cup').warning).toContain(
+      'no cut-out',
+    )
+    expect(resolvePackshot(bible(), 'The café').id).toBeUndefined()
+    expect(resolvePackshot(bible(), 'Nobody').id).toBeUndefined()
+  })
+
+  it('always sit in the cast, survive edits, and a new packshot drops the still', () => {
+    const plan = buildPlan(
+      {
+        title: 'Ad',
+        shots: [
+          {
+            title: 'Hero',
+            description: 'd',
+            durationSec: 5,
+            prompt: 'Table',
+            motion: 'push-in',
+            packshot: 'ref-cup',
+          },
+        ],
+      },
+      { budgetUsd: 10, width: 1920, height: 1080 },
+    )
+    expect(plan.shots[0].cast).toEqual(['ref-cup'])
+    expect(plan.shots[0].packshot).toBe('ref-cup')
+    // priced as a reference edit until the runner knows better (quote high)
+    expect(
+      priceShot(plan.shots[0], plan.models, plan.aspectRatio).stillUsd,
+    ).toBeGreaterThan(0.03)
+
+    plan.shots[0].still = {
+      status: 'done',
+      url: 'https://cdn/still.png',
+      costUsd: 0.03,
+      startedAt: 'x',
+    }
+    const same = applyPlanEdit(plan, { shots: [{ ...plan.shots[0] }] })
+    expect(same.shots[0].still?.url).toBe('https://cdn/still.png')
+    const off = applyPlanEdit(plan, {
+      shots: [{ ...plan.shots[0], packshot: null }],
+    })
+    expect(off.shots[0].packshot).toBeUndefined()
+    expect(off.shots[0].still).toBeUndefined()
+  })
+})
+
+describe('recipe cut-outs', () => {
+  it('marks given and cut-out photos for the brief', () => {
+    const r = RECIPES.find((x) => x.id === 'product-ad')!
+    const photo = r.fields.find((f) => f.id === 'photo')!
+    expect(photo.bible?.cutout).toBe(true)
+    const values = recipeBriefValues(
+      { product: 'Ember' },
+      { photo: { url: 'u' } },
+      { photo: true },
+    )
+    expect(values).toMatchObject({ photo: 'photo', photoCutout: 'yes' })
+    expect(r.brief(values)).toContain('set `packshot` to the product')
+    expect(
+      r.brief(recipeBriefValues({ product: 'Ember' }, { photo: { url: 'u' } })),
+    ).not.toContain('`packshot`')
+  })
+
+  it('social short now sees its photo', () => {
+    const r = RECIPES.find((x) => x.id === 'social-short')!
+    expect(
+      r.brief(
+        recipeBriefValues({ subject: 'Croissant' }, { photo: { url: 'u' } }),
+      ),
+    ).toContain('Project Bible')
+    expect(r.brief({ subject: 'Croissant' })).not.toContain('Project Bible')
+  })
+
+  it('cuts out with the layer-edit model', () => {
+    expect(DEFAULT_MODELS.layerEdit).toBe('bytedance/seedream/v5.5/edit')
   })
 })

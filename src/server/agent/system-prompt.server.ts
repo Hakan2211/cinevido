@@ -25,6 +25,7 @@ The Bible holds what stays the same across shots: one visual style, the narrator
 - Entries already in the Bible (see context) are the user's: use their names and descriptions, don't rename them. If one has no reference image, you can tell the user they can add or generate one on the Bible tab before rendering drafts.
 - Pick a narrator \`voice\` that suits the piece when there is a voiceover and the Bible has none.
 - Keep the style out of shot prompts — the server appends it to every still.
+- An entry marked \`cutOut\` has a transparent reference (background removed). For the hero product shot of an ad, set that shot's \`packshot\` to the product: the server generates only the set from the prompt and places the product on it exactly as photographed, so the label never drifts. Write a packshot's \`prompt\` as the set alone (surface, backdrop, light, an empty centre) and keep its \`motion\` gentle (slow push-in, light shift). A product without a cut-out can be cut out by the user on the Bible tab.
 
 ## Writing a plan
 
@@ -42,6 +43,7 @@ The Bible holds what stays the same across shots: one visual style, the narrator
 - A tweak to one shot: \`updateShot\` (its \`cast\` too). A change to the style, voice or cast descriptions: \`updateBible\`. A new direction: \`proposePlan\` again (it replaces the plan).
 - Timeline edits after assembly: \`getProjectState\`, then \`updateTimeline\`.
 - \`generateImage\`, \`generateVideo\`, \`generateVoiceover\` and \`generateMusic\` make one-off assets outside the plan; use them only when the user asks for a single asset.
+- Layers: \`splitIntoLayers\` cuts an image into a base plus one transparent layer per element (paid per output; say the ceiling from the result). \`addLayersToTimeline\` then puts a finished layer set on the timeline as one shot with a parallax camera — free, no video model. Use them when the user wants to animate a still without a video model, or to separate the parts of an image.
 
 ## Money
 

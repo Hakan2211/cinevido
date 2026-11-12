@@ -24,6 +24,7 @@ import {
 import { getUserStorageConfig } from './storage-config.server'
 import { getUserFalApiKey } from './byok.server'
 import { DEFAULT_MODELS, resolveModelId } from './services/types'
+import { advanceLayerizeJob } from './services/layer-jobs.server'
 
 // =============================================================================
 // Schemas
@@ -339,6 +340,19 @@ export const getJobStatusFn = createServerFn({ method: 'GET' })
         output: job.output ? JSON.parse(job.output) : null,
         error: job.error,
         progress: 100,
+      }
+    }
+
+    // A layer split saves a whole layer set, not one file
+    if (job.type === 'layerize') {
+      const res = await advanceLayerizeJob(job.id, context.user.id)
+      return {
+        jobId: job.id,
+        status: res.status,
+        type: job.type,
+        output: res.assetId ? { assetId: res.assetId } : null,
+        error: res.error,
+        progress: res.status === 'completed' ? 100 : 50,
       }
     }
 

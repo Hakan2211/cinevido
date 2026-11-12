@@ -14,6 +14,7 @@ import { z } from 'zod'
 import { authMiddleware } from './middleware.server'
 import { getUserFalApiKey } from './byok.server'
 import { generateImage } from './services/fal.server'
+import { editImage } from './services/edit.server'
 import { DIRECTOR_MODELS } from './services/types'
 import {
   loadProduction,
@@ -23,8 +24,12 @@ import {
   withProjectLock,
 } from './agent/production.server'
 import {
+  CUTOUT_MODEL,
   REFERENCE_SIZE,
   bibleFromInput,
+  canCutOut,
+  cutoutCost,
+  cutoutPrompt,
   bibleInputSchema,
   referenceCost,
   referencePrompt,
@@ -91,6 +96,65 @@ export const generateReferenceFn = createServerFn({ method: 'POST' })
         input: { prompt, ...REFERENCE_SIZE },
         start: () => generateImage({ prompt, model, ...REFERENCE_SIZE }, key),
       })
+      entry.pendingCutout = undefined
+      await saveBible(data.projectId, bible)
+      return { bible }
+    })
+  })
+
+/**
+ * Cut an entry's reference out of its background (Seedream 5.5 Edit,
+ * transparent PNG) — a clean product or character for the reference edits
+ * and for packshots. Billed to the user's key like a generated reference,
+ * not to the production budget. "Undo cut-out" restores `uncut`.
+ */
+export const cutoutReferenceFn = createServerFn({ method: 'POST' })
+  .middleware([authMiddleware])
+  .inputValidator(z.object({ projectId: z.string(), entryId: z.string() }))
+  .handler(async ({ data, context }) => {
+    const ctx = { projectId: data.projectId, userId: context.user.id }
+    return withProjectLock(data.projectId, async () => {
+      const { bible } = await loadProduction(ctx)
+      const entry = bible.entries.find((e) => e.id === data.entryId)
+      if (!entry) throw new Error('That entry is gone — save the Bible first.')
+      if (!entry.imageUrl) throw new Error('Pick a reference image first.')
+      if (!canCutOut(entry)) {
+        throw new Error(
+          entry.cutout
+            ? 'This reference is already cut out.'
+            : entry.kind === 'place'
+              ? 'Places are backgrounds — there is nothing to cut out.'
+              : 'Wait for the reference that is being made.',
+        )
+      }
+      const key = await getUserFalApiKey(context.user.id)
+      const prompt = cutoutPrompt(entry)
+      const imageUrls = [entry.imageUrl]
+      entry.pending = await submitJob({
+        ctx,
+        key,
+        stage: 'cutout',
+        costUsd: cutoutCost(),
+        type: 'edit',
+        model: CUTOUT_MODEL,
+        input: {
+          prompt,
+          imageUrls,
+          editType: 'edit',
+          background: 'transparent',
+        },
+        start: () =>
+          editImage(
+            {
+              prompt,
+              imageUrls,
+              model: CUTOUT_MODEL,
+              background: 'transparent',
+            },
+            key,
+          ),
+      })
+      entry.pendingCutout = true
       await saveBible(data.projectId, bible)
       return { bible }
     })
@@ -112,13 +176,20 @@ export const pollBibleFn = createServerFn({ method: 'POST' })
       const before = JSON.stringify(bible)
       await Promise.all(
         running.map(async (entry) => {
+          const cut = !!entry.pendingCutout
           const step = await pollStep(entry.pending!, 'image', ctx, key, {
-            stage: `reference ${entry.name}`,
+            stage: `${cut ? 'cut-out' : 'reference'} ${entry.name}`,
+            ...(cut && { metadata: { transparent: true } }),
           })
           if (step.status === 'done' && step.url) {
+            if (cut && entry.imageUrl) {
+              entry.uncut = { imageUrl: entry.imageUrl, assetId: entry.assetId }
+              entry.cutout = true
+            }
             entry.imageUrl = step.url
             entry.assetId = step.assetId
             entry.pending = undefined
+            entry.pendingCutout = undefined
           } else {
             entry.pending = step
           }

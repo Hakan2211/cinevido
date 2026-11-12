@@ -33,15 +33,19 @@ import { GalleryItem } from '@/components/dashboard'
 import { BRIEF_STORAGE_PREFIX } from '@/components/studio/ChatPanel'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
+import { Switch } from '@/components/ui/switch'
 import { FrameSlot } from '@/components/generate/FrameSlot'
 import { ImagePickerDialog } from '@/components/generate/ImagePickerDialog'
 import { cn } from '@/lib/utils'
 import {
   RECIPES,
   recipeBible,
+  recipeBriefValues,
   recipeProjectName,
   recipeReady,
 } from '@/lib/recipes'
+import { cutoutCost, newEntryId } from '@/lib/bible'
+import { formatUsd } from '@/lib/pricing'
 import type { Recipe, RecipeValues } from '@/lib/recipes'
 import type { SlotImage } from '@/components/generate/FrameSlot'
 
@@ -86,8 +90,12 @@ function HomePage() {
   const [format, setFormat] = useState<FormatId>('16:9')
   const [recipe, setRecipe] = useState<Recipe | null>(null)
   const [values, setValues] = useState<RecipeValues>({})
-  const [images, setImages] = useState<Record<string, SlotImage | undefined>>({})
+  const [images, setImages] = useState<Record<string, SlotImage | undefined>>(
+    {},
+  )
   const [picking, setPicking] = useState<string | null>(null)
+  /** recipe photos to cut out of their background after Create (paid) */
+  const [cutouts, setCutouts] = useState<Record<string, boolean>>({})
 
   const { data: projectsData, isLoading: projectsLoading } = useQuery({
     queryKey: ['projects', 'recent'],
@@ -112,11 +120,18 @@ function HomePage() {
       name: string
       format: FormatId
       budgetUsd?: number
-      bible?: ReturnType<typeof recipeBible>
+      bible?: {
+        style: string
+        entries: Array<
+          ReturnType<typeof recipeBible>['entries'][number] & { id: string }
+        >
+      }
+      /** Bible entry ids whose photo is cut out once the project exists */
+      cutoutIds?: Array<string>
     }) => {
       const size = FORMATS.find((f) => f.id === input.format) ?? FORMATS[0]
       const { createProjectFn } = await import('@/server/project.server')
-      return createProjectFn({
+      const project = await createProjectFn({
         data: {
           name: input.name,
           width: size.width,
@@ -125,6 +140,7 @@ function HomePage() {
           bible: input.bible && {
             style: input.bible.style,
             entries: input.bible.entries.map((e) => ({
+              id: e.id,
               kind: e.kind ?? 'character',
               name: e.name,
               description: e.description ?? '',
@@ -134,6 +150,18 @@ function HomePage() {
           },
         },
       })
+      // start the cut-outs now; the Studio's Bible polls them
+      if (input.cutoutIds?.length) {
+        const { cutoutReferenceFn } = await import('@/server/bible.server')
+        for (const entryId of input.cutoutIds) {
+          await cutoutReferenceFn({
+            data: { projectId: project.id, entryId },
+          }).catch((err: Error) =>
+            toast.error(`Cut-out didn't start: ${err.message}`),
+          )
+        }
+      }
+      return project
     },
     onSuccess: (project, { text }) => {
       sessionStorage.setItem(`${BRIEF_STORAGE_PREFIX}${project.id}`, text)
@@ -149,12 +177,24 @@ function HomePage() {
     if (create.isPending) return
     if (recipe) {
       if (!recipeReady(recipe, values)) return
+      const wanted = cutoutFields(recipe, images, cutouts)
+      const bible = recipeBible(recipe, values, images)
+      const entries = bible.entries.map((e) => ({ ...e, id: newEntryId() }))
       create.mutate({
-        text: recipe.brief(values),
+        text: recipe.brief(
+          recipeBriefValues(
+            values,
+            images,
+            Object.fromEntries(wanted.map((id) => [id, true])),
+          ),
+        ),
         name: recipeProjectName(recipe, values),
         format: recipe.format,
         budgetUsd: recipe.budgetUsd,
-        bible: recipeBible(recipe, values, images),
+        bible: { ...bible, entries },
+        cutoutIds: entries
+          .filter((e) => wanted.includes(e.fieldId))
+          .map((e) => e.id),
       })
       return
     }
@@ -167,8 +207,10 @@ function HomePage() {
     setRecipe(r)
     setValues({})
     setImages({})
+    setCutouts({})
   }
   const canCreate = recipe ? recipeReady(recipe, values) : !!brief.trim()
+  const cutCount = recipe ? cutoutFields(recipe, images, cutouts).length : 0
 
   const projects = projectsData?.projects ?? []
 
@@ -188,50 +230,57 @@ function HomePage() {
               images={images}
               onChange={(id, v) => setValues((prev) => ({ ...prev, [id]: v }))}
               onPick={setPicking}
-              onClearImage={(id) => setImages((prev) => ({ ...prev, [id]: undefined }))}
+              onClearImage={(id) =>
+                setImages((prev) => ({ ...prev, [id]: undefined }))
+              }
+              cutouts={cutouts}
+              onCutout={(id, on) =>
+                setCutouts((prev) => ({ ...prev, [id]: on }))
+              }
               onClose={() => setRecipe(null)}
               onSubmit={handleCreate}
             />
           ) : (
-          <div className="flex gap-3">
-            <Sparkles className="mt-1 h-5 w-5 shrink-0 text-muted-foreground" />
-            <textarea
-              value={brief}
-              onChange={(e) => setBrief(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault()
-                  handleCreate()
-                }
-              }}
-              placeholder="Describe your idea in a few words…"
-              rows={3}
-              className="min-h-[84px] w-full resize-none bg-transparent text-base leading-relaxed outline-none placeholder:text-muted-foreground/70"
-            />
-          </div>
+            <div className="flex gap-3">
+              <Sparkles className="mt-1 h-5 w-5 shrink-0 text-muted-foreground" />
+              <textarea
+                value={brief}
+                onChange={(e) => setBrief(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault()
+                    handleCreate()
+                  }
+                }}
+                placeholder="Describe your idea in a few words…"
+                rows={3}
+                className="min-h-[84px] w-full resize-none bg-transparent text-base leading-relaxed outline-none placeholder:text-muted-foreground/70"
+              />
+            </div>
           )}
           <div className="mt-3 flex items-center gap-3 border-t border-border pt-3">
             {recipe ? (
               <span className="text-xs tabular-nums text-muted-foreground">
-                {recipe.format} · {recipe.lengthSec}s · budget ${recipe.budgetUsd}
+                {recipe.format} · {recipe.lengthSec}s · budget $
+                {recipe.budgetUsd}
               </span>
             ) : (
-            <div className="flex items-center gap-1 rounded-lg bg-muted p-0.5">
-              {FORMATS.map((f) => (
-                <button
-                  key={f.id}
-                  onClick={() => setFormat(f.id)}
-                  className={cn(
-                    'rounded-md px-2.5 py-1 text-xs font-medium tabular-nums transition-colors',
-                    format === f.id
-                      ? 'bg-secondary text-foreground ring-1 ring-border'
-                      : 'text-muted-foreground hover:text-foreground',
-                  )}
-                >
-                  {f.label}
-                </button>
-              ))}
-            </div>
+              <div className="flex items-center gap-1 rounded-lg bg-muted p-0.5">
+                {FORMATS.map((f) => (
+                  <button
+                    key={f.id}
+                    onClick={() => setFormat(f.id)}
+                    className={cn(
+                      'rounded-md px-2.5 py-1 text-xs font-medium tabular-nums transition-colors',
+                      format === f.id
+                        ? 'bg-secondary text-foreground ring-1 ring-border'
+                        : 'text-muted-foreground hover:text-foreground',
+                    )}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
             )}
             <span className="hidden text-xs text-muted-foreground sm:block">
               The Director plans it — nothing renders until you approve.
@@ -247,6 +296,11 @@ function HomePage() {
                 <Play className="h-4 w-4 fill-current" />
               )}
               Create
+              {cutCount > 0 && (
+                <span className="font-normal tabular-nums opacity-80">
+                  · ≈ {formatUsd(cutoutCost() * cutCount)}
+                </span>
+              )}
             </Button>
           </div>
         </div>
@@ -277,7 +331,8 @@ function HomePage() {
           onOpenChange={(o) => !o && setPicking(null)}
           title="Reference photo"
           onPick={([img]) => {
-            if (img && picking) setImages((prev) => ({ ...prev, [picking]: img }))
+            if (img && picking)
+              setImages((prev) => ({ ...prev, [picking]: img }))
           }}
         />
       </section>
@@ -387,22 +442,37 @@ function formatFrames(frames: number, fps: number): string {
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
 }
 
+/** Photo fields that are filled in and set to be cut out */
+function cutoutFields(
+  recipe: Recipe,
+  images: Record<string, SlotImage | undefined>,
+  cutouts: Record<string, boolean>,
+): Array<string> {
+  return recipe.fields
+    .filter((f) => f.bible?.cutout && images[f.id] && cutouts[f.id])
+    .map((f) => f.id)
+}
+
 function RecipeForm({
   recipe,
   values,
   images,
+  cutouts,
   onChange,
   onPick,
   onClearImage,
+  onCutout,
   onClose,
   onSubmit,
 }: {
   recipe: Recipe
   values: RecipeValues
   images: Record<string, SlotImage | undefined>
+  cutouts: Record<string, boolean>
   onChange: (id: string, value: string) => void
   onPick: (fieldId: string) => void
   onClearImage: (fieldId: string) => void
+  onCutout: (fieldId: string, on: boolean) => void
   onClose: () => void
   onSubmit: () => void
 }) {
@@ -415,11 +485,21 @@ function RecipeForm({
           <p className="font-medium">{recipe.label}</p>
           <p className="text-xs text-muted-foreground">{recipe.summary}</p>
         </div>
-        <Button variant="ghost" size="icon-sm" onClick={onClose} aria-label="Close recipe">
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          onClick={onClose}
+          aria-label="Close recipe"
+        >
           <X />
         </Button>
       </div>
-      <div className={cn('grid gap-4', pics.length > 0 && 'sm:grid-cols-[1fr_180px]')}>
+      <div
+        className={cn(
+          'grid gap-4',
+          pics.length > 0 && 'sm:grid-cols-[1fr_180px]',
+        )}
+      >
         <div className="space-y-3">
           {text.map((f, i) => (
             <label key={f.id} className="block space-y-1">
@@ -467,6 +547,17 @@ function RecipeForm({
                   onClear={() => onClearImage(f.id)}
                 />
                 <p className="text-xs text-muted-foreground">{f.placeholder}</p>
+                {f.bible?.cutout && images[f.id] && (
+                  <label className="flex items-center justify-between gap-2 pt-1 text-xs">
+                    <span title="Removes the background (transparent PNG): a cleaner reference, and the product can be placed as it is on a generated set for the packshot">
+                      Cut out the background · ≈ {formatUsd(cutoutCost())}
+                    </span>
+                    <Switch
+                      checked={!!cutouts[f.id]}
+                      onCheckedChange={(on) => onCutout(f.id, on)}
+                    />
+                  </label>
+                )}
               </div>
             ))}
           </div>

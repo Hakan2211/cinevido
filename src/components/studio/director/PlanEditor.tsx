@@ -70,6 +70,7 @@ export function PlanEditor({
         prompt: s.prompt,
         motion: s.motion,
         cast: s.cast ?? [],
+        packshot: s.packshot ?? null,
       })),
     )
   }, [open, plan])
@@ -82,6 +83,7 @@ export function PlanEditor({
       ...(plan.shots[0] ?? {}),
       ...s,
       id: s.id ?? '',
+      packshot: s.packshot ?? undefined,
       durationSec: shotDuration(s.durationSec, models),
       decision: null,
       wantDraft: false,
@@ -100,7 +102,8 @@ export function PlanEditor({
       return next
     })
 
-  const valid = shots.length > 0 && shots.every((s) => s.prompt.trim().length > 0)
+  const valid =
+    shots.length > 0 && shots.every((s) => s.prompt.trim().length > 0)
 
   const save = () => {
     production.updatePlan.mutate(
@@ -130,7 +133,10 @@ export function PlanEditor({
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="space-y-1.5 text-sm">
                 <span className="text-muted-foreground">Title</span>
-                <Input value={title} onChange={(e) => setTitle(e.target.value)} />
+                <Input
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                />
               </label>
               <label className="space-y-1.5 text-sm">
                 <span className="text-muted-foreground">Final model</span>
@@ -138,7 +144,8 @@ export function PlanEditor({
                   value={keyOf(final)}
                   onValueChange={(v) => {
                     const o = options.find((x) => keyOf(x) === v)
-                    if (o) setFinal({ model: o.model, resolution: o.resolution })
+                    if (o)
+                      setFinal({ model: o.model, resolution: o.resolution })
                   }}
                 >
                   <SelectTrigger className="w-full">
@@ -147,7 +154,10 @@ export function PlanEditor({
                   <SelectContent>
                     {options.map((o) => (
                       <SelectItem key={keyOf(o)} value={keyOf(o)}>
-                        {o.label} <span className="text-muted-foreground">· {o.tier}</span>
+                        {o.label}{' '}
+                        <span className="text-muted-foreground">
+                          · {o.tier}
+                        </span>
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -156,9 +166,14 @@ export function PlanEditor({
             </div>
 
             {shots.map((shot, i) => (
-              <div key={shot.id ?? `new-${i}`} className="space-y-2 rounded-lg border border-border bg-background p-3">
+              <div
+                key={shot.id ?? `new-${i}`}
+                className="space-y-2 rounded-lg border border-border bg-background p-3"
+              >
                 <div className="flex items-center gap-2">
-                  <span className="w-5 text-sm text-muted-foreground">{i + 1}</span>
+                  <span className="w-5 text-sm text-muted-foreground">
+                    {i + 1}
+                  </span>
                   <Input
                     value={shot.title}
                     onChange={(e) => patch(i, { title: e.target.value })}
@@ -170,17 +185,31 @@ export function PlanEditor({
                     min={1}
                     max={30}
                     value={shot.durationSec}
-                    onChange={(e) => patch(i, { durationSec: Number(e.target.value) || 5 })}
+                    onChange={(e) =>
+                      patch(i, { durationSec: Number(e.target.value) || 5 })
+                    }
                     className="h-8 w-20"
                     aria-label="Seconds"
                   />
                   <span className="text-xs text-muted-foreground">
                     → {shotDuration(shot.durationSec, models)}s
                   </span>
-                  <Button variant="ghost" size="icon-sm" onClick={() => move(i, -1)} disabled={i === 0} aria-label="Move up">
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={() => move(i, -1)}
+                    disabled={i === 0}
+                    aria-label="Move up"
+                  >
                     <ArrowUp />
                   </Button>
-                  <Button variant="ghost" size="icon-sm" onClick={() => move(i, 1)} disabled={i === shots.length - 1} aria-label="Move down">
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={() => move(i, 1)}
+                    disabled={i === shots.length - 1}
+                    aria-label="Move down"
+                  >
                     <ArrowDown />
                   </Button>
                   <Button
@@ -214,7 +243,9 @@ export function PlanEditor({
                 />
                 {cast.length > 0 && (
                   <div className="flex flex-wrap items-center gap-1.5">
-                    <span className="mr-1 text-xs text-muted-foreground">Cast</span>
+                    <span className="mr-1 text-xs text-muted-foreground">
+                      Cast
+                    </span>
                     {cast.map((entry) => {
                       const on = shot.cast?.includes(entry.id) ?? false
                       const full = (shot.cast?.length ?? 0) >= MAX_SHOT_REFS
@@ -229,6 +260,11 @@ export function PlanEditor({
                               cast: on
                                 ? shot.cast?.filter((id) => id !== entry.id)
                                 : [...(shot.cast ?? []), entry.id],
+                              // leaving the cast ends a packshot of it
+                              ...(on &&
+                                shot.packshot === entry.id && {
+                                  packshot: null,
+                                }),
                             })
                           }
                           className={cn(
@@ -237,10 +273,18 @@ export function PlanEditor({
                               ? 'border-primary/60 bg-primary/10 text-foreground'
                               : 'border-border text-muted-foreground hover:text-foreground',
                           )}
-                          title={entry.imageUrl ? 'Has a reference image' : 'No reference image — text only'}
+                          title={
+                            entry.imageUrl
+                              ? 'Has a reference image'
+                              : 'No reference image — text only'
+                          }
                         >
                           {entry.imageUrl ? (
-                            <img src={entry.imageUrl} alt="" className="h-5 w-5 rounded-full object-cover" />
+                            <img
+                              src={entry.imageUrl}
+                              alt=""
+                              className="h-5 w-5 rounded-full object-cover"
+                            />
                           ) : (
                             <span className="h-5 w-5 rounded-full bg-muted" />
                           )}
@@ -250,6 +294,49 @@ export function PlanEditor({
                     })}
                   </div>
                 )}
+                {(() => {
+                  // products already cut out can be placed as they are
+                  const cutouts = cast.filter(
+                    (e) => e.kind === 'product' && e.cutout && e.imageUrl,
+                  )
+                  if (cutouts.length === 0) return null
+                  return (
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="mr-1 text-xs text-muted-foreground">
+                        Packshot
+                      </span>
+                      {cutouts.map((entry) => {
+                        const on = shot.packshot === entry.id
+                        return (
+                          <button
+                            key={entry.id}
+                            type="button"
+                            aria-pressed={on}
+                            onClick={() =>
+                              patch(i, {
+                                packshot: on ? null : entry.id,
+                                cast: on
+                                  ? shot.cast
+                                  : shot.cast?.includes(entry.id)
+                                    ? shot.cast
+                                    : [entry.id, ...(shot.cast ?? [])],
+                              })
+                            }
+                            className={cn(
+                              'rounded-full border px-2.5 py-0.5 text-xs transition-colors',
+                              on
+                                ? 'border-primary/60 bg-primary/10 text-foreground'
+                                : 'border-border text-muted-foreground hover:text-foreground',
+                            )}
+                            title="Place the cut-out exactly as it is on a set generated from this shot's prompt"
+                          >
+                            {entry.name} on set
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )
+                })()}
               </div>
             ))}
 
@@ -260,7 +347,14 @@ export function PlanEditor({
                 onClick={() =>
                   setShots((p) => [
                     ...p,
-                    { title: `Shot ${p.length + 1}`, description: '', durationSec: 5, prompt: '', motion: '', cast: [] },
+                    {
+                      title: `Shot ${p.length + 1}`,
+                      description: '',
+                      durationSec: 5,
+                      prompt: '',
+                      motion: '',
+                      cast: [],
+                    },
                   ])
                 }
               >
@@ -271,13 +365,17 @@ export function PlanEditor({
 
           <DialogFooter className="items-center border-t border-border px-6 py-4 sm:justify-between">
             <p className="text-xs text-muted-foreground">
-              est. {formatUsd(totals.draftUsd)} draft / {formatUsd(totals.finalUsd)} final
+              est. {formatUsd(totals.draftUsd)} draft /{' '}
+              {formatUsd(totals.finalUsd)} final
             </p>
             <div className="flex gap-2">
               <Button variant="secondary" onClick={() => onOpenChange(false)}>
                 Cancel
               </Button>
-              <Button onClick={save} disabled={!valid || production.updatePlan.isPending}>
+              <Button
+                onClick={save}
+                disabled={!valid || production.updatePlan.isPending}
+              >
                 Save plan
               </Button>
             </div>

@@ -5,6 +5,8 @@
  *
  * Deliberately NOT a compositing inspector: the render is a cuts-first
  * composition, so position/scale/rotation knobs would be wired to nothing.
+ * The one exception is a layer clip (a split image sent to the timeline):
+ * it does have a camera, so it gets pan and zoom fields.
  */
 
 import { useState } from 'react'
@@ -19,6 +21,8 @@ import {
   sequenceEndFrame,
 } from '../../../remotion/types'
 import type {
+  CameraKey,
+  ClipPlacement,
   ManifestClip,
   ManifestTrack,
   ProjectManifest,
@@ -138,10 +142,35 @@ export function Inspector({
         }
       />
 
-      {clipHasAudio(clip) && (
+      {clipHasAudio(clip) && !clip.placement && (
         <GainField
           gain={clip.gain}
           onChange={(v) => onPatchClip({ gain: v })}
+        />
+      )}
+
+      {typeof clip.props?.text === 'string' && (
+        <label className="flex flex-col gap-1 text-xs">
+          <span className="text-muted-foreground">Text</span>
+          <textarea
+            key={clip.id}
+            defaultValue={clip.props.text}
+            rows={2}
+            maxLength={500}
+            onBlur={(e) => {
+              if (e.target.value !== clip.props?.text) {
+                onPatchClip({ props: { ...clip.props, text: e.target.value } })
+              }
+            }}
+            className="resize-none rounded border bg-background px-2 py-1.5 text-xs"
+          />
+        </label>
+      )}
+
+      {clip.placement && (
+        <CameraFields
+          placement={clip.placement}
+          onChange={(placement) => onPatchClip({ placement })}
         />
       )}
 
@@ -298,6 +327,89 @@ function GainField({
         <span>0 dB</span>
         <span>+{GAIN_MAX_DB} dB</span>
       </div>
+    </div>
+  )
+}
+
+/**
+ * A layer clip's camera: pan and zoom at its first and last frame. Each layer
+ * has its own, so nearer layers can move more than the base (parallax).
+ */
+function CameraFields({
+  placement,
+  onChange,
+}: {
+  placement: ClipPlacement
+  onChange: (placement: ClipPlacement) => void
+}) {
+  const set = (end: 'from' | 'to', key: keyof CameraKey, value: number) =>
+    onChange({ ...placement, [end]: { ...placement[end], [key]: value } })
+  const rows: Array<{
+    key: keyof CameraKey
+    label: string
+    min: number
+    max: number
+    step: number
+    show: (v: number) => string
+  }> = [
+    {
+      key: 'scale',
+      label: 'Zoom',
+      min: 0.5,
+      max: 2,
+      step: 0.01,
+      show: (v) => `${Math.round(v * 100)}%`,
+    },
+    {
+      key: 'x',
+      label: 'Pan X',
+      min: -0.3,
+      max: 0.3,
+      step: 0.005,
+      show: (v) => `${(v * 100).toFixed(1)}%`,
+    },
+    {
+      key: 'y',
+      label: 'Pan Y',
+      min: -0.3,
+      max: 0.3,
+      step: 0.005,
+      show: (v) => `${(v * 100).toFixed(1)}%`,
+    },
+  ]
+  return (
+    <div className="flex flex-col gap-2">
+      <Label>Camera · start → end</Label>
+      {rows.map((row) => (
+        <div key={row.key} className="flex flex-col gap-1">
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-muted-foreground">{row.label}</span>
+            <span className="font-mono text-[11px] tabular-nums">
+              {row.show(placement.from[row.key])} →{' '}
+              {row.show(placement.to[row.key])}
+            </span>
+          </div>
+          <div className="flex gap-2">
+            {(['from', 'to'] as const).map((end) => (
+              <input
+                key={end}
+                type="range"
+                aria-label={`${row.label} at ${end === 'from' ? 'start' : 'end'}`}
+                min={row.min}
+                max={row.max}
+                step={row.step}
+                value={placement[end][row.key]}
+                onChange={(e) => set(end, row.key, Number(e.target.value))}
+                className="h-1 w-full accent-primary"
+              />
+            ))}
+          </div>
+        </div>
+      ))}
+      <p className="text-[11px] leading-relaxed text-muted-foreground">
+        Layer of a split image. Nearer layers moving more than the base is what
+        reads as depth.
+      </p>
     </div>
   )
 }

@@ -80,6 +80,15 @@ export function useBible(
     onError: (err: Error) => toast.error(err.message),
   })
 
+  const cutout = useMutation({
+    mutationFn: async (entryId: string) => {
+      const { cutoutReferenceFn } = await import('@/server/bible.server')
+      return cutoutReferenceFn({ data: { projectId, entryId } })
+    },
+    onSuccess: ({ bible }) => queryClient.setQueryData(key, bible),
+    onError: (err: Error) => toast.error(err.message),
+  })
+
   /** Set one entry's reference image (from the library or a shot's still) */
   const setReference = (
     entryId: string,
@@ -109,6 +118,7 @@ export function useBible(
     error: query.error,
     save,
     generate,
+    cutout,
     setReference,
   }
 }
