@@ -21,6 +21,12 @@ import sharp from 'sharp'
 import { uploadBuffer, uploadFromUrl } from './services/bunny.server'
 import { getUserStorageConfig } from './storage-config.server'
 import {
+  claimJob,
+  claimedElsewhere,
+  recordJobProgress,
+  releaseJob,
+} from './services/job-claim.server'
+import {
   DEFAULT_MODELS,
   GPT_IMAGE_QUALITY_VALUES,
   IMAGE_MODELS,
@@ -276,116 +282,126 @@ export const getImageJobStatusFn = createServerFn({ method: 'GET' })
       })
 
       if (allImages.length > 0) {
-        const createdAssets: Array<{
-          id: string
-          url: string
-          width: number
-          height: number
-        }> = []
+        // Several pollers can see "completed" at once: only one saves
+        if (!(await claimJob(job.id))) return claimedElsewhere(job.id)
+        try {
+          const createdAssets: Array<{
+            id: string
+            url: string
+            width: number
+            height: number
+          }> = []
 
-        // Get user's storage config (if configured, uploads go to their Bunny zone)
-        const storageConfig = await getUserStorageConfig(context.user.id)
+          // Get user's storage config (if configured, uploads go to their Bunny zone)
+          const storageConfig = await getUserStorageConfig(context.user.id)
 
-        // Process each image in the result
-        for (let i = 0; i < allImages.length; i++) {
-          const imageData = allImages[i]
-          const falTempUrl = imageData.url
+          // Process each image in the result
+          for (let i = 0; i < allImages.length; i++) {
+            const imageData = allImages[i]
+            const falTempUrl = imageData.url
 
-          console.log(
-            `[IMAGE] Processing image ${i + 1}/${allImages.length}:`,
-            falTempUrl.slice(0, 80) + '...',
-          )
+            console.log(
+              `[IMAGE] Processing image ${i + 1}/${allImages.length}:`,
+              falTempUrl.slice(0, 80) + '...',
+            )
 
-          // Upload to Bunny CDN (user's storage or platform default)
-          const filename = `generated-${Date.now()}-${i}`
-          let permanentUrl = falTempUrl
+            // Upload to Bunny CDN (user's storage or platform default)
+            const filename = `generated-${Date.now()}-${i}`
+            let permanentUrl = falTempUrl
 
-          try {
-            const uploadResult = await uploadFromUrl(
-              falTempUrl,
-              {
-                folder: `images/${context.user.id}`,
+            try {
+              const uploadResult = await uploadFromUrl(
+                falTempUrl,
+                {
+                  folder: `images/${context.user.id}`,
+                  filename,
+                },
+                storageConfig ?? undefined,
+              )
+              permanentUrl = uploadResult.url
+              console.log(
+                `[IMAGE] Bunny upload ${i + 1} success:`,
+                permanentUrl,
+              )
+            } catch (uploadError) {
+              console.error(
+                `[IMAGE] Failed to upload image ${i + 1} to Bunny CDN:`,
+                uploadError,
+              )
+            }
+
+            // Create asset record
+            const asset = await prisma.asset.create({
+              data: {
+                userId: context.user.id,
+                projectId: job.projectId,
+                type: 'image',
+                storageUrl: permanentUrl,
                 filename,
+                prompt: inputData.prompt,
+                provider: 'fal',
+                model: job.model,
+                metadata: JSON.stringify({
+                  width: imageData.width,
+                  height: imageData.height,
+                  seed: result.seed,
+                  batchIndex: i,
+                  batchSize: allImages.length,
+                  transparent:
+                    inputData.background === 'transparent' || undefined,
+                }),
               },
-              storageConfig ?? undefined,
-            )
-            permanentUrl = uploadResult.url
-            console.log(`[IMAGE] Bunny upload ${i + 1} success:`, permanentUrl)
-          } catch (uploadError) {
-            console.error(
-              `[IMAGE] Failed to upload image ${i + 1} to Bunny CDN:`,
-              uploadError,
-            )
+            })
+            console.log(`[IMAGE] Asset ${i + 1} created:`, asset.id)
+
+            createdAssets.push({
+              id: asset.id,
+              url: permanentUrl,
+              width: imageData.width,
+              height: imageData.height,
+            })
           }
 
-          // Create asset record
-          const asset = await prisma.asset.create({
+          // Update job as completed with all asset info
+          const primaryAsset = createdAssets[0]
+          await prisma.generationJob.update({
+            where: { id: job.id },
             data: {
-              userId: context.user.id,
-              projectId: job.projectId,
-              type: 'image',
-              storageUrl: permanentUrl,
-              filename,
-              prompt: inputData.prompt,
-              provider: 'fal',
-              model: job.model,
-              metadata: JSON.stringify({
-                width: imageData.width,
-                height: imageData.height,
-                seed: result.seed,
-                batchIndex: i,
-                batchSize: allImages.length,
-                transparent:
-                  inputData.background === 'transparent' || undefined,
+              status: 'completed',
+              progress: 100,
+              output: JSON.stringify({
+                url: primaryAsset.url,
+                assetId: primaryAsset.id,
+                width: primaryAsset.width,
+                height: primaryAsset.height,
+                // Include all assets for batch generation
+                assets: createdAssets,
+                totalImages: createdAssets.length,
               }),
             },
           })
-          console.log(`[IMAGE] Asset ${i + 1} created:`, asset.id)
+          console.log(
+            '[IMAGE] Job updated to completed with',
+            createdAssets.length,
+            'images',
+          )
 
-          createdAssets.push({
-            id: asset.id,
-            url: permanentUrl,
-            width: imageData.width,
-            height: imageData.height,
-          })
-        }
-
-        // Update job as completed with all asset info
-        const primaryAsset = createdAssets[0]
-        await prisma.generationJob.update({
-          where: { id: job.id },
-          data: {
-            status: 'completed',
+          return {
+            jobId: job.id,
+            status: 'completed' as const,
             progress: 100,
-            output: JSON.stringify({
+            output: {
               url: primaryAsset.url,
               assetId: primaryAsset.id,
               width: primaryAsset.width,
               height: primaryAsset.height,
-              // Include all assets for batch generation
               assets: createdAssets,
               totalImages: createdAssets.length,
-            }),
-          },
-        })
-        console.log(
-          '[IMAGE] Job updated to completed with',
-          createdAssets.length,
-          'images',
-        )
-
-        return {
-          jobId: job.id,
-          status: 'completed' as const,
-          progress: 100,
-          output: {
-            url: primaryAsset.url,
-            assetId: primaryAsset.id,
-            width: primaryAsset.width,
-            height: primaryAsset.height,
-            assets: createdAssets,
-            totalImages: createdAssets.length,
-          },
+            },
+          }
+        } catch (saveError) {
+          await releaseJob(job.id)
+          throw saveError
         }
       } else {
         console.error(
@@ -425,13 +441,11 @@ export const getImageJobStatusFn = createServerFn({ method: 'GET' })
       progress,
     )
 
-    await prisma.generationJob.update({
-      where: { id: job.id },
-      data: {
-        status: falStatus.status === 'processing' ? 'processing' : 'pending',
-        progress,
-      },
-    })
+    await recordJobProgress(
+      job.id,
+      falStatus.status === 'processing' ? 'processing' : 'pending',
+      progress,
+    )
 
     return {
       jobId: job.id,

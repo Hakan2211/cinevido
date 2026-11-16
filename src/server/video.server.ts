@@ -7,6 +7,12 @@
 
 import { ownedProjectId } from './project-access.server'
 import { videoJobCost } from '../lib/job-cost'
+import {
+  claimJob,
+  claimedElsewhere,
+  recordJobProgress,
+  releaseJob,
+} from './services/job-claim.server'
 import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod'
 import { prisma } from '../db.server'
@@ -262,66 +268,73 @@ export const getVideoJobStatusFn = createServerFn({ method: 'GET' })
       const videoUrl = result.video.url
 
       if (videoUrl) {
-        const inputData = JSON.parse(job.input)
-        const storageConfig = await getUserStorageConfig(context.user.id)
-        const uploadResult = await uploadFromUrl(
-          videoUrl,
-          {
-            folder: `videos/${context.user.id}`,
-            filename: `generated-${Date.now()}`,
-          },
-          storageConfig ?? undefined,
-        )
+        // Several pollers can see "completed" at once: only one saves
+        if (!(await claimJob(job.id))) return claimedElsewhere(job.id)
+        try {
+          const inputData = JSON.parse(job.input)
+          const storageConfig = await getUserStorageConfig(context.user.id)
+          const uploadResult = await uploadFromUrl(
+            videoUrl,
+            {
+              folder: `videos/${context.user.id}`,
+              filename: `generated-${Date.now()}`,
+            },
+            storageConfig ?? undefined,
+          )
 
-        // Create asset for the generated video
-        const asset = await prisma.asset.create({
-          data: {
-            userId: context.user.id,
-            projectId: job.projectId,
-            type: 'video',
-            storageUrl: uploadResult.url,
-            filename: uploadResult.filename,
-            prompt: inputData.prompt,
-            provider: 'fal',
-            model: job.model,
-            durationSeconds: inputData.duration || 5,
-            metadata: JSON.stringify({
-              generationType: inputData.generationType,
-              sourceImageUrl: inputData.imageUrl,
-              sourceImageId: inputData.sourceImageId,
-              firstFrameUrl: inputData.firstFrameUrl,
-              lastFrameUrl: inputData.lastFrameUrl,
-              aspectRatio: inputData.aspectRatio,
-              resolution: inputData.resolution,
-              generateAudio: inputData.generateAudio,
-              duration: inputData.duration || 5,
-            }),
-          },
-        })
+          // Create asset for the generated video
+          const asset = await prisma.asset.create({
+            data: {
+              userId: context.user.id,
+              projectId: job.projectId,
+              type: 'video',
+              storageUrl: uploadResult.url,
+              filename: uploadResult.filename,
+              prompt: inputData.prompt,
+              provider: 'fal',
+              model: job.model,
+              durationSeconds: inputData.duration || 5,
+              metadata: JSON.stringify({
+                generationType: inputData.generationType,
+                sourceImageUrl: inputData.imageUrl,
+                sourceImageId: inputData.sourceImageId,
+                firstFrameUrl: inputData.firstFrameUrl,
+                lastFrameUrl: inputData.lastFrameUrl,
+                aspectRatio: inputData.aspectRatio,
+                resolution: inputData.resolution,
+                generateAudio: inputData.generateAudio,
+                duration: inputData.duration || 5,
+              }),
+            },
+          })
 
-        // Update job as completed
-        await prisma.generationJob.update({
-          where: { id: job.id },
-          data: {
-            status: 'completed',
+          // Update job as completed
+          await prisma.generationJob.update({
+            where: { id: job.id },
+            data: {
+              status: 'completed',
+              progress: 100,
+              output: JSON.stringify({
+                url: uploadResult.url,
+                assetId: asset.id,
+                duration: inputData.duration || 5,
+              }),
+            },
+          })
+
+          return {
+            jobId: job.id,
+            status: 'completed' as const,
             progress: 100,
-            output: JSON.stringify({
+            output: {
               url: uploadResult.url,
               assetId: asset.id,
               duration: inputData.duration || 5,
-            }),
-          },
-        })
-
-        return {
-          jobId: job.id,
-          status: 'completed' as const,
-          progress: 100,
-          output: {
-            url: uploadResult.url,
-            assetId: asset.id,
-            duration: inputData.duration || 5,
-          },
+            },
+          }
+        } catch (saveError) {
+          await releaseJob(job.id)
+          throw saveError
         }
       }
     }
@@ -347,13 +360,11 @@ export const getVideoJobStatusFn = createServerFn({ method: 'GET' })
     const progress =
       falStatus.progress || (falStatus.status === 'processing' ? 50 : 10)
 
-    await prisma.generationJob.update({
-      where: { id: job.id },
-      data: {
-        status: falStatus.status === 'processing' ? 'processing' : 'pending',
-        progress,
-      },
-    })
+    await recordJobProgress(
+      job.id,
+      falStatus.status === 'processing' ? 'processing' : 'pending',
+      progress,
+    )
 
     return {
       jobId: job.id,

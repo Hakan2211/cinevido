@@ -12,6 +12,7 @@ import { useSession } from '../lib/auth-client'
 // See: https://tanstack.com/router/latest/docs/framework/react/start/server-functions
 import { AppTopbar } from '../components/app-topbar'
 import { SetupBanner } from '../components/byok'
+import { LabJobsProvider } from '../components/jobs/LabJobs'
 
 // Type for the user from Better-Auth session
 interface AppUser {
@@ -113,22 +114,24 @@ function AppLayout() {
     user.role !== 'admin'
 
   return (
-    <div className="flex h-svh flex-col overflow-hidden bg-background">
-      <AppTopbar user={user} />
+    <LabJobsProvider>
+      <div className="flex h-svh flex-col overflow-hidden bg-background">
+        <AppTopbar user={user} />
 
-      {/* Setup Banner - shown when user needs to add API key */}
-      {showSetupBanner && <SetupBanner />}
+        {/* Setup Banner - shown when user needs to add API key */}
+        {showSetupBanner && <SetupBanner />}
 
-      {/* Page Content */}
-      <main
-        className={
-          isFullBleed
-            ? 'flex-1 min-h-0 min-w-0 w-full max-w-full overflow-hidden' // full-bleed, page scrolls itself
-            : 'flex-1 min-h-0 overflow-auto px-4 py-6 md:px-8 md:py-8' // Normal pages
-        }
-      >
-        <Outlet />
-      </main>
-    </div>
+        {/* Page Content */}
+        <main
+          className={
+            isFullBleed
+              ? 'flex-1 min-h-0 min-w-0 w-full max-w-full overflow-hidden' // full-bleed, page scrolls itself
+              : 'flex-1 min-h-0 overflow-auto px-4 py-6 md:px-8 md:py-8' // Normal pages
+          }
+        >
+          <Outlet />
+        </main>
+      </div>
+    </LabJobsProvider>
   )
 }

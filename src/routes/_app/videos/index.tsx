@@ -9,7 +9,7 @@
  */
 
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   useInfiniteQuery,
   useMutation,
@@ -88,6 +88,12 @@ import { downloadFile, generateFilename } from '@/lib/download'
 import { estimateVideoUpscale } from '@/lib/video-upscale-cost'
 import type { UpscaleSource } from '@/lib/video-upscale-cost'
 import { VIDEO_UPSCALE_MODELS } from '../../../server/services/types'
+import { useDraft } from '@/lib/use-draft'
+import { labJobCostLabel } from '@/lib/lab-jobs'
+import type { LabJobKind } from '@/lib/lab-jobs'
+import { useJobFocus, useLabJobs } from '@/components/jobs/LabJobs'
+
+const VIDEO_JOB_KINDS: ReadonlyArray<LabJobKind> = ['video', 'video-upscale']
 
 export const Route = createFileRoute('/_app/videos/')({
   component: VideosPage,
@@ -127,17 +133,29 @@ function VideosPage() {
   const queryClient = useQueryClient()
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
-  const [tab, setTab] = useState<Tab>('create')
+  const [tab, setTab] = useDraft<Tab>('videos.tab', 'create')
 
   // Form state
-  const [prompt, setPrompt] = useState('')
-  const [model, setModel] = useState('')
-  const [duration, setDuration] = useState<number>(5)
-  const [aspectRatio, setAspectRatio] = useState('16:9')
-  const [resolution, setResolution] = useState<string | undefined>()
-  const [generateAudio, setGenerateAudio] = useState(true)
-  const [startFrame, setStartFrame] = useState<SelectedImage | null>(null)
-  const [endFrame, setEndFrame] = useState<SelectedImage | null>(null)
+  const [prompt, setPrompt] = useDraft('videos.prompt', '')
+  const [model, setModel] = useDraft('videos.model', '')
+  const [duration, setDuration] = useDraft<number>('videos.duration', 5)
+  const [aspectRatio, setAspectRatio] = useDraft('videos.aspectRatio', '16:9')
+  const [resolution, setResolution] = useDraft<string | undefined>(
+    'videos.resolution',
+    undefined,
+  )
+  const [generateAudio, setGenerateAudio] = useDraft(
+    'videos.generateAudio',
+    true,
+  )
+  const [startFrame, setStartFrame] = useDraft<SelectedImage | null>(
+    'videos.startFrame',
+    null,
+  )
+  const [endFrame, setEndFrame] = useDraft<SelectedImage | null>(
+    'videos.endFrame',
+    null,
+  )
 
   // UI state
   const [selectedVideo, setSelectedVideo] = useState<GeneratedVideo | null>(
@@ -149,38 +167,56 @@ function VideosPage() {
   const [videoPickerOpen, setVideoPickerOpen] = useState(false)
 
   // Video upscale state
-  const [upscaleModel, setUpscaleModel] = useState(
+  const [upscaleModel, setUpscaleModel] = useDraft(
+    'videos.upscaleModel',
     'fal-ai/seedvr/upscale/video',
   )
-  const [upscaleVideoUrl, setUpscaleVideoUrl] = useState('')
-  const [upscaleSource, setUpscaleSource] = useState<UpscaleSource | null>(null)
-  const [selectedUpscaleVideo, setSelectedUpscaleVideo] =
-    useState<GeneratedVideo | null>(null)
-  const [upscaleFactor, setUpscaleFactor] = useState(2)
-  const [topazTargetFps, setTopazTargetFps] = useState<number | undefined>(
-    undefined,
+  const [upscaleVideoUrl, setUpscaleVideoUrl] = useDraft(
+    'videos.upscaleVideoUrl',
+    '',
   )
-  const [topazH264Output, setTopazH264Output] = useState(false)
-  const [seedvrUpscaleMode, setSeedvrUpscaleMode] = useState<
-    'factor' | 'target'
-  >('factor')
-  const [seedvrTargetResolution, setSeedvrTargetResolution] =
-    useState<SeedvrTargetResolution>('1080p')
-  const [seedvrNoiseScale, setSeedvrNoiseScale] = useState(0.1)
-  const [seedvrOutputFormat, setSeedvrOutputFormat] =
-    useState<SeedvrVideoOutputFormat>('X264 (.mp4)')
-  const [seedvrOutputQuality, setSeedvrOutputQuality] =
-    useState<SeedvrVideoOutputQuality>('high')
-  const [bytedanceTargetResolution, setBytedanceTargetResolution] =
-    useState<BytedanceVideoTargetResolution>('1080p')
-  const [bytedanceTargetFps, setBytedanceTargetFps] =
-    useState<BytedanceVideoTargetFps>('30fps')
-
-  // Generation state
-  const [currentJobId, setCurrentJobId] = useState<string | null>(null)
-  const [currentUpscaleJobId, setCurrentUpscaleJobId] = useState<string | null>(
+  const [upscaleSource, setUpscaleSource] = useDraft<UpscaleSource | null>(
+    'videos.upscaleSource',
     null,
   )
+  const [selectedUpscaleVideo, setSelectedUpscaleVideo] =
+    useDraft<GeneratedVideo | null>('videos.selectedUpscaleVideo', null)
+  const [upscaleFactor, setUpscaleFactor] = useDraft('videos.upscaleFactor', 2)
+  const [topazTargetFps, setTopazTargetFps] = useDraft<number | undefined>(
+    'videos.topazTargetFps',
+    undefined,
+  )
+  const [topazH264Output, setTopazH264Output] = useDraft(
+    'videos.topazH264Output',
+    false,
+  )
+  const [seedvrUpscaleMode, setSeedvrUpscaleMode] = useDraft<
+    'factor' | 'target'
+  >('videos.seedvrUpscaleMode', 'factor')
+  const [seedvrTargetResolution, setSeedvrTargetResolution] =
+    useDraft<SeedvrTargetResolution>('videos.seedvrTargetResolution', '1080p')
+  const [seedvrNoiseScale, setSeedvrNoiseScale] = useDraft(
+    'videos.seedvrNoiseScale',
+    0.1,
+  )
+  const [seedvrOutputFormat, setSeedvrOutputFormat] =
+    useDraft<SeedvrVideoOutputFormat>(
+      'videos.seedvrOutputFormat',
+      'X264 (.mp4)',
+    )
+  const [seedvrOutputQuality, setSeedvrOutputQuality] =
+    useDraft<SeedvrVideoOutputQuality>('videos.seedvrOutputQuality', 'high')
+  const [bytedanceTargetResolution, setBytedanceTargetResolution] =
+    useDraft<BytedanceVideoTargetResolution>(
+      'videos.bytedanceTargetResolution',
+      '1080p',
+    )
+  const [bytedanceTargetFps, setBytedanceTargetFps] =
+    useDraft<BytedanceVideoTargetFps>('videos.bytedanceTargetFps', '30fps')
+
+  // Jobs run in the background (src/lib/lab-jobs.ts)
+  const labJobs = useLabJobs(VIDEO_JOB_KINDS)
+  const { failures, clearFailure } = labJobs
   const [deleteDialog, setDeleteDialog] = useState<{
     open: boolean
     videoId: string | null
@@ -189,7 +225,6 @@ function VideosPage() {
 
   const limit = 12
   const loadMoreRef = useRef<HTMLDivElement>(null)
-  const lastQueueToastRef = useRef<number | null>(null)
 
   // The mode follows from the frames you supply
   const generationType: VideoCapability = startFrame
@@ -252,6 +287,11 @@ function VideosPage() {
   }, [availableModels])
 
   const selectedModel = availableModels.find((m) => m.id === model)
+
+  const modelName = (id: string) =>
+    allModels.find((m) => m.id === id)?.name ??
+    VIDEO_UPSCALE_MODELS.find((m) => m.id === id)?.name ??
+    id.split('/').slice(-2).join(' ')
 
   const handleModelChange = (newModelId: string) => {
     setModel(newModelId)
@@ -328,8 +368,9 @@ function VideosPage() {
       const { generateVideoFn } = await import('../../../server/video.server')
       return generateVideoFn(input as never)
     },
-    onSuccess: (result) => {
-      setCurrentJobId(result.jobId)
+    onSuccess: () => {
+      clearFailure('video')
+      return labJobs.refresh()
     },
   })
 
@@ -350,95 +391,28 @@ function VideosPage() {
         await import('../../../server/video-upscale.server')
       return upscaleVideoFn(input as never)
     },
-    onSuccess: (result) => {
-      setCurrentUpscaleJobId(result.jobId)
+    onSuccess: () => {
+      clearFailure('video-upscale')
+      return labJobs.refresh()
     },
   })
 
-  // Job polling
-  const { data: jobStatus } = useQuery({
-    queryKey: ['videoJob', currentJobId],
-    queryFn: async () => {
-      const { getVideoJobStatusFn } =
-        await import('../../../server/video.server')
-      return getVideoJobStatusFn({ data: { jobId: currentJobId! } })
+  // "View" on a finished job's toast
+  useJobFocus(
+    'videos',
+    (focus) => {
+      if (!focus.assetId) return true
+      const hit = videos.find((v) => v.id === focus.assetId)
+      if (!hit) return false // the library hasn't loaded it yet
+      setSelectedVideo(hit)
+      return true
     },
-    enabled: !!currentJobId,
-    refetchInterval: (query) => {
-      const status = query.state.data?.status
-      return status === 'completed' || status === 'failed' ? false : 3000
-    },
-  })
+    videos.length,
+  )
 
-  useEffect(() => {
-    if (jobStatus?.status === 'completed') {
-      setCurrentJobId(null)
-      queryClient.invalidateQueries({ queryKey: ['videos'] })
-      queryClient.invalidateQueries({ queryKey: ['falCredits'] })
-    }
-  }, [jobStatus, queryClient])
-
-  useEffect(() => {
-    const queuePosition = jobStatus?.queuePosition
-    if (queuePosition && queuePosition >= 50) {
-      const range = queuePosition >= 200 ? 200 : queuePosition >= 100 ? 100 : 50
-      if (lastQueueToastRef.current !== range) {
-        lastQueueToastRef.current = range
-        if (queuePosition >= 200) {
-          toast.error('fal.ai is overloaded', {
-            description: `Queue position ${queuePosition}. Consider switching to a different model.`,
-            duration: 8000,
-          })
-        } else {
-          toast.warning('fal.ai is busy', {
-            description: `Queue position ${queuePosition}. This may take longer than usual.`,
-            duration: 6000,
-          })
-        }
-      }
-    } else if (!queuePosition) {
-      lastQueueToastRef.current = null
-    }
-  }, [jobStatus?.queuePosition])
-
-  const { data: upscaleJobStatus } = useQuery({
-    queryKey: ['videoUpscaleJob', currentUpscaleJobId],
-    queryFn: async () => {
-      const { getVideoUpscaleJobStatusFn } =
-        await import('../../../server/video-upscale.server')
-      return getVideoUpscaleJobStatusFn({
-        data: { jobId: currentUpscaleJobId! },
-      })
-    },
-    enabled: !!currentUpscaleJobId,
-    refetchInterval: (query) => {
-      const status = query.state.data?.status
-      return status === 'completed' || status === 'failed' ? false : 3000
-    },
-  })
-
-  useEffect(() => {
-    if (upscaleJobStatus?.status === 'completed') {
-      setCurrentUpscaleJobId(null)
-      queryClient.invalidateQueries({ queryKey: ['videos'] })
-    }
-  }, [upscaleJobStatus, queryClient])
-
-  const isGenerating =
-    generateMutation.isPending ||
-    !!(
-      currentJobId &&
-      jobStatus?.status !== 'completed' &&
-      jobStatus?.status !== 'failed'
-    )
-
-  const isUpscaling =
-    upscaleMutation.isPending ||
-    !!(
-      currentUpscaleJobId &&
-      upscaleJobStatus?.status !== 'completed' &&
-      upscaleJobStatus?.status !== 'failed'
-    )
+  // Runs don't block each other: only a submit in flight disables its button
+  const isGenerating = generateMutation.isPending
+  const isUpscaling = upscaleMutation.isPending
 
   const canGenerate = !!prompt.trim() && !isGenerating && !!selectedModel
 
@@ -476,14 +450,6 @@ function VideosPage() {
       })
     }
   }
-
-  const handleCancelJob = useCallback(() => {
-    setCurrentJobId(null)
-    lastQueueToastRef.current = null
-    toast.info('Stopped waiting for this clip', {
-      description: 'Pick a different model and try again.',
-    })
-  }, [])
 
   // Keyboard: Ctrl/Cmd+Enter generates, Esc closes panels
   useEffect(() => {
@@ -591,13 +557,9 @@ function VideosPage() {
   const handleAddToProject = () => navigate({ to: '/projects' })
 
   const generateError =
-    generateMutation.isError || jobStatus?.status === 'failed'
-      ? generateMutation.error instanceof Error
-        ? generateMutation.error.message
-        : jobStatus?.error || 'Generation failed'
-      : null
-
-  const progress = jobStatus?.progress || 0
+    generateMutation.error instanceof Error
+      ? generateMutation.error.message
+      : (failures.video ?? null)
 
   return (
     <LabShell>
@@ -682,9 +644,7 @@ function VideosPage() {
                 ? upscaleMutation.error instanceof Error
                   ? upscaleMutation.error.message
                   : 'Upscale failed'
-                : upscaleJobStatus?.status === 'failed'
-                  ? upscaleJobStatus.error || 'Upscale failed'
-                  : null
+                : (failures['video-upscale'] ?? null)
             }
           />
         ) : (
@@ -846,7 +806,10 @@ function VideosPage() {
               <Skeleton key={i} className="aspect-video rounded-xl" />
             ))}
           </div>
-        ) : videos.length === 0 && !isGenerating ? (
+        ) : videos.length === 0 &&
+          !isGenerating &&
+          !isUpscaling &&
+          labJobs.jobs.length === 0 ? (
           <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border py-28 text-center">
             <Video className="h-10 w-10 text-muted-foreground/50" />
             <h3 className="mt-5 text-lg font-medium">No videos yet</h3>
@@ -858,21 +821,31 @@ function VideosPage() {
         ) : (
           <>
             <div className="grid grid-cols-1 gap-5 md:grid-cols-2 2xl:grid-cols-3">
-              {isGenerating && (
+              {(isGenerating || isUpscaling) && (
+                <PendingCard status="Sending…" />
+              )}
+              {labJobs.jobs.map((job) => (
                 <PendingCard
+                  key={job.id}
                   status={
-                    jobStatus?.status === 'processing'
-                      ? 'Rendering…'
+                    job.live?.status === 'processing'
+                      ? job.kind === 'video-upscale'
+                        ? 'Upscaling…'
+                        : 'Rendering…'
                       : 'Queued…'
                   }
                   eta="Usually 1–3 minutes"
-                  progress={progress}
-                  queuePosition={jobStatus?.queuePosition}
-                  onStopWaiting={handleCancelJob}
-                  title={selectedModel?.name}
-                  cost={costLabel}
+                  progress={job.live?.progress ?? job.progress}
+                  queuePosition={job.live?.queuePosition ?? null}
+                  onStopWaiting={() => labJobs.stop(job.id)}
+                  title={
+                    job.kind === 'video-upscale'
+                      ? `${modelName(job.model)} upscale`
+                      : modelName(job.model)
+                  }
+                  cost={labJobCostLabel(job)}
                 />
-              )}
+              ))}
 
               {videos.map((video) => (
                 <VideoCard

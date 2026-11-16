@@ -319,3 +319,17 @@ Built (items 4–7, 2026-11-12):
   exact. Priced high (as a reference edit) in the plan, charged at the still
   price when it runs. Cut-outs, like reference portraits, are billed to the
   user's key but not to the production budget.
+- **2026-11-16** — Lab jobs run in the background. An app-wide tracker
+  (`src/components/jobs/LabJobs.tsx`, mounted in `_app.tsx`) lists the user's
+  unfinished Image / Video / Motion jobs (`listActiveLabJobsFn`, no project,
+  last 24h; layer edits tagged `purpose: 'layer'` are left to the viewer),
+  polls each one (polling is what saves the result), toasts when one lands
+  with **View** (opens it in its lab from any page) and shows "N running" in
+  the top bar. The labs read their pending cards from it, runs no longer
+  block each other, and **Stop waiting** cancels at fal when it can
+  (`stopLabJobFn`). Saving a finished job is claimed first
+  (`services/job-claim.server.ts`) so two pollers never save it twice. The
+  prompt stays in the box after Generate, and each lab's prompt and settings
+  survive leaving the page (`useDraft`, memory + sessionStorage). Results are
+  still saved only while the app is open somewhere; fal webhooks would lift
+  that.

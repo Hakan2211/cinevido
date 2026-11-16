@@ -9,6 +9,12 @@
 
 import { ownedProjectId } from './project-access.server'
 import { videoUpscaleJobCost } from '../lib/job-cost'
+import {
+  claimJob,
+  claimedElsewhere,
+  recordJobProgress,
+  releaseJob,
+} from './services/job-claim.server'
 import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod'
 import { prisma } from '../db.server'
@@ -256,78 +262,88 @@ export const getVideoUpscaleJobStatusFn = createServerFn({ method: 'GET' })
       })
 
       if (falTempUrl) {
-        const filename = `video-upscale-${Date.now()}.mp4`
-
-        // Upload the upscaled video from FAL's temporary URL to Bunny CDN (user's storage or platform default)
-        let permanentUrl = falTempUrl
-
-        console.log('[VIDEO_UPSCALE_FN] Uploading to Bunny CDN...')
-        const storageConfig = await getUserStorageConfig(context.user.id)
+        // Several pollers can see "completed" at once: only one saves
+        if (!(await claimJob(job.id))) return claimedElsewhere(job.id)
         try {
-          const uploadResult = await uploadFromUrl(
-            falTempUrl,
-            {
-              folder: `videos/${context.user.id}`,
+          const filename = `video-upscale-${Date.now()}.mp4`
+
+          // Upload the upscaled video from FAL's temporary URL to Bunny CDN (user's storage or platform default)
+          let permanentUrl = falTempUrl
+
+          console.log('[VIDEO_UPSCALE_FN] Uploading to Bunny CDN...')
+          const storageConfig = await getUserStorageConfig(context.user.id)
+          try {
+            const uploadResult = await uploadFromUrl(
+              falTempUrl,
+              {
+                folder: `videos/${context.user.id}`,
+                filename,
+              },
+              storageConfig ?? undefined,
+            )
+            permanentUrl = uploadResult.url
+            console.log(
+              '[VIDEO_UPSCALE_FN] Bunny upload success:',
+              permanentUrl,
+            )
+          } catch (uploadError) {
+            // Log error but continue - we'll fall back to FAL's URL
+            console.error(
+              '[VIDEO_UPSCALE_FN] Failed to upload to Bunny CDN:',
+              uploadError,
+            )
+            console.log('[VIDEO_UPSCALE_FN] Falling back to FAL temp URL')
+          }
+
+          // Create asset for the upscaled video with permanent CDN URL
+          console.log('[VIDEO_UPSCALE_FN] Creating asset in DB...')
+          const asset = await prisma.asset.create({
+            data: {
+              userId: context.user.id,
+              projectId: job.projectId,
+              type: 'video',
+              storageUrl: permanentUrl,
               filename,
+              prompt: null,
+              provider: 'fal',
+              model: job.model,
+              metadata: JSON.stringify({
+                seed: result.seed,
+                duration: result.duration,
+                sourceAssetId: inputData.sourceAssetId,
+                upscaleType: 'video-upscale',
+                upscaleFactor: inputData.upscaleFactor,
+              }),
             },
-            storageConfig ?? undefined,
-          )
-          permanentUrl = uploadResult.url
-          console.log('[VIDEO_UPSCALE_FN] Bunny upload success:', permanentUrl)
-        } catch (uploadError) {
-          // Log error but continue - we'll fall back to FAL's URL
-          console.error(
-            '[VIDEO_UPSCALE_FN] Failed to upload to Bunny CDN:',
-            uploadError,
-          )
-          console.log('[VIDEO_UPSCALE_FN] Falling back to FAL temp URL')
-        }
+          })
+          console.log('[VIDEO_UPSCALE_FN] Asset created:', asset.id)
 
-        // Create asset for the upscaled video with permanent CDN URL
-        console.log('[VIDEO_UPSCALE_FN] Creating asset in DB...')
-        const asset = await prisma.asset.create({
-          data: {
-            userId: context.user.id,
-            projectId: job.projectId,
-            type: 'video',
-            storageUrl: permanentUrl,
-            filename,
-            prompt: null,
-            provider: 'fal',
-            model: job.model,
-            metadata: JSON.stringify({
-              seed: result.seed,
-              duration: result.duration,
-              sourceAssetId: inputData.sourceAssetId,
-              upscaleType: 'video-upscale',
-              upscaleFactor: inputData.upscaleFactor,
-            }),
-          },
-        })
-        console.log('[VIDEO_UPSCALE_FN] Asset created:', asset.id)
+          // Update job as completed
+          await prisma.generationJob.update({
+            where: { id: job.id },
+            data: {
+              status: 'completed',
+              progress: 100,
+              output: JSON.stringify({
+                url: permanentUrl,
+                assetId: asset.id,
+              }),
+            },
+          })
+          console.log('[VIDEO_UPSCALE_FN] Job marked as completed')
 
-        // Update job as completed
-        await prisma.generationJob.update({
-          where: { id: job.id },
-          data: {
-            status: 'completed',
+          return {
+            jobId: job.id,
+            status: 'completed' as const,
             progress: 100,
-            output: JSON.stringify({
+            output: {
               url: permanentUrl,
               assetId: asset.id,
-            }),
-          },
-        })
-        console.log('[VIDEO_UPSCALE_FN] Job marked as completed')
-
-        return {
-          jobId: job.id,
-          status: 'completed' as const,
-          progress: 100,
-          output: {
-            url: permanentUrl,
-            assetId: asset.id,
-          },
+            },
+          }
+        } catch (saveError) {
+          await releaseJob(job.id)
+          throw saveError
         }
       }
     }
@@ -359,13 +375,11 @@ export const getVideoUpscaleJobStatusFn = createServerFn({ method: 'GET' })
       progress,
     })
 
-    await prisma.generationJob.update({
-      where: { id: job.id },
-      data: {
-        status: falStatus.status === 'processing' ? 'processing' : 'pending',
-        progress,
-      },
-    })
+    await recordJobProgress(
+      job.id,
+      falStatus.status === 'processing' ? 'processing' : 'pending',
+      progress,
+    )
 
     return {
       jobId: job.id,

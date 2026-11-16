@@ -119,6 +119,14 @@ import {
 import type { LayerSet } from '@/lib/layers'
 import { LayerComposite, LayerStack } from '@/components/images/LayerStack'
 import { cn } from '@/lib/utils'
+import { useDraft } from '@/lib/use-draft'
+import { labJobCostLabel } from '@/lib/lab-jobs'
+import type { LabJobKind } from '@/lib/lab-jobs'
+import {
+  useJobFocus,
+  useJobLanded,
+  useLabJobs,
+} from '@/components/jobs/LabJobs'
 
 type ImageMode = 'generate' | 'edit' | 'layers' | 'upscale'
 const MODES: ReadonlyArray<{ value: ImageMode; label: string }> = [
@@ -187,15 +195,19 @@ interface GeneratedImage {
   createdAt: Date
 }
 
-/** What the pending cards show while a job runs */
-interface PendingRun {
-  kind: ImageMode
-  count: number
-  title: string
-  cost: string | null
-  prompt: string | null
-  model: string
-  sourceAssetId?: string
+/** The lab jobs each tab starts */
+const MODE_KIND: Record<ImageMode, LabJobKind> = {
+  generate: 'image',
+  edit: 'edit',
+  layers: 'layers',
+  upscale: 'upscale',
+}
+const IMAGE_JOB_KINDS: ReadonlyArray<LabJobKind> = Object.values(MODE_KIND)
+const RUNNING_LABEL: Record<string, string> = {
+  image: 'Rendering…',
+  edit: 'Rendering…',
+  upscale: 'Upscaling…',
+  layers: 'Separating layers…',
 }
 
 // Every model an image in the library can have come from
@@ -270,49 +282,108 @@ function ImagesPage() {
   const editPromptRef = useRef<HTMLTextAreaElement>(null)
 
   // ---- Create ----
-  const [prompt, setPrompt] = useState('')
-  const [model, setModel] = useState<string>(DEFAULT_MODELS.image)
-  const [aspectRatio, setAspectRatio] = useState('1:1')
-  const [negativePrompt, setNegativePrompt] = useState('')
-  const [numImages, setNumImages] = useState(1)
-  const [gptQuality, setGptQuality] = useState<GptImageQuality>('high')
-  const [gptOutputFormat, setGptOutputFormat] =
-    useState<GptImageOutputFormat>('png')
-  const [gptCustomWidth, setGptCustomWidth] = useState(1920)
-  const [gptCustomHeight, setGptCustomHeight] = useState(1080)
-  const [transparentBg, setTransparentBg] = useState(false)
-  const [editTransparentBg, setEditTransparentBg] = useState(false)
+  const [prompt, setPrompt] = useDraft('images.prompt', '')
+  const [model, setModel] = useDraft<string>(
+    'images.model',
+    DEFAULT_MODELS.image,
+  )
+  const [aspectRatio, setAspectRatio] = useDraft('images.aspectRatio', '1:1')
+  const [negativePrompt, setNegativePrompt] = useDraft(
+    'images.negativePrompt',
+    '',
+  )
+  const [numImages, setNumImages] = useDraft('images.numImages', 1)
+  const [gptQuality, setGptQuality] = useDraft<GptImageQuality>(
+    'images.gptQuality',
+    'high',
+  )
+  const [gptOutputFormat, setGptOutputFormat] = useDraft<GptImageOutputFormat>(
+    'images.gptOutputFormat',
+    'png',
+  )
+  const [gptCustomWidth, setGptCustomWidth] = useDraft(
+    'images.gptCustomWidth',
+    1920,
+  )
+  const [gptCustomHeight, setGptCustomHeight] = useDraft(
+    'images.gptCustomHeight',
+    1080,
+  )
+  const [transparentBg, setTransparentBg] = useDraft(
+    'images.transparentBg',
+    false,
+  )
+  const [editTransparentBg, setEditTransparentBg] = useDraft(
+    'images.editTransparentBg',
+    false,
+  )
 
   // ---- Edit ----
-  const [editPrompt, setEditPrompt] = useState('')
-  const [editModel, setEditModel] = useState<string>(DEFAULT_MODELS.edit)
-  const [editRefs, setEditRefs] = useState<Array<SlotImage>>([])
-  const [gptEditQuality, setGptEditQuality] = useState<GptImageQuality>('high')
+  const [editPrompt, setEditPrompt] = useDraft('images.editPrompt', '')
+  const [editModel, setEditModel] = useDraft<string>(
+    'images.editModel',
+    DEFAULT_MODELS.edit,
+  )
+  const [editRefs, setEditRefs] = useDraft<Array<SlotImage>>(
+    'images.editRefs',
+    [],
+  )
+  const [gptEditQuality, setGptEditQuality] = useDraft<GptImageQuality>(
+    'images.gptEditQuality',
+    'high',
+  )
   const [gptEditOutputFormat, setGptEditOutputFormat] =
-    useState<GptImageOutputFormat>('png')
+    useDraft<GptImageOutputFormat>('images.gptEditOutputFormat', 'png')
 
   // ---- Upscale ----
-  const [upscaleModel, setUpscaleModel] = useState<string>(
+  const [upscaleModel, setUpscaleModel] = useDraft<string>(
+    'images.upscaleModel',
     DEFAULT_MODELS.upscale,
   )
-  const [upscaleSource, setUpscaleSource] = useState<SlotImage | null>(null)
-  const [upscaleScale, setUpscaleScale] = useState(2)
-  const [upscaleMode, setUpscaleMode] = useState<'factor' | 'target'>('factor')
+  const [upscaleSource, setUpscaleSource] = useDraft<SlotImage | null>(
+    'images.upscaleSource',
+    null,
+  )
+  const [upscaleScale, setUpscaleScale] = useDraft('images.upscaleScale', 2)
+  const [upscaleMode, setUpscaleMode] = useDraft<'factor' | 'target'>(
+    'images.upscaleMode',
+    'factor',
+  )
   const [targetResolution, setTargetResolution] =
-    useState<SeedvrTargetResolution>('1080p')
-  const [noiseScale, setNoiseScale] = useState(0.1)
-  const [topazModel, setTopazModel] = useState<TopazModelType>('Standard V2')
-  const [subjectDetection, setSubjectDetection] = useState<Subject>('All')
-  const [faceEnhancement, setFaceEnhancement] = useState(true)
-  const [faceEnhancementStrength, setFaceEnhancementStrength] = useState(0.8)
-  const [faceEnhancementCreativity, setFaceEnhancementCreativity] = useState(0)
+    useDraft<SeedvrTargetResolution>('images.targetResolution', '1080p')
+  const [noiseScale, setNoiseScale] = useDraft('images.noiseScale', 0.1)
+  const [topazModel, setTopazModel] = useDraft<TopazModelType>(
+    'images.topazModel',
+    'Standard V2',
+  )
+  const [subjectDetection, setSubjectDetection] = useDraft<Subject>(
+    'images.subjectDetection',
+    'All',
+  )
+  const [faceEnhancement, setFaceEnhancement] = useDraft(
+    'images.faceEnhancement',
+    true,
+  )
+  const [faceEnhancementStrength, setFaceEnhancementStrength] = useDraft(
+    'images.faceEnhancementStrength',
+    0.8,
+  )
+  const [faceEnhancementCreativity, setFaceEnhancementCreativity] = useDraft(
+    'images.faceEnhancementCreativity',
+    0,
+  )
 
   // ---- Layers ----
-  const [layersSource, setLayersSource] = useState<SlotImage | null>(null)
-  const [layersPrompt, setLayersPrompt] = useState('')
-  const [layersCount, setLayersCount] = useState<number>(DEFAULT_LAYER_COUNT)
-  const [layersText, setLayersText] = useState(false)
-  const [layerJobId, setLayerJobId] = useState<string | null>(null)
+  const [layersSource, setLayersSource] = useDraft<SlotImage | null>(
+    'images.layersSource',
+    null,
+  )
+  const [layersPrompt, setLayersPrompt] = useDraft('images.layersPrompt', '')
+  const [layersCount, setLayersCount] = useDraft<number>(
+    'images.layersCount',
+    DEFAULT_LAYER_COUNT,
+  )
+  const [layersText, setLayersText] = useDraft('images.layersText', false)
   const [openSetId, setOpenSetId] = useState<string | null>(null)
 
   // ---- UI ----
@@ -329,15 +400,9 @@ function ImagesPage() {
   }>({ open: false, imageId: null })
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
 
-  // ---- Job ----
-  const [currentJobId, setCurrentJobId] = useState<string | null>(null)
-  const [pending, setPending] = useState<PendingRun | null>(null)
-  // A failed job's message, shown on the tab that started it
-  const [jobError, setJobError] = useState<{
-    mode: ImageMode
-    message: string
-  } | null>(null)
-  const lastQueueToastRef = useRef<number | null>(null)
+  // ---- Jobs (they run in the background: see src/lib/lab-jobs.ts) ----
+  const labJobs = useLabJobs(IMAGE_JOB_KINDS)
+  const { failures, clearFailure } = labJobs
 
   const limit = 24
   const loadMoreRef = useRef<HTMLDivElement>(null)
@@ -381,14 +446,6 @@ function ImagesPage() {
     !!selectedEditModel?.supportsTransparentBackground && editTransparentBg
 
   // ---- Costs ----
-  const createCostOne = formatEstimate(
-    estimateCost(selectedModel?.pricing, {
-      width: renderDims.width,
-      height: renderDims.height,
-      quality: isGpt ? gptQuality : undefined,
-      resolution: '1K',
-    }),
-  )
   const createCost = formatEstimate(
     estimateCost(selectedModel?.pricing, {
       numImages: batch,
@@ -467,13 +524,18 @@ function ImagesPage() {
   }, [hasNextPage, isFetchingNextPage, fetchNextPage])
 
   // ---- Mutations ----
+  // Submitting only queues the job; the tracker follows it from there
+  const submitted = (kind: LabJobKind) => () => {
+    clearFailure(kind)
+    return labJobs.refresh()
+  }
+
   const generateMutation = useMutation({
     mutationFn: async (input: { data: Record<string, unknown> }) => {
       const { generateImageFn } = await import('@/server/image.server')
       return generateImageFn(input as never)
     },
-    onSuccess: (result) => setCurrentJobId(result.jobId),
-    onError: () => setPending(null),
+    onSuccess: submitted('image'),
   })
 
   const editMutation = useMutation({
@@ -481,8 +543,7 @@ function ImagesPage() {
       const { editImageFn } = await import('@/server/edit.server')
       return editImageFn(input as never)
     },
-    onSuccess: (result) => setCurrentJobId(result.jobId),
-    onError: () => setPending(null),
+    onSuccess: submitted('edit'),
   })
 
   const upscaleMutation = useMutation({
@@ -490,8 +551,7 @@ function ImagesPage() {
       const { upscaleImageFn } = await import('@/server/edit.server')
       return upscaleImageFn(input as never)
     },
-    onSuccess: (result) => setCurrentJobId(result.jobId),
-    onError: () => setPending(null),
+    onSuccess: submitted('upscale'),
   })
 
   const layerizeMutation = useMutation({
@@ -503,41 +563,21 @@ function ImagesPage() {
       const { startLayerizeFn } = await import('@/server/layers.server')
       return startLayerizeFn(vars)
     },
-    onSuccess: (res) => setLayerJobId(res.jobId),
+    onSuccess: submitted('layers'),
   })
 
-  const { data: layerJob } = useQuery({
-    queryKey: ['layerizeJob', layerJobId],
-    queryFn: async () => {
-      const { getLayerizeJobStatusFn } = await import('@/server/layers.server')
-      return getLayerizeJobStatusFn({ data: { jobId: layerJobId! } })
-    },
-    enabled: !!layerJobId,
-    refetchInterval: (query) => {
-      const st = query.state.data?.status
-      return st === 'completed' || st === 'failed' ? false : 2500
-    },
-  })
-
-  useEffect(() => {
-    if (!layerJobId || !layerJob) return
-    if (layerJob.status === 'failed') {
-      setLayerJobId(null)
-      setJobError({
-        mode: 'layers',
-        message: layerJob.error || 'Layerize failed',
-      })
-      toast.error('Layerize failed', {
-        description: layerJob.error ?? undefined,
-      })
-    } else if (layerJob.status === 'completed' && layerJob.assetId) {
-      setLayerJobId(null)
-      setOpenSetId(layerJob.assetId)
-      queryClient.invalidateQueries({ queryKey: ['images'] })
-      queryClient.invalidateQueries({ queryKey: ['falCredits'] })
-      toast.success('Layers ready')
+  // A layer set that lands while the Layers tab is open opens in the viewer
+  useJobLanded((job, status) => {
+    if (
+      job.kind === 'layers' &&
+      status.status === 'completed' &&
+      status.assetId &&
+      mode === 'layers' &&
+      !openSetId
+    ) {
+      setOpenSetId(status.assetId)
     }
-  }, [layerJob, layerJobId, queryClient])
+  })
 
   const deleteMutation = useMutation({
     mutationFn: async (input: { data: { imageId: string } }) => {
@@ -554,147 +594,41 @@ function ImagesPage() {
     },
   })
 
-  // ---- Job polling (generate jobs and edit/upscale jobs live in different tables) ----
-  const jobKind = pending?.kind
-  const pollGenerate = !!currentJobId && jobKind === 'generate'
-  const pollEdit = !!currentJobId && jobKind !== undefined && !pollGenerate
-
-  const { data: imageJob, error: imageJobError } = useQuery({
-    queryKey: ['imageJob', currentJobId],
-    queryFn: async () => {
-      const { getImageJobStatusFn } = await import('@/server/image.server')
-      return getImageJobStatusFn({ data: { jobId: currentJobId! } })
-    },
-    enabled: pollGenerate,
-    refetchInterval: (query) => {
-      const status = query.state.data?.status
-      return status === 'completed' || status === 'failed' ? false : 2000
-    },
-  })
-
-  const { data: editJob, error: editJobError } = useQuery({
-    queryKey: ['editJob', currentJobId],
-    queryFn: async () => {
-      const { getEditJobStatusFn } = await import('@/server/edit.server')
-      return getEditJobStatusFn({ data: { jobId: currentJobId! } })
-    },
-    enabled: pollEdit,
-    refetchInterval: (query) => {
-      const status = query.state.data?.status
-      return status === 'completed' || status === 'failed' ? false : 2000
-    },
-  })
-
-  const job = pollGenerate ? imageJob : pollEdit ? editJob : undefined
-  const jobQueryError = pollGenerate
-    ? imageJobError
-    : pollEdit
-      ? editJobError
-      : null
-  // only generate jobs report a queue position
-  const queuePosition = (job as { queuePosition?: number } | undefined)
-    ?.queuePosition
-
-  useEffect(() => {
-    if (!currentJobId || !pending) return
-
-    if (job?.status === 'completed') {
-      const resultUrl: string | undefined =
-        job.output?.url || job.output?.images?.[0]?.url
-      const resultId: string | undefined =
-        job.output?.assetId || job.output?.images?.[0]?.assetId
-      queryClient.invalidateQueries({ queryKey: ['images'] })
-      queryClient.invalidateQueries({ queryKey: ['falCredits'] })
-
-      if (pending.kind !== 'generate' && resultUrl && resultId) {
-        const result: GeneratedImage = {
-          id: resultId,
-          url: resultUrl,
-          prompt: pending.prompt,
-          model: pending.model,
-          metadata: { sourceAssetId: pending.sourceAssetId },
-          createdAt: new Date(),
-        }
-        toast.success(
-          pending.kind === 'edit' ? 'Edit ready' : 'Upscale ready',
-          {
-            action: {
-              label: 'Compare',
-              onClick: () => setSelectedImage(result),
-            },
-          },
-        )
+  // "View" on a finished job's toast
+  useJobFocus(
+    'images',
+    (focus) => {
+      if (!focus.assetId) return true
+      if (focus.kind === 'layers') {
+        setSelectedImage(null)
+        setOpenSetId(focus.assetId)
+        if (mode !== 'layers') setMode('layers')
+        return true
       }
-      setCurrentJobId(null)
-      setPending(null)
-    } else if (job?.status === 'failed' || jobQueryError) {
-      const message =
-        job?.error ||
-        (jobQueryError instanceof Error
-          ? jobQueryError.message
-          : 'Generation failed')
-      setJobError({ mode: pending.kind, message })
-      toast.error(message)
-      setCurrentJobId(null)
-      setPending(null)
-    }
-  }, [job, jobQueryError, currentJobId, pending, queryClient])
-
-  useEffect(() => {
-    if (queuePosition && queuePosition >= 50) {
-      const range = queuePosition >= 200 ? 200 : queuePosition >= 100 ? 100 : 50
-      if (lastQueueToastRef.current !== range) {
-        lastQueueToastRef.current = range
-        if (queuePosition >= 200) {
-          toast.error('fal.ai is overloaded', {
-            description: `Queue position ${queuePosition}. Consider switching to a different model.`,
-            duration: 8000,
-          })
-        } else {
-          toast.warning('fal.ai is busy', {
-            description: `Queue position ${queuePosition}. This may take longer than usual.`,
-            duration: 6000,
-          })
-        }
-      }
-    } else if (!queuePosition) {
-      lastQueueToastRef.current = null
-    }
-  }, [queuePosition])
-
-  const isBusy =
-    generateMutation.isPending ||
-    editMutation.isPending ||
-    upscaleMutation.isPending ||
-    !!currentJobId
-
-  const handleStopWaiting = useCallback(() => {
-    setCurrentJobId(null)
-    setPending(null)
-    lastQueueToastRef.current = null
-    toast.info('Stopped waiting for this image', {
-      description: 'Pick a different model and try again.',
-    })
-  }, [])
+      const hit = images.find((img) => img.id === focus.assetId)
+      if (!hit) return false // the library hasn't loaded it yet
+      setSelectedImage(hit)
+      return true
+    },
+    images.length,
+  )
 
   // ---- Actions ----
+  // Runs don't block each other: only a submit in flight disables its button
   const canCreate =
-    !!prompt.trim() && !isBusy && !!selectedModel && !customSizeError
+    !!prompt.trim() &&
+    !generateMutation.isPending &&
+    !!selectedModel &&
+    !customSizeError
   const canEdit =
-    editRefs.length > 0 && !!editPrompt.trim() && !isBusy && !!selectedEditModel
-  const canUpscale = !!upscaleSource && !isBusy
+    editRefs.length > 0 &&
+    !!editPrompt.trim() &&
+    !editMutation.isPending &&
+    !!selectedEditModel
+  const canUpscale = !!upscaleSource && !upscaleMutation.isPending
 
   const handleCreate = () => {
     if (!canCreate || !selectedModel) return
-    setJobError(null)
-    setPending({
-      kind: 'generate',
-      count: batch,
-      title: selectedModel.name,
-      cost: createCostOne,
-      prompt: prompt.trim(),
-      model,
-    })
     generateMutation.mutate({
       data: {
         prompt: prompt.trim(),
@@ -721,16 +655,6 @@ function ImagesPage() {
 
   const handleEdit = () => {
     if (!canEdit || !selectedEditModel) return
-    setJobError(null)
-    setPending({
-      kind: 'edit',
-      count: 1,
-      title: modelTitle(editModel),
-      cost: editCost,
-      prompt: editPrompt.trim(),
-      model: editModel,
-      sourceAssetId: editRefs[0]?.id,
-    })
     editMutation.mutate({
       data: {
         imageUrls: editRefs.map((img) => img.url),
@@ -748,16 +672,6 @@ function ImagesPage() {
 
   const handleUpscale = () => {
     if (!canUpscale || !upscaleSource) return
-    setJobError(null)
-    setPending({
-      kind: 'upscale',
-      count: 1,
-      title: modelTitle(upscaleModel),
-      cost: upscaleCost,
-      prompt: upscaleSource.prompt,
-      model: upscaleModel,
-      sourceAssetId: upscaleSource.id,
-    })
     upscaleMutation.mutate({
       data: {
         imageUrl: upscaleSource.url,
@@ -787,12 +701,10 @@ function ImagesPage() {
     })
   }
 
-  const layersBusy = layerizeMutation.isPending || !!layerJobId
-  const canLayerize = !!layersSource && !layersBusy
+  const canLayerize = !!layersSource && !layerizeMutation.isPending
 
   const handleLayerize = () => {
     if (!canLayerize || !layersSource) return
-    setJobError(null)
     setOpenSetId(null)
     layerizeMutation.mutate({
       data: {
@@ -963,9 +875,15 @@ function ImagesPage() {
   const panelError =
     mutationError instanceof Error
       ? mutationError.message
-      : jobError?.mode === mode
-        ? jobError.message
-        : null
+      : (failures[MODE_KIND[mode]] ?? null)
+
+  // Pending cards: every running job of this lab, newest first, plus the
+  // submit in flight
+  const sending =
+    generateMutation.isPending ||
+    editMutation.isPending ||
+    upscaleMutation.isPending ||
+    layerizeMutation.isPending
 
   // ---- Panel ----
   const panelTitle =
@@ -990,8 +908,8 @@ function ImagesPage() {
       <GenerateButton
         label={batch > 1 ? `Generate ${batch}` : 'Generate'}
         icon={Wand2}
-        busy={isBusy}
-        busyLabel="Generating…"
+        busy={generateMutation.isPending}
+        busyLabel="Sending…"
         costLabel={createCost}
         disabled={!canCreate}
         onClick={handleCreate}
@@ -1000,8 +918,8 @@ function ImagesPage() {
       <GenerateButton
         label="Edit"
         icon={Paintbrush}
-        busy={isBusy}
-        busyLabel="Working…"
+        busy={editMutation.isPending}
+        busyLabel="Sending…"
         costLabel={editCost}
         disabled={!canEdit}
         onClick={handleEdit}
@@ -1010,8 +928,8 @@ function ImagesPage() {
       <GenerateButton
         label="Split into layers"
         icon={LayersIcon}
-        busy={layersBusy}
-        busyLabel="Separating…"
+        busy={layerizeMutation.isPending}
+        busyLabel="Sending…"
         costLabel={layersCost}
         disabled={!canLayerize}
         onClick={handleLayerize}
@@ -1025,8 +943,8 @@ function ImagesPage() {
             : `Upscale ${upscaleScale}×`
         }
         icon={ArrowUpCircle}
-        busy={isBusy}
-        busyLabel="Upscaling…"
+        busy={upscaleMutation.isPending}
+        busyLabel="Sending…"
         costLabel={upscaleCost}
         disabled={!canUpscale}
         onClick={handleUpscale}
@@ -1476,7 +1394,7 @@ function ImagesPage() {
               <Skeleton key={i} className="aspect-square rounded-xl" />
             ))}
           </div>
-        ) : images.length === 0 && !pending && !layerJobId ? (
+        ) : images.length === 0 && !sending && labJobs.jobs.length === 0 ? (
           <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border py-28 text-center">
             <ImageIcon className="h-10 w-10 text-muted-foreground/50" />
             <h3 className="mt-5 text-lg font-medium">No images yet</h3>
@@ -1488,45 +1406,26 @@ function ImagesPage() {
         ) : (
           <>
             <div className={GRID}>
-              {layerJobId && (
-                <PendingCard
-                  aspect="square"
-                  status={
-                    layerJob?.status === 'processing'
-                      ? 'Separating layers…'
-                      : 'Queued…'
-                  }
-                  eta="Usually under a minute"
-                  queuePosition={
-                    (layerJob && 'queuePosition' in layerJob
-                      ? layerJob.queuePosition
-                      : null) ?? null
-                  }
-                  onStopWaiting={() => setLayerJobId(null)}
-                  title={LAYERIZE_MODELS[0].name}
-                  cost={layersCost}
-                />
-              )}
-              {pending &&
-                Array.from({ length: pending.count }).map((_, i) => (
+              {sending && <PendingCard aspect="square" status="Sending…" />}
+              {labJobs.jobs.flatMap((job) =>
+                Array.from({ length: job.count }).map((_, i) => (
                   <PendingCard
-                    key={`pending-${i}`}
+                    key={`${job.id}-${i}`}
                     aspect="square"
                     status={
-                      job?.status === 'processing'
-                        ? pending.kind === 'upscale'
-                          ? 'Upscaling…'
-                          : 'Rendering…'
+                      job.live?.status === 'processing'
+                        ? (RUNNING_LABEL[job.kind] ?? 'Rendering…')
                         : 'Queued…'
                     }
                     eta="Usually under a minute"
-                    progress={job?.progress ?? 0}
-                    queuePosition={queuePosition}
-                    onStopWaiting={handleStopWaiting}
-                    title={pending.title}
-                    cost={pending.cost}
+                    progress={job.live?.progress ?? job.progress}
+                    queuePosition={job.live?.queuePosition ?? null}
+                    onStopWaiting={() => labJobs.stop(job.id)}
+                    title={modelTitle(job.model)}
+                    cost={labJobCostLabel(job)}
                   />
-                ))}
+                )),
+              )}
 
               {images.map((image) => (
                 <ImageCard

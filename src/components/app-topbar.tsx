@@ -20,8 +20,10 @@ import {
 } from 'lucide-react'
 import { useState } from 'react'
 import { signOut } from '../lib/auth-client'
+import { clearDrafts } from '../lib/use-draft'
 import { Wordmark } from '@/components/common'
 import { CreditPill } from '@/components/byok'
+import { RunningJobs } from '@/components/jobs/RunningJobs'
 import { cn } from '@/lib/utils'
 import {
   DropdownMenu,
@@ -72,6 +74,7 @@ export function AppTopbar({ user }: { user: AppUser }) {
 
   const handleSignOut = async () => {
     await signOut()
+    clearDrafts()
     navigate({ to: '/' })
   }
 
@@ -132,6 +135,7 @@ export function AppTopbar({ user }: { user: AppUser }) {
           ))}
         </nav>
 
+        <RunningJobs />
         <CreditPill className="hidden sm:flex" />
 
         {/* Account */}

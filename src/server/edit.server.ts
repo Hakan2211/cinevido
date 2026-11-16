@@ -8,6 +8,12 @@
 
 import { ownedProjectId } from './project-access.server'
 import { editJobCost, imageUpscaleJobCost } from '../lib/job-cost'
+import {
+  claimJob,
+  claimedElsewhere,
+  recordJobProgress,
+  releaseJob,
+} from './services/job-claim.server'
 import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod'
 import { prisma } from '../db.server'
@@ -47,6 +53,9 @@ const editSchema = z.object({
   outputFormat: z.enum(['jpeg', 'png', 'webp']).optional(),
   numImages: z.number().min(1).max(4).optional(),
   background: z.literal('transparent').optional(),
+  // 'layer': an edit of one layer, finished by the layer viewer — the
+  // app-wide job tracker leaves it alone
+  purpose: z.literal('layer').optional(),
 })
 
 const upscaleSchema = z.object({
@@ -155,6 +164,7 @@ export const editImageFn = createServerFn({ method: 'POST' })
           editType: 'edit',
           sourceAssetIds: data.sourceAssetIds,
           background: data.background,
+          purpose: data.purpose,
           // Save fal.ai queue URLs for status polling - DO NOT construct these from modelId!
           statusUrl: job.statusUrl,
           responseUrl: job.responseUrl,
@@ -382,86 +392,97 @@ export const getEditJobStatusFn = createServerFn({ method: 'GET' })
       })
 
       if (falTempUrl) {
-        // inputData already parsed above
-        const filename = `${inputData.editType}-${Date.now()}.png`
-
-        // Upload the edited image from FAL's temporary URL to Bunny CDN (user's storage or platform default)
-        let permanentUrl = falTempUrl
-
-        console.log('[EDIT_FN] Uploading to Bunny CDN...')
-        const storageConfig = await getUserStorageConfig(context.user.id)
+        // Several pollers can see "completed" at once: only one saves
+        if (!(await claimJob(job.id))) return claimedElsewhere(job.id)
         try {
-          const uploadResult = await uploadFromUrl(
-            falTempUrl,
-            {
-              folder: `images/${context.user.id}`,
+          // inputData already parsed above
+          const filename = `${inputData.editType}-${Date.now()}.png`
+
+          // Upload the edited image from FAL's temporary URL to Bunny CDN (user's storage or platform default)
+          let permanentUrl = falTempUrl
+
+          console.log('[EDIT_FN] Uploading to Bunny CDN...')
+          const storageConfig = await getUserStorageConfig(context.user.id)
+          try {
+            const uploadResult = await uploadFromUrl(
+              falTempUrl,
+              {
+                folder: `images/${context.user.id}`,
+                filename,
+              },
+              storageConfig ?? undefined,
+            )
+            permanentUrl = uploadResult.url
+            console.log('[EDIT_FN] Bunny upload success:', permanentUrl)
+          } catch (uploadError) {
+            // Log error but continue - we'll fall back to FAL's URL
+            console.error(
+              '[EDIT_FN] Failed to upload to Bunny CDN:',
+              uploadError,
+            )
+            console.log('[EDIT_FN] Falling back to FAL temp URL')
+          }
+
+          // Create asset for the edited image with permanent CDN URL
+          console.log('[EDIT_FN] Creating asset in DB...')
+          const asset = await prisma.asset.create({
+            data: {
+              userId: context.user.id,
+              projectId: job.projectId,
+              type: 'image',
+              storageUrl: permanentUrl,
               filename,
+              prompt: inputData.prompt || null,
+              provider: 'fal',
+              model: job.model,
+              metadata: JSON.stringify({
+                width: imageWidth,
+                height: imageHeight,
+                seed: result.seed,
+                editType: inputData.editType,
+                sourceAssetId:
+                  inputData.sourceAssetId || inputData.sourceAssetIds?.[0],
+                // reference count, for models that bill per input (Seedream 5.5)
+                inputImages: inputData.imageUrls?.length,
+                transparent:
+                  inputData.background === 'transparent' || undefined,
+              }),
             },
-            storageConfig ?? undefined,
-          )
-          permanentUrl = uploadResult.url
-          console.log('[EDIT_FN] Bunny upload success:', permanentUrl)
-        } catch (uploadError) {
-          // Log error but continue - we'll fall back to FAL's URL
-          console.error('[EDIT_FN] Failed to upload to Bunny CDN:', uploadError)
-          console.log('[EDIT_FN] Falling back to FAL temp URL')
-        }
+          })
+          console.log('[EDIT_FN] Asset created:', asset.id)
 
-        // Create asset for the edited image with permanent CDN URL
-        console.log('[EDIT_FN] Creating asset in DB...')
-        const asset = await prisma.asset.create({
-          data: {
-            userId: context.user.id,
-            projectId: job.projectId,
-            type: 'image',
-            storageUrl: permanentUrl,
-            filename,
-            prompt: inputData.prompt || null,
-            provider: 'fal',
-            model: job.model,
-            metadata: JSON.stringify({
-              width: imageWidth,
-              height: imageHeight,
-              seed: result.seed,
-              editType: inputData.editType,
-              sourceAssetId:
-                inputData.sourceAssetId || inputData.sourceAssetIds?.[0],
-              // reference count, for models that bill per input (Seedream 5.5)
-              inputImages: inputData.imageUrls?.length,
-              transparent: inputData.background === 'transparent' || undefined,
-            }),
-          },
-        })
-        console.log('[EDIT_FN] Asset created:', asset.id)
+          // Update job as completed
+          await prisma.generationJob.update({
+            where: { id: job.id },
+            data: {
+              status: 'completed',
+              progress: 100,
+              output: JSON.stringify({
+                url: permanentUrl,
+                assetId: asset.id,
+                width: imageWidth,
+                height: imageHeight,
+                editType: inputData.editType,
+              }),
+            },
+          })
+          console.log('[EDIT_FN] Job marked as completed')
 
-        // Update job as completed
-        await prisma.generationJob.update({
-          where: { id: job.id },
-          data: {
-            status: 'completed',
+          return {
+            jobId: job.id,
+            status: 'completed' as const,
             progress: 100,
-            output: JSON.stringify({
+            output: {
               url: permanentUrl,
               assetId: asset.id,
               width: imageWidth,
               height: imageHeight,
               editType: inputData.editType,
-            }),
-          },
-        })
-        console.log('[EDIT_FN] Job marked as completed')
-
-        return {
-          jobId: job.id,
-          status: 'completed' as const,
-          progress: 100,
-          output: {
-            url: permanentUrl,
-            assetId: asset.id,
-            width: imageWidth,
-            height: imageHeight,
-            editType: inputData.editType,
-          },
+            },
+          }
+        } catch (saveError) {
+          await releaseJob(job.id)
+          throw saveError
         }
       }
     }
@@ -493,13 +514,11 @@ export const getEditJobStatusFn = createServerFn({ method: 'GET' })
       progress,
     })
 
-    await prisma.generationJob.update({
-      where: { id: job.id },
-      data: {
-        status: falStatus.status === 'processing' ? 'processing' : 'pending',
-        progress,
-      },
-    })
+    await recordJobProgress(
+      job.id,
+      falStatus.status === 'processing' ? 'processing' : 'pending',
+      progress,
+    )
 
     return {
       jobId: job.id,

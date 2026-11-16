@@ -10,11 +10,10 @@
  */
 
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   useInfiniteQuery,
   useMutation,
-  useQuery,
   useQueryClient,
 } from '@tanstack/react-query'
 import {
@@ -29,6 +28,10 @@ import {
   Trash2,
   Zap,
 } from 'lucide-react'
+import { useDraft } from '@/lib/use-draft'
+import { labJobCostLabel } from '@/lib/lab-jobs'
+import type { LabJobKind } from '@/lib/lab-jobs'
+import { useJobFocus, useLabJobs } from '@/components/jobs/LabJobs'
 import { toast } from 'sonner'
 import { estimateCost, formatEstimate, formatUsd } from '@/lib/pricing'
 import {
@@ -108,6 +111,8 @@ const ORIENTATIONS: ReadonlyArray<{
   },
 ]
 
+const MOTION_JOB_KINDS: ReadonlyArray<LabJobKind> = ['motion']
+
 const limit = 12
 
 function MotionControlPage() {
@@ -115,16 +120,30 @@ function MotionControlPage() {
   const queryClient = useQueryClient()
 
   // Inputs
-  const [characterImage, setCharacterImage] = useState<SlotImage | null>(null)
-  const [referenceVideo, setReferenceVideo] = useState<PickedVideo | null>(null)
-  /** the reference clip's length as the browser measured it */
-  const [referenceDuration, setReferenceDuration] = useState<number | null>(
+  // (kept when the user leaves the page: see useDraft)
+  const [characterImage, setCharacterImage] = useDraft<SlotImage | null>(
+    'motion.characterImage',
     null,
   )
-  const [prompt, setPrompt] = useState('')
-  const [model, setModel] = useState<string>(DEFAULT_MODELS.motionControl)
-  const [orientation, setOrientation] = useState<CharacterOrientation>('video')
-  const [keepSound, setKeepSound] = useState(true)
+  const [referenceVideo, setReferenceVideo] = useDraft<PickedVideo | null>(
+    'motion.referenceVideo',
+    null,
+  )
+  /** the reference clip's length as the browser measured it */
+  const [referenceDuration, setReferenceDuration] = useDraft<number | null>(
+    'motion.referenceDuration',
+    null,
+  )
+  const [prompt, setPrompt] = useDraft('motion.prompt', '')
+  const [model, setModel] = useDraft<string>(
+    'motion.model',
+    DEFAULT_MODELS.motionControl,
+  )
+  const [orientation, setOrientation] = useDraft<CharacterOrientation>(
+    'motion.orientation',
+    'video',
+  )
+  const [keepSound, setKeepSound] = useDraft('motion.keepSound', true)
 
   // UI
   const [imagePickerOpen, setImagePickerOpen] = useState(false)
@@ -132,11 +151,12 @@ function MotionControlPage() {
   const [selectedVideo, setSelectedVideo] = useState<GeneratedVideo | null>(
     null,
   )
-  const [currentJobId, setCurrentJobId] = useState<string | null>(null)
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
   const loadMoreRef = useRef<HTMLDivElement>(null)
-  const lastQueueToastRef = useRef<number | null>(null)
+  // Jobs run in the background (src/lib/lab-jobs.ts)
+  const labJobs = useLabJobs(MOTION_JOB_KINDS)
+  const { failures, clearFailure } = labJobs
 
   const selectedModel: MotionControlModelConfig | undefined =
     MOTION_CONTROL_MODELS.find((m) => m.id === model)
@@ -205,7 +225,10 @@ function MotionControlPage() {
         await import('../../../server/motion-control.server')
       return generateMotionControlFn(input as never)
     },
-    onSuccess: (result) => setCurrentJobId(result.jobId),
+    onSuccess: () => {
+      clearFailure('motion')
+      return labJobs.refresh()
+    },
   })
 
   const deleteMutation = useMutation({
@@ -245,61 +268,21 @@ function MotionControlPage() {
       toast.error(error.message || 'Failed to upload video'),
   })
 
-  // ---- job polling ----
-
-  const { data: jobStatus } = useQuery({
-    queryKey: ['motionControlJob', currentJobId],
-    queryFn: async () => {
-      const { getMotionControlJobStatusFn } =
-        await import('../../../server/motion-control.server')
-      return getMotionControlJobStatusFn({ data: { jobId: currentJobId! } })
+  // "View" on a finished job's toast
+  useJobFocus(
+    'motion',
+    (focus) => {
+      if (!focus.assetId) return true
+      const hit = videos.find((v) => v.id === focus.assetId)
+      if (!hit) return false // the library hasn't loaded it yet
+      setSelectedVideo(hit)
+      return true
     },
-    enabled: !!currentJobId,
-    refetchInterval: (query) => {
-      const status = query.state.data?.status
-      return status === 'completed' || status === 'failed' ? false : 3000
-    },
-  })
+    videos.length,
+  )
 
-  useEffect(() => {
-    if (jobStatus?.status === 'completed') {
-      setCurrentJobId(null)
-      queryClient.invalidateQueries({ queryKey: ['motion-control-videos'] })
-      queryClient.invalidateQueries({ queryKey: ['falCredits'] })
-      toast.success('Motion clip ready')
-    }
-  }, [jobStatus, queryClient])
-
-  useEffect(() => {
-    const queuePosition = jobStatus?.queuePosition
-    if (queuePosition && queuePosition >= 50) {
-      const range = queuePosition >= 200 ? 200 : queuePosition >= 100 ? 100 : 50
-      if (lastQueueToastRef.current !== range) {
-        lastQueueToastRef.current = range
-        if (queuePosition >= 200) {
-          toast.error('fal.ai is overloaded', {
-            description: `Queue position ${queuePosition}. Consider trying again later.`,
-            duration: 8000,
-          })
-        } else {
-          toast.warning('fal.ai is busy', {
-            description: `Queue position ${queuePosition}. This may take longer than usual.`,
-            duration: 6000,
-          })
-        }
-      }
-    } else if (!queuePosition) {
-      lastQueueToastRef.current = null
-    }
-  }, [jobStatus?.queuePosition])
-
-  const isGenerating =
-    generateMutation.isPending ||
-    !!(
-      currentJobId &&
-      jobStatus?.status !== 'completed' &&
-      jobStatus?.status !== 'failed'
-    )
+  // Runs don't block each other: only a submit in flight disables the button
+  const isGenerating = generateMutation.isPending
 
   const canGenerate =
     !!characterImage && !!referenceVideo && !!selectedModel && !isGenerating
@@ -364,18 +347,10 @@ function MotionControlPage() {
     })
   }
 
-  const handleStopWaiting = useCallback(() => {
-    setCurrentJobId(null)
-    lastQueueToastRef.current = null
-    toast.info('Stopped waiting for this clip')
-  }, [])
-
   const error =
     generateMutation.error instanceof Error
       ? generateMutation.error.message
-      : jobStatus?.status === 'failed'
-        ? jobStatus.error || 'Generation failed'
-        : null
+      : (failures.motion ?? null)
 
   const nameOf = (id: string | null) =>
     MOTION_CONTROL_MODELS.find((m) => m.id === id)?.name ??
@@ -404,7 +379,7 @@ function MotionControlPage() {
             label="Generate"
             icon={Move}
             busy={isGenerating}
-            busyLabel="Generating…"
+            busyLabel="Sending…"
             costLabel={costLabel}
             disabled={!canGenerate}
             onClick={handleGenerate}
@@ -540,7 +515,9 @@ function MotionControlPage() {
               <Skeleton key={i} className="aspect-video rounded-xl" />
             ))}
           </div>
-        ) : videos.length === 0 && !isGenerating ? (
+        ) : videos.length === 0 &&
+          !isGenerating &&
+          labJobs.jobs.length === 0 ? (
           <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border py-28 text-center">
             <Move className="h-10 w-10 text-muted-foreground/50" />
             <h3 className="mt-5 text-lg font-medium">No motion clips yet</h3>
@@ -552,21 +529,21 @@ function MotionControlPage() {
         ) : (
           <>
             <div className="grid grid-cols-1 gap-5 md:grid-cols-2 2xl:grid-cols-3">
-              {isGenerating && (
+              {isGenerating && <PendingCard status="Sending…" />}
+              {labJobs.jobs.map((job) => (
                 <PendingCard
+                  key={job.id}
                   status={
-                    jobStatus?.status === 'processing'
-                      ? 'Rendering…'
-                      : 'Queued…'
+                    job.live?.status === 'processing' ? 'Rendering…' : 'Queued…'
                   }
                   eta="Usually 2–6 minutes"
-                  progress={jobStatus?.progress || 0}
-                  queuePosition={jobStatus?.queuePosition}
-                  onStopWaiting={handleStopWaiting}
-                  title={selectedModel?.name}
-                  cost={costLabel}
+                  progress={job.live?.progress ?? job.progress}
+                  queuePosition={job.live?.queuePosition ?? null}
+                  onStopWaiting={() => labJobs.stop(job.id)}
+                  title={nameOf(job.model)}
+                  cost={labJobCostLabel(job)}
                 />
-              )}
+              ))}
               {videos.map((video) => (
                 <MotionCard
                   key={video.id}

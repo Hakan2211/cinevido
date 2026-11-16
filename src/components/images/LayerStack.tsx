@@ -215,6 +215,7 @@ export function LayerStack({
           sourceAssetIds: [assetId],
           // separated layers stay cut-outs; the base is a full image
           background: layer.z === 0 ? undefined : 'transparent',
+          purpose: 'layer',
         },
       })
     },
