@@ -6,6 +6,7 @@
  */
 
 import { ownedProjectId } from './project-access.server'
+import { MOTION_PROMPT_MAX } from '../lib/prompt-limits'
 import { motionJobCost } from '../lib/job-cost'
 import {
   claimJob,
@@ -43,7 +44,7 @@ const generateMotionControlSchema = z.object({
   videoAssetId: z.string().optional(), // If selected from video library
 
   // Optional settings
-  prompt: z.string().max(500).optional(),
+  prompt: z.string().max(MOTION_PROMPT_MAX).optional(),
   model: z.string().optional(),
   characterOrientation: characterOrientationSchema.optional(),
   keepOriginalSound: z.boolean().optional(),

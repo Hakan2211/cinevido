@@ -6,6 +6,7 @@
  */
 
 import { ownedProjectId } from './project-access.server'
+import { PROMPT_MAX } from '../lib/prompt-limits'
 import { videoJobCost } from '../lib/job-cost'
 import {
   claimJob,
@@ -45,7 +46,7 @@ const keyframeTransitionSchema = z.object({
 
 const generateVideoSchema = z.object({
   // Required
-  prompt: z.string().min(1).max(2000),
+  prompt: z.string().min(1).max(PROMPT_MAX),
   generationType: generationTypeSchema,
 
   // Model selection

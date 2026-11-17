@@ -6,6 +6,7 @@
  */
 
 import { ownedProjectId } from './project-access.server'
+import { PROMPT_MAX } from '../lib/prompt-limits'
 import { imageJobCost } from '../lib/job-cost'
 import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod'
@@ -39,7 +40,7 @@ import type { FalImageResult } from './services/fal.server'
 // =============================================================================
 
 const generateImageSchema = z.object({
-  prompt: z.string().min(1),
+  prompt: z.string().min(1).max(PROMPT_MAX),
   model: z.string().optional(),
   width: z.number().min(256).max(4096).optional(),
   height: z.number().min(256).max(4096).optional(),

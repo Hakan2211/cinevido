@@ -29,6 +29,7 @@ import {
   Zap,
 } from 'lucide-react'
 import { useDraft } from '@/lib/use-draft'
+import { MOTION_PROMPT_MAX } from '@/lib/prompt-limits'
 import { labJobCostLabel } from '@/lib/lab-jobs'
 import type { LabJobKind } from '@/lib/lab-jobs'
 import { useJobFocus, useLabJobs } from '@/components/jobs/LabJobs'
@@ -488,7 +489,7 @@ function MotionControlPage() {
           <PromptBox
             value={prompt}
             onChange={setPrompt}
-            max={500}
+            max={MOTION_PROMPT_MAX}
             rows={3}
             placeholder="Describe the scene or style — the motion comes from the clip"
           />

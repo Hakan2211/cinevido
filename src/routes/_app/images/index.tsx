@@ -107,6 +107,7 @@ import {
 } from '@/components/generate'
 import type { CardAction, SlotImage } from '@/components/generate'
 import { downloadFile, generateFilename } from '@/lib/download'
+import { PROMPT_MAX } from '@/lib/prompt-limits'
 import { estimateCost, formatEstimate, formatUsd } from '@/lib/pricing'
 import {
   DEFAULT_LAYER_COUNT,
@@ -145,9 +146,6 @@ export const Route = createFileRoute('/_app/images/')({
       : undefined,
   }),
 })
-
-const PROMPT_MAX = 4000
-const EDIT_PROMPT_MAX = 2000 // edit.server.ts caps edit prompts
 
 // Aspect ratio presets → the dimensions sent to the server
 const ASPECT_RATIOS = [
@@ -1122,7 +1120,7 @@ function ImagesPage() {
                 textareaRef={editPromptRef}
                 value={editPrompt}
                 onChange={setEditPrompt}
-                max={EDIT_PROMPT_MAX}
+                max={PROMPT_MAX}
                 rows={4}
                 placeholder="Describe the change — “make it golden hour”, “remove the car”…"
               />

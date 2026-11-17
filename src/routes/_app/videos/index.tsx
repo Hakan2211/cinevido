@@ -36,6 +36,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { estimateCost, formatEstimate, formatRateAt } from '@/lib/pricing'
+import { PROMPT_MAX } from '@/lib/prompt-limits'
 import {
   AspectCards,
   EmptyImageDrop,
@@ -98,8 +99,6 @@ const VIDEO_JOB_KINDS: ReadonlyArray<LabJobKind> = ['video', 'video-upscale']
 export const Route = createFileRoute('/_app/videos/')({
   component: VideosPage,
 })
-
-const PROMPT_MAX = 2000
 
 interface GeneratedVideo {
   id: string

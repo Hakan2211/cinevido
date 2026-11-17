@@ -7,6 +7,7 @@
  */
 
 import { ownedProjectId } from './project-access.server'
+import { PROMPT_MAX } from '../lib/prompt-limits'
 import { editJobCost, imageUpscaleJobCost } from '../lib/job-cost'
 import {
   claimJob,
@@ -43,7 +44,7 @@ import { getUserStorageConfig } from './storage-config.server'
 // Schema for prompt-based image editing (no mask required!)
 const editSchema = z.object({
   imageUrls: z.array(z.string().url()).min(1).max(14), // Array of image URLs
-  prompt: z.string().min(1).max(2000),
+  prompt: z.string().min(1).max(PROMPT_MAX),
   model: z.string().optional(),
   sourceAssetIds: z.array(z.string()).optional(), // Original image asset IDs for linking
   projectId: z.string().optional(),
